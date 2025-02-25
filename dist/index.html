@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ANNEX AI Dashboard</title>
+    <!-- Hoja de estilos principal -->
+    <link rel="stylesheet" href="css/styles.css" />
+    <script type="module" crossorigin src="/assets/index-BAJb_oGW.js"></script>
+  </head>
+  <body>
+    <!-- SIDEBAR (opcional) -->
+    <aside class="sidebar">
+      <div class="sidebar__logo">
+        <h2>ANNEX AI</h2>
+      </div>
+      <nav class="sidebar__nav">
+        <!-- Sección principal (sin emoticones) -->
+        <a href="#" class="active">Dashboard</a>
+        <!-- DATA MANAGEMENT -->
+        <div class="sidebar__section-title">DATA MANAGEMENT</div>
+        <a href="#">Datasets</a>
+        <a href="#">Exploratory Analysis</a>
+        <!-- MODEL DEVELOPMENT -->
+        <div class="sidebar__section-title">MODEL DEVELOPMENT</div>
+        <a href="#">Model Training</a>
+        <a href="#">Experiments</a>
+        <a href="#">Pipeline Management</a>
+        <!-- ADMINISTRATION -->
+        <div class="sidebar__section-title">ADMINISTRATION</div>
+        <a href="#">Users</a>
+        <a href="#">Settings</a>
+      </nav>
+    </aside>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="main-content">
+      <!-- HEADER -->
+      <header class="header">
+        <input type="text" placeholder="Type to Search..." />
+        <div class="user-info">
+          <span class="user-avatar">AJ</span>
+        </div>
+      </header>
+
+      <!-- GRID PRINCIPAL DEL DASHBOARD -->
+      <div class="dashboard-grid">
+        <!-- COLUMNA IZQUIERDA: KPIs -->
+        <div class="dashboard-left">
+          <section class="stats-cards">
+            <div class="card">
+              <p>Total Datasets</p>
+              <h3>45</h3>
+            </div>
+            <div class="card">
+              <p>Exploratory Analyses</p>
+              <h3>12</h3>
+            </div>
+            <div class="card">
+              <p>Models Trained</p>
+              <h3>8</h3>
+            </div>
+            <div class="card">
+              <p>Experiment Runs</p>
+              <h3>24</h3>
+            </div>
+          </section>
+
+          <!-- Sección para gráficas -->
+          <section class="charts-row">
+            <div class="chart-container">
+              <h4>Datasets by Month</h4>
+              <canvas id="chart-datasets"></canvas>
+            </div>
+            <div class="chart-container">
+              <h4>Experiments by Month</h4>
+              <canvas id="chart-experiments"></canvas>
+            </div>
+            <div class="chart-container">
+              <h4>Live Model Insights</h4>
+              <div id="live-model-insights">
+                <!-- Información en tiempo real -->
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- COLUMNA DERECHA: Chatbot + Quick Actions + Notificaciones -->
+        <div class="dashboard-right">
+          <!-- Chatbot -->
+          <section class="chatbot-section">
+            <h2>Chatbot AI Assistant</h2>
+            <div class="chatbot-container">
+              <div class="chat-history">
+                <p><strong>Usuario:</strong> ¿Cuántos datasets hay?</p>
+                <p><strong>AI:</strong> Actualmente hay 45 datasets.</p>
+                <p><strong>Usuario:</strong> ¿Qué modelos están activos?</p>
+                <p><strong>AI:</strong> Se han entrenado 8 modelos, 3 en producción.</p>
+              </div>
+              <div class="chat-input">
+                <input type="text" placeholder="Escribe tu pregunta..." />
+                <button>Enviar</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Quick Actions -->
+          <section class="quick-actions">
+            <h3>Quick Actions</h3>
+            <button>Subir Dataset</button>
+            <button>Análisis Exploratorio</button>
+            <button>Entrenar Modelo</button>
+          </section>
+
+          <!-- Notificaciones / Alertas -->
+          <section class="notifications">
+            <h3>Notifications / Alerts</h3>
+            <ul>
+              <li>Error en Pipeline X</li>
+              <li>Experimento Y fallido</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCRIPT DE TU PROYECTO (TypeScript compilado a JS) -->
+  </body>
+</html>

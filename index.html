@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ANNEX AI Dashboard</title>
+    <!-- Hoja de estilos principal (Tailwind compilado) -->
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body class="min-h-screen flex">
+    <!-- SIDEBAR -->
+    <aside class="sidebar w-64 bg-gray-800 text-white p-4 flex-shrink-0">
+      <div class="sidebar__logo mb-6 text-2xl font-bold">
+        ANNEX AI
+      </div>
+      <nav class="sidebar__nav space-y-2">
+        <!-- Sección principal -->
+        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700 active">Dashboard</a>
+
+        <!-- DATA MANAGEMENT -->
+        <div class="sidebar__section-title text-sm font-semibold mt-4">DATA MANAGEMENT</div>
+        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Datasets</a>
+        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Exploratory Analysis</a>
+
+        <!-- MODEL DEVELOPMENT -->
+        <div class="sidebar__section-title text-sm font-semibold mt-4">MODEL DEVELOPMENT</div>
+        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Model Training</a>
+        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Experiments</a>
+        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Pipeline Management</a>
+
+        <!-- ADMINISTRATION -->
+        <div class="sidebar__section-title text-sm font-semibold mt-4">ADMINISTRATION</div>
+        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Users</a>
+        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Settings</a>
+      </nav>
+    </aside>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="main-content flex-1 bg-gray-100 p-4">
+      <!-- HEADER -->
+      <header class="header flex items-center justify-between mb-4">
+        <input
+          type="text"
+          placeholder="Type to Search..."
+          class="border border-gray-300 px-2 py-1 rounded"
+        />
+        <div class="user-info">
+          <span class="user-avatar bg-blue-500 text-white px-3 py-2 rounded-full">
+            AJ
+          </span>
+        </div>
+      </header>
+
+      <!-- GRID PRINCIPAL DEL DASHBOARD -->
+      <div class="dashboard-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Sección de KPIs -->
+        <div class="card bg-white p-4 rounded shadow">
+          <p>Total Datasets</p>
+          <h3 class="text-xl font-bold">45</h3>
+        </div>
+        <div class="card bg-white p-4 rounded shadow">
+          <p>Exploratory Analyses</p>
+          <h3 class="text-xl font-bold">12</h3>
+        </div>
+        <div class="card bg-white p-4 rounded shadow">
+          <p>Models Trained</p>
+          <h3 class="text-xl font-bold">8</h3>
+        </div>
+        <div class="card bg-white p-4 rounded shadow">
+          <p>Experiment Runs</p>
+          <h3 class="text-xl font-bold">24</h3>
+        </div>
+
+        <!-- Ejemplo de sección para gráficas -->
+        <div class="chart-container bg-white p-4 rounded shadow col-span-1 md:col-span-2">
+          <h4 class="text-lg font-semibold mb-2">Datasets by Month</h4>
+          <canvas id="chart-datasets"></canvas>
+        </div>
+
+        <div class="chart-container bg-white p-4 rounded shadow col-span-1 md:col-span-2">
+          <h4 class="text-lg font-semibold mb-2">Experiments by Month</h4>
+          <canvas id="chart-experiments"></canvas>
+        </div>
+
+        <!-- Chatbot, Quick Actions, Notificaciones -->
+        <div class="bg-white p-4 rounded shadow col-span-1 md:col-span-2">
+          <h2 class="text-xl font-bold mb-2">Chatbot AI Assistant</h2>
+          <div class="border border-gray-200 rounded p-2 mb-4">
+            <div class="text-sm mb-2">
+              <p><strong>Usuario:</strong> ¿Cuántos datasets hay?</p>
+              <p><strong>AI:</strong> Actualmente hay 45 datasets.</p>
+              <p><strong>Usuario:</strong> ¿Qué modelos están activos?</p>
+              <p><strong>AI:</strong> Se han entrenado 8 modelos, 3 en producción.</p>
+            </div>
+            <div class="flex">
+              <input
+                type="text"
+                placeholder="Escribe tu pregunta..."
+                class="flex-1 border border-gray-300 px-2 py-1 rounded-l"
+              />
+              <button class="bg-blue-500 text-white px-4 py-1 rounded-r">
+                Enviar
+              </button>
+            </div>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-2">Quick Actions</h3>
+          <div class="flex flex-col gap-2 mb-4">
+            <button class="bg-blue-500 text-white px-3 py-2 rounded">Subir Dataset</button>
+            <button class="bg-blue-500 text-white px-3 py-2 rounded">Análisis Exploratorio</button>
+            <button class="bg-blue-500 text-white px-3 py-2 rounded">Entrenar Modelo</button>
+          </div>
+
+          <h3 class="text-lg font-semibold mb-2">Notifications / Alerts</h3>
+          <ul class="list-disc list-inside text-sm">
+            <li>Error en Pipeline X</li>
+            <li>Experimento Y fallido</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Archivo de entrada de la aplicación (React/TS) -->
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
