@@ -4,35 +4,74 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ANNEX AI Dashboard</title>
-    <!-- Hoja de estilos principal (Tailwind compilado) -->
     <link rel="stylesheet" href="css/styles.css" />
+    <style>
+      /* Sobrescribe el estilo del sidebar para forzar fondo gris claro y altura completa */
+      .sidebar {
+        background-color: #f3f4f6 !important; /* Gris claro */
+        min-height: 100vh;
+        color: #333; /* Texto oscuro para contraste */
+      }
+      /* Ajustar color de enlaces en el sidebar */
+      .sidebar__nav a {
+        color: #333;
+      }
+      /* Hover para los enlaces del sidebar */
+      .sidebar__nav a:hover {
+        background-color: #e5e7eb !important;
+      }
+    </style>
   </head>
   <body class="min-h-screen flex">
     <!-- SIDEBAR -->
-    <aside class="sidebar w-64 bg-gray-800 text-white p-4 flex-shrink-0">
+    <aside class="sidebar w-64 text-dark p-4 flex-shrink-0">
       <div class="sidebar__logo mb-6 text-2xl font-bold">
         ANNEX AI
       </div>
       <nav class="sidebar__nav space-y-2">
         <!-- Sección principal -->
-        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700 active">Dashboard</a>
-
+        <a href="#" class="flex items-center block px-2 py-1 rounded hover:bg-gray-300 active">
+          <img src="icons/dashboard-svgrepo-com.svg" alt="Dashboard Icon" class="w-5 h-5 mr-2">
+          Dashboard
+        </a>
+      
         <!-- DATA MANAGEMENT -->
         <div class="sidebar__section-title text-sm font-semibold mt-4">DATA MANAGEMENT</div>
-        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Datasets</a>
-        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Exploratory Analysis</a>
-
+        <a href="#" class="flex items-center block px-2 py-1 rounded hover:bg-gray-300">
+          <img src="icons/data-center-data-warehouse-svgrepo-com.svg" alt="Datasets Icon" class="w-5 h-5 mr-2">
+          Datasets
+        </a>
+        <a href="#" class="flex items-center block px-2 py-1 rounded hover:bg-gray-300">
+          <img src="icons/analysis-analytics-business-svgrepo-com.svg" alt="Exploratory Analysis Icon" class="w-5 h-5 mr-2">
+          Exploratory Analysis
+        </a>
+      
         <!-- MODEL DEVELOPMENT -->
         <div class="sidebar__section-title text-sm font-semibold mt-4">MODEL DEVELOPMENT</div>
-        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Model Training</a>
-        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Experiments</a>
-        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Pipeline Management</a>
-
+        <a href="#" class="flex items-center block px-2 py-1 rounded hover:bg-gray-300">
+          <img src="icons/model-alt-svgrepo-com.svg" alt="Model Training Icon" class="w-5 h-5 mr-2">
+          Model Training
+        </a>
+        <a href="#" class="flex items-center block px-2 py-1 rounded hover:bg-gray-300">
+          <img src="icons/experiment-svgrepo-com.svg" alt="Experiments Icon" class="w-5 h-5 mr-2">
+          Experiments
+        </a>
+        <a href="#" class="flex items-center block px-2 py-1 rounded hover:bg-gray-300">
+          <img src="icons/pipeline-svgrepo-com.svg" alt="Pipeline Management Icon" class="w-5 h-5 mr-2">
+          Pipeline Management
+        </a>
+      
         <!-- ADMINISTRATION -->
         <div class="sidebar__section-title text-sm font-semibold mt-4">ADMINISTRATION</div>
-        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Users</a>
-        <a href="#" class="block px-2 py-1 rounded hover:bg-gray-700">Settings</a>
-      </nav>
+        <a href="#" class="flex items-center block px-2 py-1 rounded hover:bg-gray-300">
+          <img src="icons/user-svgrepo-com.svg" alt="Users Icon" class="w-5 h-5 mr-2">
+          Users
+        </a>
+        <a href="#" class="flex items-center block px-2 py-1 rounded hover:bg-gray-300">
+          <img src="icons/settings-cog-svgrepo-com.svg" alt="Settings Icon" class="w-5 h-5 mr-2">
+          Settings
+        </a>
+      </nav>      
     </aside>
 
     <!-- CONTENEDOR PRINCIPAL -->
@@ -62,63 +101,22 @@
           <p>Exploratory Analyses</p>
           <h3 class="text-xl font-bold">12</h3>
         </div>
-        <div class="card bg-white p-4 rounded shadow">
-          <p>Models Trained</p>
-          <h3 class="text-xl font-bold">8</h3>
-        </div>
-        <div class="card bg-white p-4 rounded shadow">
-          <p>Experiment Runs</p>
-          <h3 class="text-xl font-bold">24</h3>
-        </div>
+      </div>
 
-        <!-- Ejemplo de sección para gráficas -->
-        <div class="chart-container bg-white p-4 rounded shadow col-span-1 md:col-span-2">
-          <h4 class="text-lg font-semibold mb-2">Datasets by Month</h4>
-          <canvas id="chart-datasets"></canvas>
+      <!-- Contenedores para los gráficos -->
+      <div class="dashboard-grid grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+        <div class="chart-container bg-white p-4 rounded shadow" style="height: 500px;">
+          <div id="chart-datasets" style="height: calc(100% - 40px);"></div>
         </div>
 
-        <div class="chart-container bg-white p-4 rounded shadow col-span-1 md:col-span-2">
-          <h4 class="text-lg font-semibold mb-2">Experiments by Month</h4>
-          <canvas id="chart-experiments"></canvas>
-        </div>
-
-        <!-- Chatbot, Quick Actions, Notificaciones -->
-        <div class="bg-white p-4 rounded shadow col-span-1 md:col-span-2">
-          <h2 class="text-xl font-bold mb-2">Chatbot AI Assistant</h2>
-          <div class="border border-gray-200 rounded p-2 mb-4">
-            <div class="text-sm mb-2">
-              <p><strong>Usuario:</strong> ¿Cuántos datasets hay?</p>
-              <p><strong>AI:</strong> Actualmente hay 45 datasets.</p>
-              <p><strong>Usuario:</strong> ¿Qué modelos están activos?</p>
-              <p><strong>AI:</strong> Se han entrenado 8 modelos, 3 en producción.</p>
-            </div>
-            <div class="flex">
-              <input
-                type="text"
-                placeholder="Escribe tu pregunta..."
-                class="flex-1 border border-gray-300 px-2 py-1 rounded-l"
-              />
-              <button class="bg-blue-500 text-white px-4 py-1 rounded-r">
-                Enviar
-              </button>
-            </div>
-          </div>
-
-          <h3 class="text-lg font-semibold mb-2">Quick Actions</h3>
-          <div class="flex flex-col gap-2 mb-4">
-            <button class="bg-blue-500 text-white px-3 py-2 rounded">Subir Dataset</button>
-            <button class="bg-blue-500 text-white px-3 py-2 rounded">Análisis Exploratorio</button>
-            <button class="bg-blue-500 text-white px-3 py-2 rounded">Entrenar Modelo</button>
-          </div>
-
-          <h3 class="text-lg font-semibold mb-2">Notifications / Alerts</h3>
-          <ul class="list-disc list-inside text-sm">
-            <li>Error en Pipeline X</li>
-            <li>Experimento Y fallido</li>
-          </ul>
+        <div class="chart-container bg-white p-4 rounded shadow" style="height: 600px;">
+          <div id="chart-experiments" style="height: calc(100% - 40px);"></div>
         </div>
       </div>
     </div>
+
+    <!-- Elemento donde se montará el ChatbotButton -->
+    <div id="chatbot-root"></div>
 
     <!-- Archivo de entrada de la aplicación (React/TS) -->
     <script type="module" src="/src/main.tsx"></script>
