@@ -1,8 +1,26 @@
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900; /* Rango completo para fuente variable */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900; /* Rango completo para fuente variable */
+  font-style: italic;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-
 .chatbot-container {
   @apply transition-all duration-300 ease-in-out;
+}
+
+/* Aplicación global opcional para asegurar que Montserrat se aplique en toda la UI */
+body {
+  font-family: 'Montserrat', sans-serif;
 }

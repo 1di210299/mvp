@@ -1,13 +1,22 @@
 // src/pages/HomePage.tsx
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Plus } from 'lucide-react'; // npm install lucide-react
 import ChatbotButton from '../components/ChatbotButton';
 import DatasetListWithMetrics from '../components/DatasetListWithMetrics';
 import DatasetsChart from '../components/DatasetsChart';
 import ExperimentsChart from '../components/ExperimentsChart';
+import AddDatasetModal from '../components/AddDatasetModal';
 
 function HomePage() {
+  const [isAddDatasetModalOpen, setIsAddDatasetModalOpen] = useState(false);
+
+  const handleAddDataset = (datasetInfo: any) => {
+    console.log('New dataset added:', datasetInfo);
+    // En una aplicación real, guardarías estos datos en tu backend
+    // y posiblemente actualizarías tu UI para mostrar el nuevo dataset
+  };
+
   return (
     <div className="p-4 space-y-6 bg-transparent">
       {/* FILA SUPERIOR: Barra de búsqueda + Botón redondo */}
@@ -19,8 +28,8 @@ function HomePage() {
         />
 
         <button
-          className="bg-cyber-primary text-black rounded-full p-3 hover:bg-cyan-300 transition-colors"
-          onClick={() => alert('Add new dataset')}
+          className="bg-cyber-cyan text-cyber-dark rounded-full p-3 hover:bg-cyan-300 transition-colors"
+          onClick={() => setIsAddDatasetModalOpen(true)}
         >
           <Plus size={20} />
         </button>
@@ -50,6 +59,13 @@ function HomePage() {
 
       {/* Botón flotante del Chatbot */}
       <ChatbotButton />
+
+      {/* Modal para añadir datasets */}
+      <AddDatasetModal
+        isOpen={isAddDatasetModalOpen}
+        onClose={() => setIsAddDatasetModalOpen(false)}
+        onSave={handleAddDataset}
+      />
     </div>
   );
 }

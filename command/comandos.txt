@@ -7,3 +7,5 @@ uvicorn main:app --reload
 streamlit run app/test.py
 
 streamlit run app/asd.py
+
+http://localhost:8000/api/test-connection/

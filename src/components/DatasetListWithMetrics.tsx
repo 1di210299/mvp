@@ -24,7 +24,7 @@ function DatasetListWithMetrics() {
   };
 
   return (
-    <div className="bg-black/70 p-4 rounded shadow border border-gray-600">
+    <div className="bg-transparent p-4 rounded">
       <h4 className="text-lg font-semibold mb-2 text-white">
         Recently Used Datasets
       </h4>
