@@ -1,6 +1,7 @@
 // src/components/DatasetListWithMetrics.tsx
-
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
   LineChart,
   Line,
@@ -12,37 +13,39 @@ import {
 } from 'recharts';
 
 function DatasetListWithMetrics() {
+  const navigate = useNavigate();
+
   const datasetList = Array.from({ length: 5 }, (_, i) => ({
+    id: i + 1, // ID único para cada dataset
     name: `Dataset ${i + 1}`,
     metrics: Array.from({ length: 5 }, () => ({
       value: Math.floor(Math.random() * 50) + 10,
     })),
   }));
 
-  const handleDatasetClick = (datasetName: string) => {
-    alert(`Has hecho clic en: ${datasetName}`);
+  const handleDatasetClick = (datasetId: number) => {
+    navigate(`/datasets/${datasetId}`);
   };
 
   return (
-    <div className="bg-transparent p-4 rounded">
-      <h4 className="text-lg font-semibold mb-2 text-white">
-        Recently Used Datasets
-      </h4>
-      <div className="space-y-3">
-        {datasetList.map((ds, idx) => (
-          <div
-            key={idx}
-            className="
-              flex items-center justify-between
-              border-b border-gray-600
-              pb-2 last:border-none
-              cursor-pointer
-              hover:bg-gray-700/30
-            "
-            onClick={() => handleDatasetClick(ds.name)}
+    <div className="bg-gray-900 p-6 rounded-lg shadow-md">
+      <div className="space-y-4">
+        {datasetList.map((ds) => (
+          <motion.div
+            key={ds.id}
+            className="flex items-center justify-between border-b border-gray-700 pb-3 last:border-none cursor-pointer hover:bg-gray-700/30 transition-colors duration-200 p-2 rounded"
+            whileHover={{ scale: 1.02 }}
+            onClick={() => handleDatasetClick(ds.id)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleDatasetClick(ds.id);
+              }
+            }}
           >
             <div>
-              <p className="font-medium text-white">{ds.name}</p>
+              <p className="font-semibold text-white text-lg">{ds.name}</p>
               <p className="text-sm text-gray-300">
                 Used in {Math.floor(Math.random() * 10) + 1} experiments
               </p>
@@ -67,7 +70,7 @@ function DatasetListWithMetrics() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </div>

@@ -18,7 +18,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    # Apps preexistentes
+    # Django apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -26,16 +26,16 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
-    # Apps de terceros
+    # Third-party apps
     'rest_framework',
     'corsheaders',
     
-    # Tus apps
+    # Your apps
     'api',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Añade esto al inicio
+    'corsheaders.middleware.CorsMiddleware',  # Debe ser el primero
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -117,6 +117,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Ajusta según el puerto de tu frontend
+    "http://127.0.0.1:5173",
 ]
 
 # API settings
@@ -126,6 +127,7 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
+        # Removida la siguiente línea para resolver el problema de plantilla
+        # 'rest_framework.renderers.BrowsableAPIRenderer',
     ],
 }

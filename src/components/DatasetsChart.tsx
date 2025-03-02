@@ -1,3 +1,4 @@
+// src/components/DatasetsChart.tsx
 import React, { useState } from 'react';
 import {
   BarChart,
@@ -61,23 +62,23 @@ function DatasetsChart() {
   const currentGrowth = data[data.length - 1].growth;
   const latestValue = data[data.length - 1].datasets;
 
-  // Determinar color y flecha
-  const growthColor = currentGrowth >= 0 ? 'text-green-500' : 'text-red-500';
+  // Determinar color y flecha para crecimiento
+  const growthColor = currentGrowth >= 0 ? 'text-green-400' : 'text-red-400';
   const growthIcon = currentGrowth >= 0 ? '↑' : '↓';
 
   return (
     <div className="w-full h-full flex flex-col">
+      {/* Encabezado */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center">
-          <h4 className="text-lg font-semibold">Datasets by Month</h4>
+          <h4 className="text-lg font-semibold text-[#E6E6E6]">Datasets by Month</h4>
           <span className={`ml-2 text-sm font-medium ${growthColor}`}>
             {growthIcon} {Math.abs(currentGrowth).toFixed(1)}%
           </span>
         </div>
-
         <div className="flex space-x-2">
           <select
-            className="border rounded px-2 py-1 text-sm bg-white"
+            className="border rounded px-2 py-1 text-sm bg-[#00E6E6]/10 text-[#E6E6E6] border-[#00E6E6]"
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
           >
@@ -85,9 +86,8 @@ function DatasetsChart() {
             <option value="monthly">Monthly</option>
             <option value="yearly">Yearly</option>
           </select>
-
           <select
-            className="border rounded px-2 py-1 text-sm bg-white"
+            className="border rounded px-2 py-1 text-sm bg-[#00E6E6]/10 text-[#E6E6E6] border-[#00E6E6]"
             value={chartType}
             onChange={(e) => setChartType(e.target.value)}
           >
@@ -97,24 +97,23 @@ function DatasetsChart() {
         </div>
       </div>
 
-      {/* KPI: total datasets */}
+      {/* KPI: Total Datasets y botones */}
       <div className="flex flex-col md:flex-row md:justify-between mb-4">
-        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-2 md:mb-0 flex items-center">
-          <div className="bg-blue-500 rounded-full p-2 mr-3">
-            <Calendar size={20} className="text-white" />
+        <div className="bg-[#00E6E6]/20 border border-[#00E6E6]/40 rounded-lg p-3 mb-2 md:mb-0 flex items-center">
+          <div className="bg-[#00E6E6] rounded-full p-2 mr-3">
+            <Calendar size={20} className="text-[#E6E6E6]" />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Total Datasets</p>
-            <p className="text-xl font-bold">{latestValue}</p>
+            <p className="text-xs text-[#E6E6E6]/70">Total Datasets</p>
+            <p className="text-xl font-bold text-[#E6E6E6]">{latestValue}</p>
           </div>
         </div>
-
         <div className="flex space-x-2">
-          <button className="flex items-center bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition-colors">
+          <button className="flex items-center bg-[#00E6E6] text-[#E6E6E6] px-3 py-1 rounded text-sm hover:bg-[#00E6E6]/90 transition-colors">
             <PlusCircle size={16} className="mr-1" />
             Add Dataset
           </button>
-          <button className="flex items-center bg-gray-200 text-gray-700 px-3 py-1 rounded text-sm hover:bg-gray-300 transition-colors">
+          <button className="flex items-center bg-[#00E6E6]/10 text-[#E6E6E6] px-3 py-1 rounded text-sm hover:bg-[#00E6E6]/20 transition-colors">
             <Filter size={16} className="mr-1" />
             Filter
           </button>
@@ -127,35 +126,35 @@ function DatasetsChart() {
           <ResponsiveContainer width="100%" height="100%">
             {chartType === 'bar' ? (
               <BarChart data={data} margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="datasets" fill="#4e63d9" name="Datasets" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#005757" />
+                <XAxis dataKey="month" stroke="#E6E6E6" />
+                <YAxis stroke="#E6E6E6" />
+                <Tooltip contentStyle={{ backgroundColor: '#003737', border: 'none', color: '#E6E6E6' }} />
+                <Legend wrapperStyle={{ color: '#E6E6E6' }} />
+                <Bar dataKey="datasets" fill="#00E6E6" name="Datasets" />
               </BarChart>
             ) : (
               <LineChart data={data} margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
+                <CartesianGrid strokeDasharray="3 3" stroke="#005757" />
+                <XAxis dataKey="month" stroke="#E6E6E6" />
+                <YAxis stroke="#E6E6E6" />
+                <Tooltip contentStyle={{ backgroundColor: '#003737', border: 'none', color: '#E6E6E6' }} />
+                <Legend wrapperStyle={{ color: '#E6E6E6' }} />
                 <Line
                   type="monotone"
                   dataKey="datasets"
-                  stroke="#4e63d9"
+                  stroke="#00E6E6"
                   name="Datasets"
                   strokeWidth={2}
-                  dot={{ r: 4 }}
+                  dot={{ r: 4, stroke: '#00E6E6', strokeWidth: 1 }}
                 />
               </LineChart>
             )}
           </ResponsiveContainer>
         ) : (
           <div className="flex flex-col items-center justify-center h-full">
-            <p className="text-gray-500 mb-2">No data available for this period</p>
-            <button className="bg-blue-500 text-white px-4 py-2 rounded">
+            <p className="text-[#E6E6E6]/70 mb-2">No data available for this period</p>
+            <button className="bg-[#00E6E6] text-[#E6E6E6] px-4 py-2 rounded hover:bg-[#00E6E6]/90 transition-colors">
               Upload your first dataset
             </button>
           </div>
