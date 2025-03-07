@@ -1,173 +1,254 @@
-// src/pages/DatasetsPage.tsx
+// src/components/DatasetsPage.tsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Filter, ArrowDownUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { 
+  Plus, 
+  Search, 
+  Filter, 
+  SortDesc, 
+  FileText, 
+  Calendar, 
+  Database,
+  BarChart
+} from 'lucide-react';
 
-function DatasetsPage() {
-  const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('date');
+// Datos de ejemplo para los datasets enfocados en MYPES peruanas
+const datasetsList = [
+  {
+    id: '1',
+    name: 'Ventas Mensuales 2025',
+    description: 'Análisis de ventas por mes',
+    type: 'Ventas',
+    format: 'CSV',
+    size: '1.2 MB',
+    rows: 1250,
+    updatedAt: '01 Mar, 2025',
+    tags: ['ventas', 'mensual', '2025']
+  },
+  {
+    id: '2',
+    name: 'Segmentación Clientes Lima',
+    description: 'Clientes por distrito y categoría',
+    type: 'Clientes',
+    format: 'Excel',
+    size: '850 KB',
+    rows: 845,
+    updatedAt: '28 Feb, 2025',
+    tags: ['clientes', 'segmentación', 'Lima']
+  },
+  {
+    id: '3',
+    name: 'Inventario Productos Q1',
+    description: 'Stock y rotación de productos',
+    type: 'Inventario',
+    format: 'CSV',
+    size: '640 KB',
+    rows: 523,
+    updatedAt: '25 Feb, 2025',
+    tags: ['inventario', 'productos', 'trimestral']
+  },
+  {
+    id: '4',
+    name: 'Campañas Fiestas Patrias',
+    description: 'Resultados de campañas 2024',
+    type: 'Campañas',
+    format: 'Excel',
+    size: '1.5 MB',
+    rows: 325,
+    updatedAt: '03 Mar, 2025',
+    tags: ['campañas', 'marketing', '2024']
+  },
+  {
+    id: '5',
+    name: 'Proyección Ventas 2025',
+    description: 'Estimación de ventas por trimestre',
+    type: 'Pronósticos',
+    format: 'CSV',
+    size: '920 KB',
+    rows: 120,
+    updatedAt: '01 Mar, 2025',
+    tags: ['pronósticos', 'ventas', '2025']
+  }
+];
 
-  // Simular una lista de datasets (en producción, cargarías estos datos de una API)
-  const datasets = [
-    { id: 1, name: "Sales Performance Q1", category: "Marketing", records: 2854, lastUpdated: "2025-02-10" },
-    { id: 2, name: "User Engagement Analytics", category: "Product", records: 4521, lastUpdated: "2025-02-15" },
-    { id: 3, name: "Financial Projections 2025", category: "Finance", records: 1203, lastUpdated: "2025-01-28" },
-    { id: 4, name: "Customer Behavior Data", category: "Research", records: 9652, lastUpdated: "2025-02-18" },
-    { id: 5, name: "Supply Chain Metrics", category: "Operations", records: 3254, lastUpdated: "2025-02-05" },
-    { id: 6, name: "Employee Performance Review", category: "HR", records: 489, lastUpdated: "2025-02-12" },
-    { id: 7, name: "Social Media Campaign Results", category: "Marketing", records: 1835, lastUpdated: "2025-02-20" },
-    { id: 8, name: "Product Feedback Analysis", category: "Product", records: 2741, lastUpdated: "2025-01-30" },
-  ];
-
-  // Filtrar y ordenar datasets
-  const filteredDatasets = datasets
-    .filter(dataset => 
-      dataset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dataset.category.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'category') return a.category.localeCompare(b.category);
-      if (sortBy === 'size') return b.records - a.records;
-      return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(); // Por defecto, ordenar por fecha
-    });
-
-  const handleDatasetClick = (id: number) => {
-    navigate(`/datasets/${id}`);
-  };
-
-  const getCategoryColor = (category: string) => {
-    const categoryColors: Record<string, string> = {
-      "Marketing": "bg-teal-800 text-teal-300",
-      "Product": "bg-blue-800 text-blue-300",
-      "Finance": "bg-purple-800 text-purple-300",
-      "Research": "bg-pink-800 text-pink-300",
-      "Operations": "bg-amber-800 text-amber-300",
-      "HR": "bg-indigo-800 text-indigo-300"
-    };
+// Componente principal
+const DatasetsPage = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState('all');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Filtrar datasets basados en búsqueda y tipo
+  const filteredDatasets = datasetsList.filter(dataset => {
+    const matchesSearch = 
+      dataset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dataset.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dataset.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+    const matchesType = selectedType === 'all' || dataset.type.toLowerCase() === selectedType.toLowerCase();
     
-    return categoryColors[category] || "bg-gray-800 text-gray-300";
-  };
-
+    return matchesSearch && matchesType;
+  });
+  
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-        <h1 className="text-2xl font-bold text-white">Datasets</h1>
-        
-        <div className="flex items-center gap-3">
-          <div className="relative">
+    <div className="p-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-cyber-text">Datasets</h1>
+          <p className="text-cyber-text/70">Gestiona y analiza tus fuentes de datos de ventas</p>
+        </div>
+        <div className="mt-4 md:mt-0">
+          <button 
+            className="flex items-center bg-cyber-cyan text-cyber-dark px-4 py-2 rounded hover:bg-cyber-cyan/90 transition-colors"
+            onClick={() => setIsModalOpen(true)}
+          >
+            <Plus size={16} className="mr-1" />
+            Nuevo Dataset
+          </button>
+        </div>
+      </div>
+      
+      {/* Filtros y búsqueda */}
+      <div className="bg-cyber-dark/70 backdrop-blur-sm p-4 rounded-lg border border-cyber-cyan/20 shadow-lg mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-grow">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search size={16} className="text-cyber-text/50" />
+            </div>
             <input
               type="text"
-              placeholder="Search datasets..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-cyber-detail/50 border border-cyber-detail text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-cyber-cyan"
+              placeholder="Buscar datasets..."
+              className="pl-10 w-full px-3 py-2 bg-cyber-detail/30 border border-cyber-detail text-cyber-text rounded focus:outline-none focus:ring-1 focus:ring-cyber-cyan"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           </div>
           
-          <div className="relative group">
-            <button className="p-2 bg-cyber-detail/50 border border-cyber-detail text-white rounded-lg hover:bg-cyber-detail/70">
-              <Filter size={18} />
+          <div className="flex flex-wrap gap-2">
+            <select
+              className="px-3 py-2 bg-cyber-detail/30 border border-cyber-detail text-cyber-text rounded focus:outline-none focus:ring-1 focus:ring-cyber-cyan"
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+            >
+              <option value="all">Todos los tipos</option>
+              <option value="ventas">Ventas</option>
+              <option value="clientes">Clientes</option>
+              <option value="inventario">Inventario</option>
+              <option value="campañas">Campañas</option>
+              <option value="pronósticos">Pronósticos</option>
+            </select>
+            
+            <button className="flex items-center px-3 py-2 bg-cyber-detail/30 border border-cyber-detail text-cyber-text rounded hover:bg-cyber-detail/50 transition-colors">
+              <Filter size={16} className="mr-1" />
+              Filtros
             </button>
-            <div className="hidden group-hover:block absolute right-0 mt-2 w-48 bg-cyber-dark border border-cyber-detail rounded-lg shadow-lg z-10">
-              <div className="p-2">
-                <p className="text-xs text-gray-400 mb-2">Sort by</p>
-                {['date', 'name', 'category', 'size'].map(option => (
-                  <button
-                    key={option}
-                    className={`block w-full text-left px-4 py-2 text-sm rounded ${
-                      sortBy === option ? 'bg-cyber-detail text-cyber-cyan' : 'text-white hover:bg-cyber-detail/50'
-                    }`}
-                    onClick={() => setSortBy(option)}
-                  >
-                    {option.charAt(0).toUpperCase() + option.slice(1)}
-                    {sortBy === option && <span className="ml-2">✓</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
+            
+            <button className="flex items-center px-3 py-2 bg-cyber-detail/30 border border-cyber-detail text-cyber-text rounded hover:bg-cyber-detail/50 transition-colors">
+              <SortDesc size={16} className="mr-1" />
+              Ordenar
+            </button>
           </div>
-          
-          <button 
-            className="flex items-center gap-2 px-4 py-2 bg-cyber-cyan text-cyber-dark rounded-lg hover:bg-cyan-300"
-            onClick={() => alert("Add dataset functionality would go here")}
-          >
-            <Plus size={18} />
-            <span>New Dataset</span>
-          </button>
         </div>
       </div>
-
+      
       {/* Lista de datasets */}
-      <div className="bg-black/50 backdrop-blur-sm rounded-lg border border-gray-600 overflow-hidden">
-        <div className="grid grid-cols-12 bg-cyber-detail/80 px-4 py-3 text-sm font-medium text-gray-300">
-          <div className="col-span-5">Name</div>
-          <div className="col-span-2">Category</div>
-          <div className="col-span-2 flex items-center">
-            Records
-            <ArrowDownUp size={14} className="ml-1" />
-          </div>
-          <div className="col-span-3 flex items-center">
-            Last Updated
-            <ArrowDownUp size={14} className="ml-1" />
-          </div>
-        </div>
-        
-        <div className="divide-y divide-gray-700">
-          {filteredDatasets.length > 0 ? (
-            filteredDatasets.map(dataset => (
-              <div 
+      <div className="bg-cyber-dark/70 backdrop-blur-sm rounded-lg border border-cyber-cyan/20 shadow-lg overflow-hidden">
+        {filteredDatasets.length > 0 ? (
+          <div className="divide-y divide-cyber-detail/30">
+            {filteredDatasets.map((dataset) => (
+              <Link
                 key={dataset.id}
-                className="grid grid-cols-12 px-4 py-4 hover:bg-cyber-detail/20 cursor-pointer transition-colors"
-                onClick={() => handleDatasetClick(dataset.id)}
+                to={`/dashboard/datasets/${dataset.id}`}
+                className="block hover:bg-cyber-detail/20 transition-colors"
               >
-                <div className="col-span-5">
-                  <p className="font-medium text-white">{dataset.name}</p>
+                <div className="p-4">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 p-2 bg-cyber-detail/30 rounded mr-4">
+                      {dataset.type === 'Ventas' && <BarChart size={24} className="text-cyber-cyan" />}
+                      {dataset.type === 'Clientes' && <Users size={24} className="text-blue-400" />}
+                      {dataset.type === 'Inventario' && <Boxes size={24} className="text-green-400" />}
+                      {dataset.type === 'Campañas' && <TrendingUp size={24} className="text-purple-400" />}
+                      {dataset.type === 'Pronósticos' && <ChartLine size={24} className="text-yellow-400" />}
+                      {!['Ventas', 'Clientes', 'Inventario', 'Campañas', 'Pronósticos'].includes(dataset.type) && (
+                        <Database size={24} className="text-cyber-text/70" />
+                      )}
+                    </div>
+                    
+                    <div className="flex-grow min-w-0">
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-start">
+                        <div>
+                          <h3 className="text-lg font-medium text-cyber-text truncate">{dataset.name}</h3>
+                          <p className="text-cyber-text/70 text-sm">{dataset.description}</p>
+                        </div>
+                        <div className="md:text-right mt-2 md:mt-0">
+                          <span className="inline-block px-2 py-1 text-xs rounded-full bg-cyber-detail/40 text-cyber-text">
+                            {dataset.format}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {dataset.tags.map((tag, tagIndex) => (
+                          <span 
+                            key={tagIndex}
+                            className="px-2 py-0.5 bg-cyber-detail/30 text-cyber-text/70 text-xs rounded-full"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                      
+                      <div className="mt-3 flex flex-col md:flex-row md:items-center text-xs text-cyber-text/60">
+                        <div className="flex items-center">
+                          <FileText size={14} className="mr-1" />
+                          <span>{dataset.rows.toLocaleString()} filas</span>
+                        </div>
+                        <span className="hidden md:block mx-2">•</span>
+                        <div className="flex items-center">
+                          <Database size={14} className="mr-1" />
+                          <span>{dataset.size}</span>
+                        </div>
+                        <span className="hidden md:block mx-2">•</span>
+                        <div className="flex items-center">
+                          <Calendar size={14} className="mr-1" />
+                          <span>Actualizado: {dataset.updatedAt}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <span className={`px-2 py-1 rounded text-xs ${getCategoryColor(dataset.category)}`}>
-                    {dataset.category}
-                  </span>
-                </div>
-                <div className="col-span-2 text-gray-300">
-                  {dataset.records.toLocaleString()}
-                </div>
-                <div className="col-span-3 text-gray-300">
-                  {new Date(dataset.lastUpdated).toLocaleDateString()}
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="px-4 py-8 text-center text-gray-400">
-              No datasets found matching your search criteria
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <div className="inline-flex items-center justify-center p-4 rounded-full bg-cyber-detail/30 text-cyber-text/70 mb-4">
+              <Database size={32} />
             </div>
-          )}
-        </div>
+            <p className="text-cyber-text/70 mb-2">No se encontraron datasets</p>
+            <p className="text-cyber-text/50 text-sm mb-4">Intenta con otra búsqueda o crea un nuevo dataset</p>
+            <button 
+              className="bg-cyber-cyan text-cyber-dark px-4 py-2 rounded hover:bg-cyber-cyan/90 transition-colors"
+              onClick={() => setIsModalOpen(true)}
+            >
+              <Plus size={16} className="inline mr-1" />
+              Nuevo Dataset
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* Paginación */}
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-400">Showing {filteredDatasets.length} of {datasets.length} datasets</p>
-        
-        <div className="flex space-x-1">
-          <button className="px-3 py-1 bg-cyber-detail/50 border border-cyber-detail text-white rounded hover:bg-cyber-detail/70">
-            Previous
-          </button>
-          <button className="px-3 py-1 bg-cyber-cyan text-cyber-dark rounded">
-            1
-          </button>
-          <button className="px-3 py-1 bg-cyber-detail/50 border border-cyber-detail text-white rounded hover:bg-cyber-detail/70">
-            2
-          </button>
-          <button className="px-3 py-1 bg-cyber-detail/50 border border-cyber-detail text-white rounded hover:bg-cyber-detail/70">
-            Next
-          </button>
-        </div>
-      </div>
+      
+      {/* Modal para nuevo dataset (comentado por ahora) */}
+      {/* {isModalOpen && (
+        <AddDatasetModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSave={handleAddDataset}
+        />
+      )} */}
     </div>
   );
-}
+};
+
+import { Users, Boxes, TrendingUp, ChartLine } from 'lucide-react';
 
 export default DatasetsPage;

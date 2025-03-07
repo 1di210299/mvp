@@ -1,3 +1,4 @@
+# api/views.py
 from rest_framework.decorators import api_view, renderer_classes
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
@@ -16,8 +17,20 @@ try:
 except ImportError:
     aws = None
 
+# Importar nuevos módulos para procesamiento, gráficos y predicción
+from .data_processor import process_file
+from .chart_generator import generate_sales_chart
+from .prediction import predict_sales
+from connectors.openai_connector import analyze_data
+
+# Importar parsers adicionales para manejo de archivos y JSON
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
+# ---------------------------
+# Endpoints existentes
+# ---------------------------
 @api_view(['GET', 'POST'])
-@renderer_classes([JSONRenderer])  # Forzar uso de JSON para evitar errores de plantilla
+@renderer_classes([JSONRenderer])
 def test_connection(request):
     """
     API endpoint para probar conexiones a servicios externos.
@@ -64,7 +77,7 @@ def test_connection(request):
                     {"error": "AWS connector not available. Install boto3 with 'pip install boto3'"},
                     status=status.HTTP_501_NOT_IMPLEMENTED
                 )
-            # En este ejemplo, para AWS se ignoran connectionString, username y password,
+            # Para AWS se ignoran connectionString, username y password,
             # ya que boto3 utiliza su propia configuración de credenciales.
             metadata = aws.test_s3_connection(connection_string, username, password)
         elif connection_type == 'bigquery':
@@ -128,3 +141,62 @@ def create_dataset(request):
         return Response(dataset_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     return Response(connection_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# ---------------------------
+# Nuevos Endpoints
+# ---------------------------
+@api_view(['POST'])
+@renderer_classes([JSONRenderer])
+def upload_dataset(request):
+    """
+    Endpoint para subir un archivo, procesarlo y obtener análisis con OpenAI.
+    Soporta archivos CSV y Excel.
+    """
+    # Se usa MultiPartParser y FormParser para manejar archivos
+    file_obj = request.FILES.get('file')
+    if not file_obj:
+        return Response({"error": "No se ha enviado ningún archivo."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    result = process_file(file_obj)
+    if 'error' in result:
+        return Response(result, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Generar un prompt para análisis con OpenAI usando los primeros 5 registros
+    prompt = "Analiza el siguiente conjunto de datos y proporciona un resumen de tendencias e insights:\n\n"
+    prompt += str(result['data'][:5])
+    openai_response = analyze_data(prompt)
+    
+    return Response({
+        "processed_data": result['data'],
+        "openai_analysis": openai_response
+    }, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@renderer_classes([JSONRenderer])
+def generate_chart(request):
+    """
+    Endpoint para generar un gráfico de ventas a partir de datos proporcionados.
+    Se espera que 'data' contenga registros con 'date_of_entry' y 'sales'.
+    """
+    data = request.data.get('data')
+    if not data:
+        return Response({"error": "No se proporcionaron datos."}, status=status.HTTP_400_BAD_REQUEST)
+    chart_json = generate_sales_chart(data)
+    if "error" in chart_json:
+        return Response(chart_json, status=status.HTTP_400_BAD_REQUEST)
+    return Response(chart_json, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@renderer_classes([JSONRenderer])
+def predict_sales_view(request):
+    """
+    Endpoint para predecir ventas futuras usando regresión lineal.
+    Se espera que 'data' contenga registros con 'date_of_entry' y 'sales'.
+    """
+    data = request.data.get('data')
+    if not data:
+        return Response({"error": "No se proporcionaron datos."}, status=status.HTTP_400_BAD_REQUEST)
+    prediction = predict_sales(data)
+    if "error" in prediction:
+        return Response(prediction, status=status.HTTP_400_BAD_REQUEST)
+    return Response(prediction, status=status.HTTP_200_OK)

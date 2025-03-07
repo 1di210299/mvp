@@ -28,7 +28,7 @@ function DatasetChatbot({ datasetId, datasetName }: DatasetChatbotProps) {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Sample responses based on keywords. En un entorno real, se consultaría a un backend AI.
+  // Respuestas de ejemplo según palabras clave (en un entorno real se consultaría al backend AI)
   const sampleResponses: Record<string, string[]> = {
     trend: [
       'The main trend shows a 15% growth over the last quarter.',
@@ -75,7 +75,7 @@ function DatasetChatbot({ datasetId, datasetName }: DatasetChatbotProps) {
     setInputValue('');
     setIsTyping(true);
 
-    // Simula respuesta del bot con delay realista
+    // Simula respuesta del bot con un delay realista
     setTimeout(() => {
       const lowerInput = messageText.toLowerCase();
       const responseCategory =
@@ -115,11 +115,11 @@ function DatasetChatbot({ datasetId, datasetName }: DatasetChatbotProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-cyber-dark rounded-lg shadow-xl overflow-hidden">
+    <div className="flex flex-col h-full bg-[#1E2A38] rounded-lg shadow-xl overflow-hidden">
       {/* Cabecera */}
-      <div className="p-4 border-b border-gray-600 bg-cyber-dark">
-        <h3 className="text-lg font-semibold text-white">Dataset Assistant</h3>
-        <p className="text-sm text-gray-300">Ask questions about {datasetName}</p>
+      <div className="p-4 border-b border-[#2F3C48] bg-[#1E2A38]">
+        <h3 className="text-lg font-semibold text-[#E6E6E6]">Dataset Assistant</h3>
+        <p className="text-sm text-[#E6E6E6]/70">Ask questions about {datasetName}</p>
       </div>
 
       {/* Área de mensajes */}
@@ -139,16 +139,16 @@ function DatasetChatbot({ datasetId, datasetName }: DatasetChatbotProps) {
               <div
                 className={`max-w-[80%] rounded-lg px-4 py-2 shadow-md ${
                   message.sender === 'user'
-                    ? 'bg-cyber-cyan text-cyber-dark'
-                    : 'bg-cyber-detail text-white'
+                    ? 'bg-[#00B8D9] text-[#1E2A38]'
+                    : 'bg-[#2F3C48] text-[#E6E6E6]'
                 }`}
               >
                 <p>{message.text}</p>
                 <p
                   className={`text-xs mt-1 ${
                     message.sender === 'user'
-                      ? 'text-cyber-dark/70'
-                      : 'text-white/70'
+                      ? 'text-[#1E2A38]/70'
+                      : 'text-[#E6E6E6]/70'
                   }`}
                 >
                   {formatTime(message.timestamp)}
@@ -165,15 +165,15 @@ function DatasetChatbot({ datasetId, datasetName }: DatasetChatbotProps) {
             exit={{ opacity: 0 }}
             className="flex justify-start"
           >
-            <div className="bg-cyber-detail text-white rounded-lg px-4 py-2 shadow-md">
+            <div className="bg-[#2F3C48] text-[#E6E6E6] rounded-lg px-4 py-2 shadow-md">
               <div className="flex space-x-1">
-                <div className="w-2 h-2 rounded-full bg-cyber-cyan animate-bounce" />
+                <div className="w-2 h-2 rounded-full bg-[#00B8D9] animate-bounce" />
                 <div
-                  className="w-2 h-2 rounded-full bg-cyber-cyan animate-bounce"
+                  className="w-2 h-2 rounded-full bg-[#00B8D9] animate-bounce"
                   style={{ animationDelay: '0.2s' }}
                 />
                 <div
-                  className="w-2 h-2 rounded-full bg-cyber-cyan animate-bounce"
+                  className="w-2 h-2 rounded-full bg-[#00B8D9] animate-bounce"
                   style={{ animationDelay: '0.4s' }}
                 />
               </div>
@@ -185,23 +185,23 @@ function DatasetChatbot({ datasetId, datasetName }: DatasetChatbotProps) {
       </div>
 
       {/* Input de mensaje */}
-      <div className="p-4 border-t border-gray-600 bg-cyber-dark">
+      <div className="p-4 border-t border-[#2F3C48] bg-[#1E2A38]">
         <div className="flex items-center space-x-2">
           <textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ask something about this dataset..."
-            className="flex-1 px-4 py-2 bg-cyber-detail/50 text-white border border-gray-600 rounded focus:outline-none focus:border-cyber-cyan resize-none"
+            className="flex-1 px-4 py-2 bg-[#2F3C48]/50 text-[#E6E6E6] border border-[#2F3C48] rounded focus:outline-none focus:border-[#00B8D9] resize-none"
             rows={1}
           />
           <button
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isTyping}
-            className={`p-2 rounded focus:outline-none focus:ring-2 focus:ring-cyber-cyan transition ${
+            className={`p-2 rounded focus:outline-none focus:ring-2 focus:ring-[#00B8D9] transition ${
               !inputValue.trim() || isTyping
-                ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                : 'bg-cyber-cyan text-cyber-dark hover:bg-cyan-300'
+                ? 'bg-[#2F3C48] text-[#E6E6E6]/40 cursor-not-allowed'
+                : 'bg-[#00B8D9] text-[#1E2A38] hover:bg-[#00B8D9]/90'
             }`}
             aria-label="Send Message"
           >
