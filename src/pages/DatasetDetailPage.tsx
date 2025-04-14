@@ -1,119 +1,156 @@
 // src/pages/DatasetDetailPage.tsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   BarChart, Bar, LineChart, Line, PieChart, Pie, 
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, 
   Tooltip, Legend, Cell 
 } from 'recharts';
+import { 
+  ArrowLeft, 
+  Table, 
+  Send, 
+  FileText,
+  Calendar,
+  BarChart2,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Brain,
+  AlertTriangle,
+  Trash2,
+  Zap
+} from 'lucide-react';
+import { datasetService, assistantService, chartService } from '../api/services';
+import { monitorService } from '../api/monitor-service';
+import DataMonitorPanel from '../components/DataMonitorPanel';
+import ProactiveInsights from '../components/ProactiveInsights';
+import AgentSuggestions from '../components/AgentSuggestions';
 
 // Paleta de colores para los gráficos
 const colors = ['#00E6E6', '#0094FF', '#6B66FF', '#9C66FF', '#FF66D9'];
 
-// Tipado mínimo para un mensaje en el chat
+// Tipado para un mensaje en el chat
 interface ChatMessage {
   id: number;
   text: string;
   sender: 'user' | 'assistant';
   timestamp: Date;
+  visualizations?: any[];
+  insights?: any[];
 }
 
-// Tipado mínimo para el dataset
-interface DatasetType {
-  id: number;
-  name: string;
-  description: string;
-  createdAt: string;
-  metrics: {
-    accuracy: number;
-    precision: number;
-    recall: number;
-    f1Score: number;
-    [key: string]: number; // Para ser más flexible
-  };
-  distribution: { name: string; value: number }[];
-  trends: { month: string; valueA: number; valueB: number }[];
-  predictions: { name: string; probability: number; impact: string }[];
-}
-
-function DatasetDetailPage() {
+const DatasetDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [activeTab, setActiveTab] = useState<'metrics' | 'predictions'>('metrics');
-  const [dataset, setDataset] = useState<DatasetType | null>(null);
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'overview' | 'structure' | 'chat' | 'agent'>('overview');
+  const [dataset, setDataset] = useState<any>(null);
+  const [context, setContext] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Mensajes de chat y estados relacionados
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: 1,
-      text: `Hi! I'm your AI assistant for Dataset ${id}. Ask me anything about this data!`,
-      sender: 'assistant',
-      timestamp: new Date()
-    }
-  ]);
+  // Estados para el chat
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  
+  // Datos para visualizaciones
+  const [distributionData, setDistributionData] = useState<any[]>([]);
+  const [trendsData, setTrendsData] = useState<any[]>([]);
+  const [datasetLoaded, setDatasetLoaded] = useState(false);
 
-  // -------------------------------------------------------------------
-  // 1. Cargar Dataset (simulación con setTimeout)
-  // -------------------------------------------------------------------
+  // Cargar datos del dataset
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchDataset = () => {
-      // Aquí harías la llamada real a tu API
-      setTimeout(() => {
-        if (!isMounted) return;
-
-        setDataset({
-          id: parseInt(id || '0', 10),
-          name: `Dataset ${id}`,
-          description: 'A comprehensive dataset with various metrics and predictive features.',
-          createdAt: '2025-02-25',
-          metrics: {
-            accuracy: 0.87,
-            precision: 0.83,
-            recall: 0.91,
-            f1Score: 0.86
-          },
-          distribution: [
-            { name: 'Category A', value: 400 },
-            { name: 'Category B', value: 300 },
-            { name: 'Category C', value: 200 },
-            { name: 'Category D', value: 150 },
-            { name: 'Category E', value: 100 },
-          ],
-          trends: Array.from({ length: 12 }, (_, i) => ({
-            month: `Month ${i + 1}`,
-            valueA: Math.floor(Math.random() * 1000) + 500,
-            valueB: Math.floor(Math.random() * 800) + 300,
-          })),
-          predictions: [
-            { name: 'Scenario 1', probability: 0.65, impact: 'High' },
-            { name: 'Scenario 2', probability: 0.48, impact: 'Medium' },
-            { name: 'Scenario 3', probability: 0.72, impact: 'Low' },
-            { name: 'Scenario 4', probability: 0.34, impact: 'High' },
-          ]
-        });
+    const fetchData = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        
+        // Obtener dataset
+        const datasetResponse = await datasetService.getById(id);
+        setDataset(datasetResponse.data);
+        
+        // Obtener contexto
+        const contextResponse = await datasetService.getContext(id);
+        setContext(contextResponse.data);
+        
+        // Mensaje inicial del asistente
+        setChatMessages([{
+          id: 1,
+          text: `Hola, soy el asistente de datos para el dataset "${datasetResponse.data.name}". ¿En qué puedo ayudarte?`,
+          sender: 'assistant',
+          timestamp: new Date()
+        }]);
+        
+        setDatasetLoaded(true);
+      } catch (err: any) {
+        console.error('Error fetching dataset:', err);
+        setError(err.response?.data?.error || 'Error al cargar el dataset');
+      } finally {
         setLoading(false);
-      }, 1000);
+      }
     };
 
-    fetchDataset();
-    return () => {
-      isMounted = false;
-    };
+    fetchData();
   }, [id]);
 
-  // -------------------------------------------------------------------
-  // 2. Manejar envío de mensajes del chat
-  // -------------------------------------------------------------------
-  const handleSendMessage = useCallback(() => {
-    if (!messageInput.trim()) return;
+  // Cargar visualizaciones
+  useEffect(() => {
+    // Modificar el código en loadVisualizations:
+const loadVisualizations = async () => {
+  if (!id || !datasetLoaded) return;
+  
+  try {
+    // Obtener los datos del dataset usando el método correcto
+    const dataResponse = await datasetService.getDatasetData(id);
+    
+    if (dataResponse && dataResponse.data) {
+      // Ahora usar chartService con los datos reales
+      const distributionResponse = await chartService.generateCategoryChart(
+        dataResponse.data,
+        'category'
+      );
+      
+      if (distributionResponse.data && distributionResponse.data.raw_data) {
+        setDistributionData(distributionResponse.data.raw_data);
+      }
+      
+      const trendsResponse = await chartService.generateSalesChart(dataResponse.data);
+      if (trendsResponse.data && trendsResponse.data.raw_data) {
+        setTrendsData(trendsResponse.data.raw_data);
+      }
+    }
+  } catch (err) {
+    console.error('Error loading visualizations:', err);
+  }
+};
+    
+    loadVisualizations();
+  }, [id, datasetLoaded]);
 
-    // Crear mensaje del usuario
+  // Manejar eliminación del dataset
+  const handleDelete = async () => {
+    if (!id || !window.confirm('¿Estás seguro de eliminar este dataset?')) {
+      return;
+    }
+
+    try {
+      await datasetService.delete(id);
+      navigate('/dashboard/datasets');
+    } catch (err: any) {
+      console.error('Error deleting dataset:', err);
+      alert(err.response?.data?.error || 'Error al eliminar el dataset');
+    }
+  };
+
+  // Manejar envío de mensajes en el chat
+  const handleSendMessage = useCallback(async () => {
+    if (!messageInput.trim() || isSending || !id) return;
+
+    // Mensaje del usuario
     const userMessage: ChatMessage = {
-      id: chatMessages.length + 1,
+      id: Date.now(),
       text: messageInput,
       sender: 'user',
       timestamp: new Date()
@@ -123,315 +160,478 @@ function DatasetDetailPage() {
     setMessageInput('');
     setIsSending(true);
 
-    // Simular respuesta del asistente
-    setTimeout(() => {
-      const responses = [
-        `Based on the analysis of Dataset ${id}, I can see a ${Math.floor(Math.random() * 20) + 10}% growth over the last quarter.`,
-        `Looking at the predictions for Dataset ${id}, we expect a ${Math.floor(Math.random() * 30) + 5}% change next period with ~${Math.floor(Math.random() * 20) + 70}% confidence.`,
-        `The key metrics for Dataset ${id} show strong performance, especially in category ${['A', 'B', 'C', 'D', 'E'][Math.floor(Math.random() * 5)]}.`,
-        `I've found ${Math.floor(Math.random() * 5) + 1} potential outliers in Dataset ${id} that might need further investigation.`
-      ];
+    try {
+      // Llamar a la API real del asistente
+      const response = await assistantService.analyze({
+        message: messageInput,
+        datasetId: id,
+        datasetContext: context,
+        language: 'es',
+        messageHistory: chatMessages.slice(-5).map(m => ({
+          text: m.text,
+          sender: m.sender
+        }))
+      });
 
+      // Añadir la respuesta del asistente
       const assistantMessage: ChatMessage = {
-        id: userMessage.id + 1,
-        text: responses[Math.floor(Math.random() * responses.length)],
+        id: Date.now() + 1,
+        text: response.data.message,
+        visualizations: response.data.visualizations || [],
+        insights: response.data.insights || [],
         sender: 'assistant',
         timestamp: new Date()
       };
 
       setChatMessages(prev => [...prev, assistantMessage]);
+    } catch (err: any) {
+      console.error('Error getting assistant response:', err);
+      
+      // Mensaje de error
+      const errorMessage: ChatMessage = {
+        id: Date.now() + 1,
+        text: "Lo siento, ha ocurrido un error al procesar tu consulta. Por favor, intenta nuevamente.",
+        sender: 'assistant',
+        timestamp: new Date()
+      };
+      
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsSending(false);
-    }, 1500);
-  }, [chatMessages, id, messageInput]);
+    }
+  }, [messageInput, isSending, id, context, chatMessages]);
 
-  // -------------------------------------------------------------------
-  // 3. Renderizar loading
-  // -------------------------------------------------------------------
+  // Mostrar loading
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#00E6E6]"></div>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyber-cyan"></div>
       </div>
     );
   }
 
-  // -------------------------------------------------------------------
-  // 4. Render principal
-  // -------------------------------------------------------------------
+  // Mostrar error
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-900/30 border border-red-500/30 text-red-400 px-4 py-3 rounded mb-4">
+          <h3 className="font-medium mb-2">Error</h3>
+          <p>{error}</p>
+          <Link to="/dashboard/datasets" className="mt-4 inline-flex items-center text-cyber-cyan hover:underline">
+            <ArrowLeft size={16} className="mr-1" />
+            Volver a Datasets
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no hay dataset
+  if (!dataset) {
+    return (
+      <div className="p-6">
+        <div className="bg-cyber-dark/70 backdrop-blur-sm p-4 rounded border border-cyber-cyan/20 shadow">
+          <p className="text-cyber-text/70">Dataset no encontrado</p>
+          <Link to="/dashboard/datasets" className="mt-4 inline-flex items-center text-cyber-cyan hover:underline">
+            <ArrowLeft size={16} className="mr-1" />
+            Volver a Datasets
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 space-y-6">
-      {/* ======================== HEADER DEL DATASET ======================== */}
-      <div className="bg-[#000]/50 backdrop-blur-sm p-4 rounded border-2 border-[#00E6E6] shadow">
-        <h1 className="text-2xl font-bold text-[#E6E6E6]">{dataset?.name}</h1>
-        <p className="text-gray-300 mt-1">{dataset?.description}</p>
-
-        {/* Botones de Tabs */}
-        <div className="flex space-x-4 mt-4">
-          <button 
-            className={`px-4 py-2 rounded transition-colors border ${
-              activeTab === 'metrics' 
-                ? 'bg-[#00E6E6] text-[#000] border-[#00E6E6]' 
-                : 'bg-[#333]/50 text-[#E6E6E6] hover:bg-[#444] border-[#00E6E6]'
-            }`}
-            onClick={() => setActiveTab('metrics')}
+      {/* Cabecera del dataset */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-cyber-dark/70 backdrop-blur-sm p-4 rounded-lg border border-cyber-cyan/20 shadow-lg">
+        <div className="flex items-start">
+          <Link 
+            to="/dashboard/datasets"
+            className="mr-3 p-2 text-cyber-text/70 hover:text-cyber-cyan hover:bg-cyber-detail/20 rounded transition-colors"
           >
-            Metrics & Analysis
-          </button>
+            <ArrowLeft size={20} />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-cyber-text">{dataset.name}</h1>
+            <p className="text-cyber-text/70 mt-1">{dataset.description || 'Sin descripción'}</p>
+            <div className="flex items-center mt-2 text-xs text-cyber-text/60">
+              <span className="flex items-center">
+                <Calendar size={14} className="mr-1" />
+                Creado: {new Date(dataset.created_at).toLocaleDateString()}
+              </span>
+              <span className="mx-2">•</span>
+              <span className="flex items-center">
+                <FileText size={14} className="mr-1" />
+                {context?.columnNames?.length || 0} columnas
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 md:mt-0 flex space-x-2">
           <button 
-            className={`px-4 py-2 rounded transition-colors border ${
-              activeTab === 'predictions' 
-                ? 'bg-[#00E6E6] text-[#000] border-[#00E6E6]' 
-                : 'bg-[#333]/50 text-[#E6E6E6] hover:bg-[#444] border-[#00E6E6]'
-            }`}
-            onClick={() => setActiveTab('predictions')}
+            className="px-3 py-1.5 bg-red-900/30 text-red-400 rounded hover:bg-red-900/50 transition-colors flex items-center"
+            onClick={handleDelete}
           >
-            Predictions
+            <Trash2 size={16} className="mr-1" />
+            Eliminar
           </button>
         </div>
       </div>
-
-      {/* ======================== CONTENIDO Y CHAT ======================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        
-        {/* Área principal (2/3 en pantallas grandes) */}
-        <div className="lg:col-span-2 space-y-4">
-          {activeTab === 'metrics' && dataset && (
-            <>
-              {/* =========== MÉTRICAS =========== */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(dataset.metrics).map(([key, value]) => (
-                  <div 
-                    key={key} 
-                    className="bg-[#000]/50 backdrop-blur-sm p-4 rounded border-2 border-[#00E6E6] shadow"
-                  >
-                    <h3 className="text-[#00E6E6] text-xs uppercase">{key}</h3>
-                    <p className="text-[#E6E6E6] text-2xl font-bold">
-                      {(value as number).toFixed(2)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* =========== DISTRIBUCIÓN =========== */}
-              <div className="bg-[#000]/50 backdrop-blur-sm p-4 rounded border-2 border-[#00E6E6] shadow">
-                <h3 className="text-lg font-semibold mb-4 text-[#E6E6E6]">Data Distribution</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={dataset.distribution}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        outerRadius={80}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      >
-                        {dataset.distribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        formatter={(value) => [`${value}`, 'Count']} 
-                        contentStyle={{ backgroundColor: '#001f2e', border: 'none', color: '#E6E6E6' }} 
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* =========== TENDENCIAS =========== */}
-              <div className="bg-[#000]/50 backdrop-blur-sm p-4 rounded border-2 border-[#00E6E6] shadow">
-                <h3 className="text-lg font-semibold mb-4 text-[#E6E6E6]">Trends Over Time</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dataset.trends}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1C3D5A" />
-                      <XAxis dataKey="month" stroke="#E6E6E6" />
-                      <YAxis stroke="#E6E6E6" />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#001f2e', borderColor: '#1C3D5A', color: '#E6E6E6' }} 
-                      />
-                      <Legend wrapperStyle={{ color: '#E6E6E6' }} />
-                      <Line 
-                        type="monotone" 
-                        dataKey="valueA" 
-                        stroke="#00E6E6" 
-                        name="Metric A" 
-                        strokeWidth={2} 
-                      />
-                      <Line 
-                        type="monotone" 
-                        dataKey="valueB" 
-                        stroke="#9C66FF" 
-                        name="Metric B" 
-                        strokeWidth={2} 
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'predictions' && dataset && (
-            <>
-              {/* =========== PREDICCIONES =========== */}
-              <div className="bg-[#000]/50 backdrop-blur-sm p-4 rounded border-2 border-[#00E6E6] shadow">
-                <h3 className="text-lg font-semibold mb-4 text-[#E6E6E6]">Prediction Scenarios</h3>
-                <div className="space-y-4">
-                  {dataset.predictions.map((prediction, index) => (
-                    <div 
-                      key={index} 
-                      className="p-3 border-2 border-[#00E6E6]/50 rounded bg-[#000]/30 hover:bg-[#000]/60 transition-colors"
-                    >
-                      <div className="flex justify-between items-center">
-                        <h4 className="text-[#E6E6E6] font-medium">{prediction.name}</h4>
-                        <span 
-                          className={`px-2 py-1 rounded text-xs ${
-                            prediction.impact === 'High' 
-                              ? 'bg-red-900/70 text-red-300' 
-                              : prediction.impact === 'Medium'
-                                ? 'bg-yellow-900/70 text-yellow-300'
-                                : 'bg-green-900/70 text-green-300'
-                          }`}
-                        >
-                          {prediction.impact} Impact
-                        </span>
-                      </div>
-                      <div className="mt-2">
-                        <div className="relative pt-1">
-                          <div className="flex mb-2 items-center justify-between">
-                            <div>
-                              <span className="text-xs font-semibold inline-block text-[#00E6E6]">
-                                Probability
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-xs font-semibold inline-block text-[#00E6E6]">
-                                {Math.round(prediction.probability * 100)}%
-                              </span>
-                            </div>
-                          </div>
-                          <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-gray-700">
-                            <div 
-                              style={{ width: `${prediction.probability * 100}%` }}
-                              className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-[#00E6E6]"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* =========== GRÁFICO DE PREDICCIONES =========== */}
-              <div className="bg-[#000]/50 backdrop-blur-sm p-4 rounded border-2 border-[#00E6E6] shadow">
-                <h3 className="text-lg font-semibold mb-4 text-[#E6E6E6]">Prediction Probabilities</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dataset.predictions}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1C3D5A" />
-                      <XAxis dataKey="name" stroke="#E6E6E6" />
-                      <YAxis stroke="#E6E6E6" />
-                      <Tooltip 
-                        formatter={(value) => [`${(Number(value) * 100).toFixed(0)}%`, 'Probability']}
-                        contentStyle={{ backgroundColor: '#001f2e', borderColor: '#1C3D5A', color: '#E6E6E6' }} 
-                      />
-                      <Legend wrapperStyle={{ color: '#E6E6E6' }} />
-                      <Bar dataKey="probability">
-                        {dataset.predictions.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </>
-          )}
+      
+      {/* Tabs de navegación */}
+      <div className="bg-cyber-dark/70 backdrop-blur-sm p-2 rounded-lg border border-cyber-cyan/20 shadow-lg">
+        <div className="flex flex-wrap">
+          <button 
+            className={`px-4 py-2 rounded-md mr-2 flex items-center ${
+              activeTab === 'overview' 
+                ? 'bg-cyber-cyan text-cyber-dark' 
+                : 'bg-transparent text-cyber-text/70 hover:bg-cyber-detail/20'
+            }`}
+            onClick={() => setActiveTab('overview')}
+          >
+            <BarChart2 size={16} className="mr-1.5" />
+            Resumen
+          </button>
+          <button 
+            className={`px-4 py-2 rounded-md mr-2 flex items-center ${
+              activeTab === 'structure' 
+                ? 'bg-cyber-cyan text-cyber-dark' 
+                : 'bg-transparent text-cyber-text/70 hover:bg-cyber-detail/20'
+            }`}
+            onClick={() => setActiveTab('structure')}
+          >
+            <Table size={16} className="mr-1.5" />
+            Estructura
+          </button>
+          <button 
+            className={`px-4 py-2 rounded-md mr-2 flex items-center ${
+              activeTab === 'chat' 
+                ? 'bg-cyber-cyan text-cyber-dark' 
+                : 'bg-transparent text-cyber-text/70 hover:bg-cyber-detail/20'
+            }`}
+            onClick={() => setActiveTab('chat')}
+          >
+            <HelpCircle size={16} className="mr-1.5" />
+            Asistente
+          </button>
+          <button 
+            className={`px-4 py-2 rounded-md flex items-center ${
+              activeTab === 'agent' 
+                ? 'bg-cyber-cyan text-cyber-dark' 
+                : 'bg-transparent text-cyber-text/70 hover:bg-cyber-detail/20'
+            }`}
+            onClick={() => setActiveTab('agent')}
+          >
+            <Brain size={16} className="mr-1.5" />
+            Agente IA
+          </button>
         </div>
-
-        {/* ======================== CHATBOT ======================== */}
-        <div className="bg-[#000]/50 backdrop-blur-sm p-4 rounded border-2 border-[#00E6E6] shadow h-[calc(100vh-20rem)] flex flex-col">
-          <div className="p-4 border-b-2 border-[#00E6E6]">
-            <h3 className="text-lg font-semibold text-[#E6E6E6]">Dataset Assistant</h3>
-            <p className="text-sm text-gray-300">Ask questions about this dataset</p>
-          </div>
-          
-          {/* Mensajes del chat */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {chatMessages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2 shadow ${
-                    message.sender === 'user'
-                      ? 'bg-[#00E6E6] text-[#000]'
-                      : 'bg-[#333]/50 text-[#E6E6E6]'
-                  }`}
-                >
-                  <p>{message.text}</p>
-                  <p className={`text-xs mt-1 ${message.sender === 'user' ? 'text-[#000]/70' : 'text-[#E6E6E6]/70'}`}>
-                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
+      </div>
+      
+      {/* Contenido principal según la tab activa */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Distribución */}
+          <div className="bg-cyber-dark/70 backdrop-blur-sm p-4 rounded-lg border border-cyber-cyan/20 shadow-lg">
+            <h2 className="text-lg font-semibold text-cyber-text mb-4">Distribución de datos</h2>
+            {distributionData.length > 0 ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={distributionData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={80}
+                      nameKey="category" // o el campo adecuado según tu API
+                      dataKey="value" // o el campo adecuado según tu API
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {distributionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => [`${value}`, 'Cantidad']} 
+                      contentStyle={{ backgroundColor: '#001f2e', border: 'none', color: '#E6E6E6' }} 
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-
-            {/* Indicador "escribiendo" */}
-            {isSending && (
-              <div className="flex justify-start">
-                <div className="bg-[#333]/50 text-[#E6E6E6] rounded-lg px-4 py-2 shadow">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 rounded-full bg-[#00E6E6] animate-bounce" />
-                    <div className="w-2 h-2 rounded-full bg-[#00E6E6] animate-bounce" style={{ animationDelay: '0.2s' }} />
-                    <div className="w-2 h-2 rounded-full bg-[#00E6E6] animate-bounce" style={{ animationDelay: '0.4s' }} />
-                  </div>
-                </div>
+            ) : (
+              <div className="bg-cyber-detail/20 p-4 rounded text-cyber-text/70 text-center h-64 flex flex-col justify-center items-center">
+                <AlertTriangle size={24} className="mb-2 text-cyber-cyan" />
+                <p>No hay suficientes datos para mostrar esta visualización.</p>
               </div>
             )}
           </div>
           
-          {/* Input del chat */}
-          <div className="p-4 border-t-2 border-[#00E6E6]">
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Ask about this dataset..."
-                className="flex-1 px-4 py-2 bg-[#333]/50 text-[#E6E6E6] border border-[#00E6E6]/50 rounded focus:outline-none focus:border-[#00E6E6]"
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!messageInput.trim() || isSending}
-                className={`p-2 rounded transition-colors ${
-                  !messageInput.trim() || isSending
-                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'bg-[#00E6E6] text-[#000] hover:bg-[#00E6E6]/90'
-                }`}
-              >
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  className="h-5 w-5" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
+          {/* Tendencia */}
+          <div className="bg-cyber-dark/70 backdrop-blur-sm p-4 rounded-lg border border-cyber-cyan/20 shadow-lg">
+            <h2 className="text-lg font-semibold text-cyber-text mb-4">Tendencia temporal</h2>
+            {trendsData.length > 0 ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendsData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1C3D5A" />
+                    <XAxis dataKey="date" stroke="#E6E6E6" />
+                    <YAxis stroke="#E6E6E6" />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#001f2e', border: 'none', color: '#E6E6E6' }} 
+                    />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="sales" // o el campo adecuado según tu API 
+                      stroke="#00E6E6" 
+                      strokeWidth={2} 
+                      dot={{ stroke: '#00E6E6', strokeWidth: 2, r: 4, fill: '#00E6E6' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="bg-cyber-detail/20 p-4 rounded text-cyber-text/70 text-center h-64 flex flex-col justify-center items-center">
+                <AlertTriangle size={24} className="mb-2 text-cyber-cyan" />
+                <p>No hay suficientes datos temporales para mostrar esta visualización.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
+      {activeTab === 'structure' && (
+        <div className="bg-cyber-dark/70 backdrop-blur-sm p-4 rounded-lg border border-cyber-cyan/20 shadow-lg">
+          <h2 className="text-lg font-semibold text-cyber-text mb-4">Estructura del Dataset</h2>
+          
+          {context?.columnNames && context.columnNames.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-cyber-detail/30">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-cyber-cyan uppercase tracking-wider">
+                      Columna
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-cyber-cyan uppercase tracking-wider">
+                      Tipo
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-cyber-detail/30">
+                {context.columnNames.map((column: string, index: number) => (
+                <tr key={index} className="hover:bg-cyber-detail/10">
+                  <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-cyber-text">
+                    {column}
+                  </td>
+                  <td className="px-4 py-2 whitespace-nowrap text-sm text-cyber-text/70">
+                    {context.columnTypes && context.columnTypes[index] 
+                      ? context.columnTypes[index] 
+                      : "desconocido"}
+                  </td>
+                </tr> 
+              ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="bg-cyber-detail/20 p-4 rounded text-cyber-text/70">
+              No hay información de columnas disponible para este dataset.
+            </div>
+          )}
+          
+          {/* Información adicional sobre la estructura */}
+          <div className="mt-6 space-y-4">
+            <div className="bg-cyber-detail/20 p-4 rounded">
+              <h3 className="text-sm font-medium text-cyber-cyan mb-2">Información de conexión</h3>
+              <p className="text-cyber-text/70 text-sm">
+                Tipo: {context?.connection_type || 'N/A'}
+              </p>
             </div>
           </div>
         </div>
-      </div>
+      )}
+      
+      {activeTab === 'chat' && (
+        <div className="bg-cyber-dark/70 backdrop-blur-sm p-4 rounded-lg border border-cyber-cyan/20 shadow-lg h-[calc(100vh-20rem)]">
+          <div className="flex flex-col h-full">
+            {/* Cabecera del chat */}
+            <div className="border-b border-cyber-detail/30 pb-3 mb-3">
+              <h2 className="text-lg font-semibold text-cyber-text">Asistente de Datos</h2>
+              <p className="text-cyber-text/70 text-sm">
+                Pregunta cualquier cosa sobre este dataset
+              </p>
+            </div>
+            
+            {/* Área de mensajes */}
+            <div className="flex-grow overflow-y-auto p-2 space-y-4">
+              {chatMessages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg px-4 py-2 shadow ${
+                      message.sender === 'user'
+                        ? 'bg-cyber-cyan text-cyber-dark'
+                        : 'bg-cyber-detail/50 text-cyber-text border border-cyber-cyan/20'
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                    
+                    {/* Visualizaciones e insights si los hay */}
+                    {message.visualizations && message.visualizations.length > 0 && (
+                      <div className="mt-3 border-t border-cyber-detail/30 pt-3">
+                        <p className="text-xs font-medium mb-2">Visualizaciones:</p>
+                        {message.visualizations.map((viz, index) => (
+                          <div key={index} className="mt-2 bg-cyber-detail/30 p-2 rounded">
+                            {/* Aquí puedes renderizar diferentes tipos de visualizaciones 
+                                basadas en el contenido de 'viz' */}
+                            <p className="text-xs">{viz.type || 'Visualización'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {message.insights && message.insights.length > 0 && (
+                      <div className="mt-3 border-t border-cyber-detail/30 pt-3">
+                        <p className="text-xs font-medium mb-2">Insights:</p>
+                        <ul className="list-disc list-inside text-xs space-y-1">
+                          {message.insights.map((insight, index) => (
+                            <li key={index}>{insight}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    <p className={`text-xs mt-1 ${
+                      message.sender === 'user' 
+                        ? 'text-cyber-dark/70' 
+                        : 'text-cyber-text/70'
+                    }`}>
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Indicador de escritura */}
+              {isSending && (
+                <div className="flex justify-start">
+                  <div className="bg-cyber-detail/50 text-cyber-text rounded-lg px-4 py-2 border border-cyber-cyan/20 shadow">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 rounded-full bg-cyber-cyan animate-bounce" />
+                      <div className="w-2 h-2 rounded-full bg-cyber-cyan animate-bounce" style={{ animationDelay: '0.2s' }} />
+                      <div className="w-2 h-2 rounded-full bg-cyber-cyan animate-bounce" style={{ animationDelay: '0.4s' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Área de entrada de mensajes */}
+            <div className="border-t border-cyber-detail/30 pt-3 mt-3">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Pregunta sobre este dataset..."
+                  className="flex-grow px-4 py-2 bg-cyber-detail/30 border border-cyber-detail text-cyber-text rounded focus:outline-none focus:ring-1 focus:ring-cyber-cyan"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!messageInput.trim() || isSending}
+                  className={`p-2 rounded ${
+                    !messageInput.trim() || isSending
+                      ? 'bg-cyber-detail/30 text-cyber-text/40 cursor-not-allowed'
+                      : 'bg-cyber-cyan text-cyber-dark hover:bg-cyber-cyan/90'
+                  } transition-colors`}
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+              
+              {/* Sugerencias de preguntas */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button 
+                  onClick={() => setMessageInput('¿Qué insights puedes darme sobre este dataset?')}
+                  className="px-2 py-1 text-xs bg-cyber-detail/30 text-cyber-text/70 rounded hover:bg-cyber-detail/50 transition-colors"
+                >
+                  Insights generales
+                </button>
+                <button 
+                  onClick={() => setMessageInput('Muestra la distribución de valores')}
+                  className="px-2 py-1 text-xs bg-cyber-detail/30 text-cyber-text/70 rounded hover:bg-cyber-detail/50 transition-colors"
+                >
+                  Mostrar distribución
+                </button>
+                <button 
+                  onClick={() => setMessageInput('¿Cuál es la tendencia principal?')}
+                  className="px-2 py-1 text-xs bg-cyber-detail/30 text-cyber-text/70 rounded hover:bg-cyber-detail/50 transition-colors"
+                >
+                  Tendencias
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'agent' && dataset && (
+        <div className="space-y-6">
+          <div className="flex items-center mb-4">
+            <Brain size={20} className="text-cyber-cyan mr-2" />
+            <h2 className="text-lg font-semibold text-cyber-text">Asistente Proactivo IA</h2>
+            <div className="ml-3 px-2 py-1 bg-cyber-cyan/20 rounded-full text-xs text-cyber-cyan">
+              Avanzado
+            </div>
+          </div>
+          
+          {/* Panel de alertas y monitoreo */}
+          <DataMonitorPanel datasetId={Number(id)} refreshInterval={300000} />
+          
+          {/* Insights generados por el agente */}
+          <ProactiveInsights datasetId={Number(id)} />
+          
+          {/* Acciones sugeridas por el agente */}
+          <AgentSuggestions />
+          
+          {/* Información sobre el Agente IA */}
+          <div className="bg-cyber-dark/70 backdrop-blur-sm p-4 rounded-lg border border-cyber-cyan/20 shadow-lg">
+            <div className="flex items-center mb-3">
+              <Zap size={18} className="text-cyber-cyan mr-2" />
+              <h3 className="text-md font-semibold text-cyber-text">Acerca del Agente IA</h3>
+            </div>
+            <p className="text-cyber-text/80 text-sm">
+              El Agente IA analiza proactivamente tus datos para identificar patrones, anomalías y oportunidades de negocio. A diferencia del asistente conversacional, el agente monitorea continuamente y puede tomar decisiones autónomas cuando se configura para ello.
+            </p>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-cyber-detail/20 p-3 rounded-lg">
+                <h4 className="text-sm font-medium text-cyber-cyan mb-1">Capacidades</h4>
+                <ul className="text-xs text-cyber-text/70 space-y-1">
+                  <li>• Detección automática de anomalías</li>
+                  <li>• Identificación proactiva de oportunidades</li>
+                  <li>• Monitoreo continuo de métricas clave</li>
+                  <li>• Sugerencias basadas en reglas de negocio</li>
+                </ul>
+              </div>
+              <div className="bg-cyber-detail/20 p-3 rounded-lg">
+                <h4 className="text-sm font-medium text-cyber-cyan mb-1">Configuración</h4>
+                <p className="text-xs text-cyber-text/70">
+                  Para ajustar el comportamiento del agente IA, configura reglas de negocio en la sección 
+                  <span className="text-cyber-cyan mx-1">Configuración → Reglas de Negocio</span>
+                  del panel.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
 
 export default DatasetDetailPage;

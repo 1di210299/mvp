@@ -1,38 +1,52 @@
 // src/App.tsx
 import React from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-
-// Importar la página de inicio original
-import HomePage from './pages/HomePage';
-
-// Importar el layout del dashboard
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import DashboardLayout from './layouts/DashboardLayout';
+import HomePage from './pages/HomePage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import DatasetDetailPage from './pages/DatasetDetailPage';
+import DatasetsPage from './pages/DatasetsPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import DashboardVentas from './components/DashboardVentas';
+import VentasChart from './components/VentasChart';
+import SegmentacionClientes from './components/SegmentacionClientes';
+import PrediccionesVentas from './components/PrediccionesVentas';
+import ReportesVentas from './components/ReportesVentas';
 
-function App() {
+const App: React.FC = () => {
   return (
-    <Router>
-      <Routes>
-        {/* La ruta principal muestra directamente tu HomePage.tsx original */}
-        <Route path="/" element={<HomePage />} />
-        
-        {/* Todas las rutas del dashboard están dentro del layout */}
-        <Route path="/dashboard/*" element={<DashboardLayout />} />
-        
-        {/* Redirecciones para URLs más cortas */}
-        <Route path="/ventas" element={<Navigate to="/dashboard/ventas" replace />} />
-        <Route path="/clientes" element={<Navigate to="/dashboard/clientes" replace />} />
-        <Route path="/predicciones" element={<Navigate to="/dashboard/predicciones" replace />} />
-        <Route path="/datasets" element={<Navigate to="/dashboard/datasets" replace />} />
-        <Route path="/datasets/:id" element={<Navigate to={`/dashboard/datasets/${window.location.pathname.split('/').pop()}`} replace />} />
-        <Route path="/reportes" element={<Navigate to="/dashboard/reportes" replace />} />
-        <Route path="/calendarios" element={<Navigate to="/dashboard/calendarios" replace />} />
-        <Route path="/ajustes" element={<Navigate to="/dashboard/ajustes" replace />} />
-        
-        {/* Ruta por defecto para manejar URLs no existentes */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Rutas públicas */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          
+          {/* Rutas protegidas */}
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<HomePage />} />
+            <Route path="datasets" element={<DatasetsPage />} />
+            <Route path="datasets/:id" element={<DatasetDetailPage />} />
+            <Route path="ventas" element={<DashboardVentas />} />
+            <Route path="charts" element={<VentasChart />} />
+            <Route path="clientes" element={<SegmentacionClientes />} />
+            <Route path="predicciones" element={<PrediccionesVentas />} />
+            <Route path="reportes" element={<ReportesVentas />} />
+          </Route>
+          
+          {/* Redirecciones */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
-}
+};
 
 export default App;

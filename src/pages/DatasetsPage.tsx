@@ -1,5 +1,5 @@
-// src/components/DatasetsPage.tsx
-import React, { useState } from 'react';
+// src/pages/DatasetsPage.tsx
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Plus, 
@@ -9,92 +9,109 @@ import {
   FileText, 
   Calendar, 
   Database,
-  BarChart
+  BarChart,
+  Users,
+  Boxes,
+  TrendingUp,
+  DollarSign,
+  Trash2
 } from 'lucide-react';
+import { datasetService, Dataset } from '../api/services';
 
-// Datos de ejemplo para los datasets enfocados en MYPES peruanas
-const datasetsList = [
-  {
-    id: '1',
-    name: 'Ventas Mensuales 2025',
-    description: 'Análisis de ventas por mes',
-    type: 'Ventas',
-    format: 'CSV',
-    size: '1.2 MB',
-    rows: 1250,
-    updatedAt: '01 Mar, 2025',
-    tags: ['ventas', 'mensual', '2025']
-  },
-  {
-    id: '2',
-    name: 'Segmentación Clientes Lima',
-    description: 'Clientes por distrito y categoría',
-    type: 'Clientes',
-    format: 'Excel',
-    size: '850 KB',
-    rows: 845,
-    updatedAt: '28 Feb, 2025',
-    tags: ['clientes', 'segmentación', 'Lima']
-  },
-  {
-    id: '3',
-    name: 'Inventario Productos Q1',
-    description: 'Stock y rotación de productos',
-    type: 'Inventario',
-    format: 'CSV',
-    size: '640 KB',
-    rows: 523,
-    updatedAt: '25 Feb, 2025',
-    tags: ['inventario', 'productos', 'trimestral']
-  },
-  {
-    id: '4',
-    name: 'Campañas Fiestas Patrias',
-    description: 'Resultados de campañas 2024',
-    type: 'Campañas',
-    format: 'Excel',
-    size: '1.5 MB',
-    rows: 325,
-    updatedAt: '03 Mar, 2025',
-    tags: ['campañas', 'marketing', '2024']
-  },
-  {
-    id: '5',
-    name: 'Proyección Ventas 2025',
-    description: 'Estimación de ventas por trimestre',
-    type: 'Pronósticos',
-    format: 'CSV',
-    size: '920 KB',
-    rows: 120,
-    updatedAt: '01 Mar, 2025',
-    tags: ['pronósticos', 'ventas', '2025']
-  }
-];
-
-// Componente principal
-const DatasetsPage = () => {
+const DatasetsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Cargar datasets al montar el componente
+  useEffect(() => {
+    const fetchDatasets = async () => {
+      try {
+        setLoading(true);
+        const response = await datasetService.getAll();
+        setDatasets(response.data);
+      } catch (err: any) {
+        console.error('Error fetching datasets:', err);
+        setError(err.response?.data?.error || 'Error al cargar los datasets');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDatasets();
+  }, []);
   
   // Filtrar datasets basados en búsqueda y tipo
-  const filteredDatasets = datasetsList.filter(dataset => {
+  const filteredDatasets = datasets.filter(dataset => {
     const matchesSearch = 
       dataset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dataset.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dataset.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      (dataset.description && dataset.description.toLowerCase().includes(searchTerm.toLowerCase()));
       
-    const matchesType = selectedType === 'all' || dataset.type.toLowerCase() === selectedType.toLowerCase();
+    const matchesType = selectedType === 'all' || 
+                        (dataset.category && dataset.category.toLowerCase() === selectedType.toLowerCase());
     
     return matchesSearch && matchesType;
   });
+
+  // Función para manejar la eliminación de un dataset
+  const handleDeleteDataset = async (id: number, e: React.MouseEvent) => {
+    e.preventDefault(); // Evitar navegación
+    e.stopPropagation(); // Evitar que el click llegue al enlace padre
+    
+    if (window.confirm('¿Estás seguro de eliminar este dataset?')) {
+      try {
+        await datasetService.delete(id);
+        // Actualizar la lista después de eliminar
+        setDatasets(prevDatasets => prevDatasets.filter(dataset => dataset.id !== id));
+      } catch (err: any) {
+        console.error('Error deleting dataset:', err);
+        alert(err.response?.data?.error || 'Error al eliminar el dataset');
+      }
+    }
+  };
   
+  // Determinar el icono según la categoría del dataset
+  const getDatasetIcon = (category: string) => {
+    const categoryLower = category ? category.toLowerCase() : '';
+    
+    if (categoryLower.includes('venta')) return <BarChart size={24} className="text-cyber-cyan" />;
+    if (categoryLower.includes('cliente')) return <Users size={24} className="text-blue-400" />;
+    if (categoryLower.includes('inventario')) return <Boxes size={24} className="text-green-400" />;
+    if (categoryLower.includes('marketing')) return <TrendingUp size={24} className="text-purple-400" />;
+    if (categoryLower.includes('finanza')) return <DollarSign size={24} className="text-yellow-400" />;
+    return <Database size={24} className="text-cyber-text/70" />;
+  };
+  
+  // Renderizar pantalla de carga
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyber-cyan"></div>
+      </div>
+    );
+  }
+  
+  // Renderizar mensaje de error
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-900/30 border border-red-500/30 text-red-400 px-4 py-3 rounded mb-4">
+          <h3 className="font-medium mb-2">Error</h3>
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-cyber-text">Datasets</h1>
-          <p className="text-cyber-text/70">Gestiona y analiza tus fuentes de datos de ventas</p>
+          <p className="text-cyber-text/70">Gestiona y analiza tus fuentes de datos</p>
         </div>
         <div className="mt-4 md:mt-0">
           <button 
@@ -133,8 +150,8 @@ const DatasetsPage = () => {
               <option value="ventas">Ventas</option>
               <option value="clientes">Clientes</option>
               <option value="inventario">Inventario</option>
-              <option value="campañas">Campañas</option>
-              <option value="pronósticos">Pronósticos</option>
+              <option value="marketing">Marketing</option>
+              <option value="finanzas">Finanzas</option>
             </select>
             
             <button className="flex items-center px-3 py-2 bg-cyber-detail/30 border border-cyber-detail text-cyber-text rounded hover:bg-cyber-detail/50 transition-colors">
@@ -163,54 +180,38 @@ const DatasetsPage = () => {
                 <div className="p-4">
                   <div className="flex items-start">
                     <div className="flex-shrink-0 p-2 bg-cyber-detail/30 rounded mr-4">
-                      {dataset.type === 'Ventas' && <BarChart size={24} className="text-cyber-cyan" />}
-                      {dataset.type === 'Clientes' && <Users size={24} className="text-blue-400" />}
-                      {dataset.type === 'Inventario' && <Boxes size={24} className="text-green-400" />}
-                      {dataset.type === 'Campañas' && <TrendingUp size={24} className="text-purple-400" />}
-                      {dataset.type === 'Pronósticos' && <ChartLine size={24} className="text-yellow-400" />}
-                      {!['Ventas', 'Clientes', 'Inventario', 'Campañas', 'Pronósticos'].includes(dataset.type) && (
-                        <Database size={24} className="text-cyber-text/70" />
-                      )}
+                      {getDatasetIcon(dataset.category)}
                     </div>
                     
                     <div className="flex-grow min-w-0">
                       <div className="flex flex-col md:flex-row md:justify-between md:items-start">
                         <div>
                           <h3 className="text-lg font-medium text-cyber-text truncate">{dataset.name}</h3>
-                          <p className="text-cyber-text/70 text-sm">{dataset.description}</p>
+                          <p className="text-cyber-text/70 text-sm">{dataset.description || 'Sin descripción'}</p>
                         </div>
-                        <div className="md:text-right mt-2 md:mt-0">
-                          <span className="inline-block px-2 py-1 text-xs rounded-full bg-cyber-detail/40 text-cyber-text">
-                            {dataset.format}
+                        <div className="md:text-right mt-2 md:mt-0 flex items-center">
+                          <span className="inline-block px-2 py-1 text-xs rounded-full bg-cyber-detail/40 text-cyber-text mr-2">
+                            {dataset.category || 'Sin categoría'}
                           </span>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {dataset.tags.map((tag, tagIndex) => (
-                          <span 
-                            key={tagIndex}
-                            className="px-2 py-0.5 bg-cyber-detail/30 text-cyber-text/70 text-xs rounded-full"
+                          <button
+                            onClick={(e) => handleDeleteDataset(dataset.id, e)}
+                            className="p-1 text-red-400 hover:bg-red-900/30 rounded"
+                            title="Eliminar dataset"
                           >
-                            {tag}
-                          </span>
-                        ))}
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="mt-3 flex flex-col md:flex-row md:items-center text-xs text-cyber-text/60">
                         <div className="flex items-center">
                           <FileText size={14} className="mr-1" />
-                          <span>{dataset.rows.toLocaleString()} filas</span>
-                        </div>
-                        <span className="hidden md:block mx-2">•</span>
-                        <div className="flex items-center">
-                          <Database size={14} className="mr-1" />
-                          <span>{dataset.size}</span>
+                          <span>{dataset.columns?.length || 0} columnas</span>
                         </div>
                         <span className="hidden md:block mx-2">•</span>
                         <div className="flex items-center">
                           <Calendar size={14} className="mr-1" />
-                          <span>Actualizado: {dataset.updatedAt}</span>
+                          <span>Creado: {new Date(dataset.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
                     </div>
@@ -237,18 +238,29 @@ const DatasetsPage = () => {
         )}
       </div>
       
-      {/* Modal para nuevo dataset (comentado por ahora) */}
-      {/* {isModalOpen && (
-        <AddDatasetModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSave={handleAddDataset}
-        />
-      )} */}
+      {/* Modal para nuevo dataset - se implementaría con un componente modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-cyber-dark/90 p-6 rounded-lg border border-cyber-cyan/20 max-w-md w-full">
+            <h2 className="text-xl text-cyber-text font-bold mb-4">Nuevo Dataset</h2>
+            
+            <p className="text-cyber-text/70 mb-6">
+              La funcionalidad de crear nuevos datasets está pendiente de implementación
+            </p>
+            
+            <div className="flex justify-end">
+              <button
+                className="px-4 py-2 bg-cyber-detail/50 text-cyber-text rounded hover:bg-cyber-detail transition-colors mr-2"
+                onClick={() => setIsModalOpen(false)}
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
-import { Users, Boxes, TrendingUp, ChartLine } from 'lucide-react';
 
 export default DatasetsPage;

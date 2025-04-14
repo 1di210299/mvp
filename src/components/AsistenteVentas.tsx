@@ -1,36 +1,33 @@
 // src/components/AsistenteVentas.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Bot, Lightbulb, Sparkles, FileText, PieChart } from 'lucide-react';
+import { Send, Bot, Lightbulb, Sparkles, FileText, PieChart, Download } from 'lucide-react';
+import { assistantService } from '../api/services';
 
 interface Mensaje {
   id: number;
   texto: string;
   emisor: 'usuario' | 'bot';
   timestamp: Date;
+  visualizaciones?: any[];
+  insights?: any[];
 }
 
 interface AsistenteVentasProps {
-  empresaId?: number;
-  nombreEmpresa?: string;
+  empresaId: number;
+  nombreEmpresa: string;
   sector?: string;
 }
 
 function AsistenteVentas({ 
-  empresaId = 1, 
-  nombreEmpresa = "Mi Empresa", 
+  empresaId, 
+  nombreEmpresa, 
   sector = "Retail"
 }: AsistenteVentasProps) {
-  const [mensajes, setMensajes] = useState<Mensaje[]>([
-    {
-      id: 1,
-      texto: `¡Hola! Soy tu asistente IA de ANNEX para "${nombreEmpresa}". Puedo ayudarte con análisis de ventas, predicciones, segmentación de clientes y más. ¿En qué puedo ayudarte hoy?`,
-      emisor: 'bot',
-      timestamp: new Date(),
-    },
-  ]);
+  const [mensajes, setMensajes] = useState<Mensaje[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [sugerencias, setSugerencias] = useState<string[]>([
     "¿Cómo mejorar mis ventas?",
     "Analizar tendencias por región",
@@ -38,63 +35,29 @@ function AsistenteVentas({
     "Segmentar a mis clientes",
   ]);
   const mensajesEndRef = useRef<HTMLDivElement>(null);
-
-  // Respuestas de ejemplo según palabras clave (en un entorno real se consultaría al backend AI)
-  const respuestasEjemplo: Record<string, string[]> = {
-    tendencia: [
-      'Según el análisis de tus datos, hay un crecimiento del 15% en el último trimestre, especialmente en Lima y Arequipa.',
-      'Estamos viendo un patrón cíclico con picos cada 3 meses, coincidiendo con fechas de pago de quincena.',
-      'Hay una tendencia a la baja en la categoría C, pero el crecimiento en A y B lo compensa. Te recomendaría revisar la estrategia de precios para la categoría C.',
-    ],
-    predecir: [
-      'Basado en tus datos históricos y factores estacionales, predicción para el próximo mes: S/ 58,400 en ventas (+23%).',
-      'Nuestro modelo predice un cambio en el mercado para el tercer trimestre. Considera aumentar inventario de productos estacionales.',
-      'La confianza de predicción es actualmente 87% para el escenario principal. Los márgenes de error están dentro del 5-8%.',
-    ],
-    comparar: [
-      'Comparado con empresas similares del sector Retail en Perú, tus ventas muestran un 30% más de variación estacional.',
-      'Tu ticket promedio (S/ 125) es 45% mayor que el promedio del sector (S/ 86) en MYPES similares.',
-      'Comparado con el año pasado, vemos una mejora del 12% en conversión y un 8% en retención de clientes.',
-    ],
-    campaña: [
-      'Las campañas de Fiestas Patrias y Navidad generan el 48% de tus ingresos anuales. Recomendamos reforzar marketing 60 días antes.',
-      'Tu ROI en campañas digitales (3.8x) supera al promedio del sector (2.5x). Considera aumentar inversión en este canal.',
-      'La campaña "Cyber Days" tuvo un rendimiento 35% mejor que el año anterior. Los productos más vendidos fueron tecnología y moda.',
-    ],
-    cliente: [
-      'Tus clientes se dividen en 4 segmentos principales: frecuentes (22%), ocasionales (45%), nuevos (18%) y dormidos (15%).',
-      'El grupo más rentable representa solo el 18% de clientes pero genera el 54% de los ingresos.',
-      'La tasa de retención ha mejorado un 8% este año. Recomendamos implementar un programa de fidelización para clientes frecuentes.',
-    ],
-    sunat: [
-      'Detectamos patrones en tus datos que podrían optimizar tu declaración mensual de IGV. Te recomiendo revisar los registros de ventas de Marzo y Abril.',
-      'Según tus volúmenes de venta, podrías calificar para el Régimen MYPE Tributario. Esto podría reducir tu tasa de impuesto a la renta.',
-      'Tus gastos deducibles no están siendo completamente aprovechados. Hay aproximadamente S/ 4,200 en potenciales deducciones adicionales.',
-    ],
-    inventario: [
-      'Tu rotación de inventario (4.2x) está por debajo del promedio del sector (6.8x). Los productos A1, B7 y C3 tienen mayor riesgo de obsolescencia.',
-      'Recomendamos reducir stock de las categorías con baja rotación (-24% en categoría D) y aumentar en categorías de alta demanda (+18% en categoría A).',
-      'El análisis de estacionalidad sugiere aumentar inventario 45 días antes de Fiestas Patrias y 60 días antes de Navidad.',
-    ],
-    default: [
-      'Puedo ayudarte a entender patrones y generar insights sobre tus datos de ventas. Pregúntame sobre tendencias, predicciones o métricas específicas.',
-      'Como tu asistente de datos, puedo analizar tu información de ventas desde diferentes perspectivas. ¿Te interesa algún análisis en particular?',
-      'Para MYPES en Perú, puedo ayudarte con análisis competitivo, predicción de ventas, segmentación de clientes y optimización de inventario.',
-    ],
-  };
-
+  
+  // Cargar mensaje inicial de bienvenida
+  useEffect(() => {
+    setMensajes([{
+      id: 1,
+      texto: `¡Hola! Soy tu asistente IA de ANNEX para "${nombreEmpresa}". Puedo ayudarte con análisis de ventas, predicciones, segmentación de clientes y más. ¿En qué puedo ayudarte hoy?`,
+      emisor: 'bot',
+      timestamp: new Date(),
+    }]);
+  }, [nombreEmpresa]);
+  
   // Auto-scroll al último mensaje
   useEffect(() => {
     mensajesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [mensajes]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     const messageText = inputValue.trim();
-    if (!messageText) return;
+    if (!messageText || isTyping) return;
 
-    // Agrega el mensaje del usuario
+    // Agregar el mensaje del usuario
     const userMessage: Mensaje = {
-      id: mensajes.length + 1,
+      id: Date.now(),
       texto: messageText,
       emisor: 'usuario',
       timestamp: new Date(),
@@ -103,54 +66,53 @@ function AsistenteVentas({
     setInputValue('');
     setIsTyping(true);
 
-    // Simula respuesta del bot con un delay realista
-    setTimeout(() => {
-      const lowerInput = messageText.toLowerCase();
-      let responseCategory = 'default';
+    try {
+      // Preparar historial de mensajes para contexto
+      const messageHistory = mensajes
+        .slice(-5) // Últimos 5 mensajes
+        .map(msg => ({
+          text: msg.texto,
+          sender: msg.emisor === 'usuario' ? 'user' : 'assistant'
+        }));
       
-      // Detecta la categoría basada en palabras clave
-      if (lowerInput.includes('tendencia') || lowerInput.includes('trend') || lowerInput.includes('patrón')) {
-        responseCategory = 'tendencia';
-      } else if (lowerInput.includes('predic') || lowerInput.includes('proyec') || lowerInput.includes('futuro') || lowerInput.includes('próximo')) {
-        responseCategory = 'predecir';
-      } else if (lowerInput.includes('compar') || lowerInput.includes('benchmark') || lowerInput.includes('competencia') || lowerInput.includes('sector')) {
-        responseCategory = 'comparar';
-      } else if (lowerInput.includes('campaña') || lowerInput.includes('promoción') || lowerInput.includes('marketing') || lowerInput.includes('publicidad')) {
-        responseCategory = 'campaña';
-      } else if (lowerInput.includes('cliente') || lowerInput.includes('segmento') || lowerInput.includes('comprador') || lowerInput.includes('retención')) {
-        responseCategory = 'cliente';
-      } else if (lowerInput.includes('sunat') || lowerInput.includes('impuesto') || lowerInput.includes('tributario') || lowerInput.includes('igv')) {
-        responseCategory = 'sunat';
-      } else if (lowerInput.includes('inventario') || lowerInput.includes('stock') || lowerInput.includes('producto') || lowerInput.includes('rotación')) {
-        responseCategory = 'inventario';
-      }
+      // Llamada a la API real
+      const response = await assistantService.analyzeSales({
+        message: messageText,
+        empresaId,
+        nombreEmpresa,
+        sector,
+        language: 'es',
+        messageHistory
+      });
       
-      const possibleResponses = respuestasEjemplo[responseCategory];
-      let responseText = possibleResponses[Math.floor(Math.random() * possibleResponses.length)];
-
-      // Personaliza la respuesta con el nombre de la empresa y sector
-      responseText = responseText
-        .replace(/tu empresa/gi, nombreEmpresa)
-        .replace(/del sector/gi, `del sector ${sector}`);
-
+      // Crear el mensaje del asistente con la respuesta
       const botMessage: Mensaje = {
-        id: mensajes.length + 2,
-        texto: responseText,
+        id: Date.now() + 1,
+        texto: response.data.message,
         emisor: 'bot',
         timestamp: new Date(),
+        visualizaciones: response.data.visualizations || [],
+        insights: response.data.insights || []
       };
-
-      setMensajes((prev) => [...prev, botMessage]);
-      setIsTyping(false);
       
-      // Genera nuevas sugerencias basadas en la conversación
-      setSugerencias([
-        responseCategory === 'tendencia' ? "¿Cómo mejorar estas tendencias?" : "Ver tendencias por producto",
-        responseCategory === 'predecir' ? "¿Qué factores afectan esta predicción?" : "Predecir ventas próximo trimestre",
-        responseCategory === 'cliente' ? "¿Cómo retener más clientes?" : "Analizar segmentos de clientes",
-        responseCategory === 'inventario' ? "Optimizar niveles de inventario" : "Estrategias para aumentar ventas",
-      ]);
-    }, 1000 + Math.random() * 1000);
+      setMensajes((prev) => [...prev, botMessage]);
+      
+      // Actualizar sugerencias si hay disponibles
+      if (response.data.suggestions && response.data.suggestions.length > 0) {
+        setSugerencias(response.data.suggestions);
+      }
+    } catch (error) {
+      console.error("Error al obtener respuesta:", error);
+      // Mensaje de error para el usuario
+      setMensajes((prev) => [...prev, {
+        id: Date.now() + 1,
+        texto: "Lo siento, hubo un problema al procesar tu consulta. Por favor, intenta nuevamente.",
+        emisor: 'bot',
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -160,18 +122,70 @@ function AsistenteVentas({
     }
   };
 
-  // Formatea la hora en formato HH:MM
+  // Formatear la hora en formato HH:MM
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Maneja click en sugerencia
+  // Manejar click en sugerencia
   const handleSugerenciaClick = (sugerencia: string) => {
     setInputValue(sugerencia);
     // Pequeño delay para mejor UX
     setTimeout(() => {
       handleSendMessage();
-    }, 300);
+    }, 100);
+  };
+  
+  // Renderizar visualización
+  const renderVisualizacion = (visualizacion: any) => {
+    if (!visualizacion) return null;
+    
+    return (
+      <div className="my-2 p-3 bg-cyber-detail/30 rounded-lg border border-cyber-cyan/10">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-medium text-cyber-cyan">{visualizacion.title || "Visualización"}</h4>
+          <button className="text-cyber-text/70 hover:text-cyber-cyan">
+            <Download size={14} />
+          </button>
+        </div>
+        <div className="h-64 w-full">
+          {visualizacion.data ? (
+            <div 
+              id={`visualization-${Date.now()}`} 
+              className="w-full h-full"
+              dangerouslySetInnerHTML={{ __html: JSON.stringify(visualizacion.data) }}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              <PieChart size={32} className="text-cyber-cyan/40 mr-2" />
+              <span className="text-cyber-text/70">Sin datos para visualizar</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+  
+  // Renderizar insights
+  const renderInsights = (insights: any[]) => {
+    if (!insights || insights.length === 0) return null;
+    
+    return (
+      <div className="my-2 p-3 bg-cyber-detail/30 rounded-lg border border-cyber-cyan/10">
+        <h4 className="text-sm font-medium text-cyber-cyan mb-2 flex items-center">
+          <Sparkles size={14} className="mr-1" />
+          Insights
+        </h4>
+        <ul className="space-y-1">
+          {insights.map((insight, index) => (
+            <li key={index} className="text-sm text-cyber-text flex items-start">
+              <span className="inline-block h-4 w-4 rounded-full bg-cyber-cyan/20 text-cyber-cyan flex items-center justify-center text-xs mr-2 mt-0.5">•</span>
+              {insight.text}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
   };
 
   return (
@@ -220,6 +234,24 @@ function AsistenteVentas({
                 >
                   {formatTime(mensaje.timestamp)}
                 </p>
+                
+                {/* Visualizaciones (solo para mensajes del bot) */}
+                {mensaje.emisor === 'bot' && mensaje.visualizaciones && mensaje.visualizaciones.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-cyber-cyan/10">
+                    {mensaje.visualizaciones.map((viz, index) => (
+                      <div key={index}>
+                        {renderVisualizacion(viz)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Insights (solo para mensajes del bot) */}
+                {mensaje.emisor === 'bot' && mensaje.insights && mensaje.insights.length > 0 && (
+                  <div className="mt-2">
+                    {renderInsights(mensaje.insights)}
+                  </div>
+                )}
               </div>
             </motion.div>
           ))}

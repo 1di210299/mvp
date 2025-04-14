@@ -1,5 +1,5 @@
 import pandas  as pd 
-from column_mapper import map_column
+from .column_mapper import map_column
 
 def process_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     new_columns = {}

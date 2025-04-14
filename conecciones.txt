@@ -1,0 +1,37 @@
+Analizando las imágenes de tu estructura de archivos de frontend y backend, aquí están los principales puntos de conexión entre ambos sistemas:
+
+## Archivos principales para conectar:
+
+### Backend → Frontend:
+1. **Autenticación**:
+   - Backend: `authentication.py` ↔ Frontend: `AuthContext.tsx` + `services.ts` (para llamadas auth)
+
+2. **APIs de Datasets**:
+   - Backend: `views.py` (endpoints de datasets) ↔ Frontend: `services.ts` + `DatasetDetailPage.tsx`/`DatasetsPage.tsx`
+
+3. **APIs de Visualización**:
+   - Backend: `chart_generator.py` + endpoints en `views.py` ↔ Frontend: `DatasetsChart.tsx` + `VentasChart.tsx`
+
+4. **APIs de Asistente IA**:
+   - Backend: endpoints en `views.py` para asistente ↔ Frontend: `EnhancedAssistant.tsx` + `AsistenteVentas.tsx`
+
+5. **APIs de Chatbot**:
+   - Backend: endpoint para chatbot ↔ Frontend: `DatasetChatbot.tsx`
+
+6. **APIs de Procesamiento NLP**:
+   - Backend: `nlp_processor.py` ↔ Frontend: Componentes que usan análisis (varios)
+
+7. **APIs de Predicción**:
+   - Backend: `prediction.py` ↔ Frontend: `PrediccionesVentas.tsx`
+
+## Lista de pasos para implementar la conexión:
+
+1. Configurar CORS en Django (`settings.py`)
+2. Implementar client HTTP en React (`client.ts`)
+3. Crear servicios para cada área de API (`services.ts`)
+4. Configurar autenticación JWT (backend y frontend)
+5. Implementar llamadas API en cada componente relevante
+6. Gestionar tokens en localStorage/sessionStorage
+7. Manejar errores y estados de carga en componentes
+
+¿Te gustaría que te proporcione el código específico para alguno de estos puntos de conexión? Puedo ayudarte a implementar paso a paso la integración entre ambos sistemas.

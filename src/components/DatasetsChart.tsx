@@ -1,5 +1,5 @@
 // src/components/DatasetsChart.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   LineChart,
   Line,
@@ -11,77 +11,110 @@ import {
   BarChart,
   Bar,
 } from 'recharts';
-import { Calendar, Filter, Download, BarChart2, DollarSign } from 'lucide-react';
+import { Calendar, Filter, Download, DollarSign } from 'lucide-react';
+import { chartService } from '../api/services';
+import Plot from 'react-plotly.js';
 
-// Datos de ventas mensuales de la empresa
-const monthlyData = [
-  { month: 'Ene', ventas: 125000, growth: 0 },
-  { month: 'Feb', ventas: 148000, growth: 18.4 },
-  { month: 'Mar', ventas: 142000, growth: -4.1 },
-  { month: 'Abr', ventas: 168000, growth: 18.3 },
-  { month: 'May', ventas: 185000, growth: 10.1 },
-  { month: 'Jun', ventas: 192000, growth: 3.8 },
-  { month: 'Jul', ventas: 326000, growth: 69.8 }, // Fiestas Patrias
-  { month: 'Ago', ventas: 258000, growth: -20.9 },
-  { month: 'Sep', ventas: 274000, growth: 6.2 },
-  { month: 'Oct', ventas: 298000, growth: 8.8 },
-  { month: 'Nov', ventas: 425000, growth: 42.6 }, // Black Friday / Cyber Days
-  { month: 'Dic', ventas: 489000, growth: 15.1 }, // Navidad
-];
+interface DatasetsChartProps {
+  datasetId: string | number;
+}
 
-// Datos por categoría de producto
-const categoryData = [
-  { month: 'Categoría A', ventas: 580000, growth: 0 },
-  { month: 'Categoría B', ventas: 420000, growth: -27.6 },
-  { month: 'Categoría C', ventas: 360000, growth: -14.3 },
-  { month: 'Categoría D', ventas: 180000, growth: -50.0 },
-  { month: 'Categoría E', ventas: 90000, growth: -50.0 },
-];
-
-// Datos por región
-const regionData = [
-  { month: 'Lima Norte', ventas: 620000, growth: 0 },
-  { month: 'Lima Centro', ventas: 480000, growth: -22.6 },
-  { month: 'Lima Sur', ventas: 280000, growth: -41.7 },
-  { month: 'Lima Este', ventas: 340000, growth: 21.4 },
-  { month: 'Callao', ventas: 120000, growth: -64.7 },
-  { month: 'Provincias', ventas: 190000, growth: 58.3 },
-];
-
-function DatasetsChart() {
+function DatasetsChart({ datasetId }: DatasetsChartProps) {
   const [period, setPeriod] = useState('monthly');
   const [chartType, setChartType] = useState('line');
+  const [data, setData] = useState<any[]>([]);
+  const [plotlyData, setPlotlyData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<any>(null);
 
-  const getPeriodData = () => {
-    switch (period) {
-      case 'category':
-        return categoryData;
-      case 'region':
-        return regionData;
-      default:
-        return monthlyData;
+  // Cargar datos del dataset
+  const loadData = useCallback(async () => {
+    if (!datasetId) {
+      setError("Se requiere un ID de dataset");
+      setLoading(false);
+      return;
     }
-  };
 
-  const data = getPeriodData();
-  const currentGrowth = data[data.length - 1].growth;
-  const latestValue = data[data.length - 1].ventas;
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Cargar datos del dataset desde el backend
+      const response = await fetch(`/api/datasets/${datasetId}/data`);
+      if (!response.ok) throw new Error('Error al cargar los datos del dataset');
+      
+      const jsonData = await response.json();
+      
+      // Generar visualización según el período seleccionado
+      const chartType = 
+        period === 'monthly' ? 'sales' : 
+        period === 'category' ? 'category' : 'regional';
+      
+      const chartResponse = await chartService.generateChart(jsonData, chartType);
+      
+      // Actualizar estados con los datos del backend
+      setPlotlyData(chartResponse.data.chart);
+      setAnalysis(chartResponse.data.analysis);
+      setData(chartResponse.data.raw_data || []);
+    } catch (err: any) {
+      console.error('Error cargando datos:', err);
+      setError(err.message || 'Error al cargar los datos');
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [period, datasetId]);
+
+  // Cargar datos cuando cambia el período o el datasetId
+  useEffect(() => {
+    loadData();
+  }, [loadData, period, datasetId]);
+
+  // Formatear totales para KPI (de manera segura)
+  const totalVentas = analysis?.total_sales || 0;
+  const growthRate = analysis?.growth_rate || 0;
   
-  // Calcular el total de ventas para mostrar en el KPI
-  const totalVentas = monthlyData.reduce((sum, item) => sum + item.ventas, 0);
+  // Determinar color para el crecimiento
+  const growthColor = growthRate >= 0 ? 'text-green-400' : 'text-red-400';
+  const growthIcon = growthRate >= 0 ? '↑' : '↓';
 
-  // Determina color y flecha para crecimiento
-  const growthColor = currentGrowth >= 0 ? 'text-green-400' : 'text-red-400';
-  const growthIcon = currentGrowth >= 0 ? '↑' : '↓';
+  // Renderizar estado de carga
+  if (loading) {
+    return (
+      <div className="w-full h-full flex flex-col bg-cyber-dark/70 backdrop-blur-sm p-6 rounded-lg border border-cyber-cyan/20 shadow-lg">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-cyber-cyan"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Renderizar estado de error
+  if (error) {
+    return (
+      <div className="w-full h-full flex flex-col bg-cyber-dark/70 backdrop-blur-sm p-6 rounded-lg border border-cyber-cyan/20 shadow-lg">
+        <div className="flex flex-col items-center justify-center h-64">
+          <p className="text-cyber-text/70 mb-4">{error}</p>
+          <button 
+            onClick={loadData}
+            className="bg-cyber-cyan text-cyber-dark px-4 py-2 rounded hover:bg-cyber-cyan/90 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full flex flex-col bg-cyber-dark/70 backdrop-blur-sm p-6 rounded-lg border border-cyber-cyan/20 shadow-lg">
       {/* Encabezado */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center">
-          <h4 className="text-lg font-semibold text-cyber-text">Análisis de Ventas</h4>
+          <h4 className="text-lg font-semibold text-cyber-text">Análisis de Datos</h4>
           <span className={`ml-2 text-sm font-medium ${growthColor}`}>
-            {growthIcon} {Math.abs(currentGrowth).toFixed(1)}%
+            {growthIcon} {Math.abs(growthRate).toFixed(1)}%
           </span>
         </div>
         <div className="flex space-x-2">
@@ -101,6 +134,7 @@ function DatasetsChart() {
           >
             <option value="line">Línea</option>
             <option value="bar">Barras</option>
+            {plotlyData && <option value="advanced">Avanzado</option>}
           </select>
         </div>
       </div>
@@ -112,7 +146,7 @@ function DatasetsChart() {
             <DollarSign size={20} />
           </div>
           <div>
-            <p className="text-xs text-cyber-text/70">Ventas Totales</p>
+            <p className="text-xs text-cyber-text/70">Total</p>
             <p className="text-xl font-bold text-cyber-text">S/ {(totalVentas / 1000).toFixed(0)}K</p>
           </div>
         </div>
@@ -131,53 +165,71 @@ function DatasetsChart() {
       {/* Gráfico principal */}
       <div className="flex-grow" style={{ minHeight: '250px', width: '100%' }}>
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            {chartType === 'line' ? (
+          chartType === 'advanced' && plotlyData ? (
+            <Plot
+              data={plotlyData.data}
+              layout={{...plotlyData.layout, autosize: true}}
+              style={{ width: '100%', height: '100%' }}
+              useResizeHandler={true}
+            />
+          ) : chartType === 'line' ? (
+            <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1C3D5A" />
-                <XAxis dataKey="month" stroke="#E6E6E6" />
+                <XAxis dataKey={
+                  period === 'monthly' ? 'formatted_date' : 
+                  period === 'category' ? 'category' : 'region'
+                } stroke="#E6E6E6" />
                 <YAxis 
                   stroke="#E6E6E6" 
                   tickFormatter={(value) => `S/ ${(value/1000).toFixed(0)}K`}
                 />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#0A192F', border: '1px solid #1C3D5A', color: '#E6E6E6' }} 
-                  formatter={(value) => [`S/ ${value.toLocaleString()}`, 'Ventas']}
+                  formatter={(value: any) => [`S/ ${Number(value).toLocaleString()}`, 'Valor']}
                 />
                 <Line
                   type="monotone"
-                  dataKey="ventas"
+                  dataKey={period === 'monthly' ? 'sales' : 'value'}
                   stroke="#00E6E6"
                   strokeWidth={2}
                   dot={{ r: 4, stroke: '#00E6E6', strokeWidth: 1, fill: '#0A192F' }}
                   activeDot={{ r: 6, stroke: '#00E6E6', strokeWidth: 1, fill: '#00E6E6' }}
                 />
               </LineChart>
-            ) : (
+            </ResponsiveContainer>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1C3D5A" />
-                <XAxis dataKey="month" stroke="#E6E6E6" />
+                <XAxis dataKey={
+                  period === 'monthly' ? 'formatted_date' : 
+                  period === 'category' ? 'category' : 'region'
+                } stroke="#E6E6E6" />
                 <YAxis 
                   stroke="#E6E6E6" 
                   tickFormatter={(value) => `S/ ${(value/1000).toFixed(0)}K`}
                 />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#0A192F', border: '1px solid #1C3D5A', color: '#E6E6E6' }} 
-                  formatter={(value) => [`S/ ${value.toLocaleString()}`, 'Ventas']}
+                  formatter={(value: any) => [`S/ ${Number(value).toLocaleString()}`, 'Valor']}
                 />
                 <Bar 
-                  dataKey="ventas" 
+                  dataKey={period === 'monthly' ? 'sales' : 'value'}
                   fill="#00E6E6"
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
-            )}
-          </ResponsiveContainer>
+            </ResponsiveContainer>
+          )
         ) : (
           <div className="flex flex-col items-center justify-center h-full">
             <p className="text-cyber-text/70 mb-2">No hay datos disponibles para este período</p>
-            <button className="bg-cyber-cyan text-cyber-dark px-4 py-2 rounded hover:bg-cyber-cyan/90 transition-colors">
-              Importar datos de ventas
+            <button 
+              onClick={loadData}
+              className="bg-cyber-cyan text-cyber-dark px-4 py-2 rounded hover:bg-cyber-cyan/90 transition-colors"
+            >
+              Actualizar
             </button>
           </div>
         )}
