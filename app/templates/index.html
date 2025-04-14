@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_title }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #075e54;
+            border-bottom: 2px solid #25d366;
+            padding-bottom: 10px;
+        }
+        .card {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status-ready {
+            background-color: #25d366;
+            color: white;
+        }
+        .status-config {
+            background-color: #ffcc00;
+            color: #333;
+        }
+        .button {
+            display: inline-block;
+            background-color: #25d366;
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .button-secondary {
+            background-color: #075e54;
+        }
+        .tools {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .tool-card {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .tool-card h3 {
+            margin-top: 0;
+            color: #075e54;
+        }
+        .spacer {
+            flex-grow: 1;
+        }
+        @media (max-width: 600px) {
+            .tools {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ app_title }} <span class="status {% if status == 'ready' %}status-ready{% else %}status-config{% endif %}">{{ status }}</span></h1>
+    
+    <div class="card">
+        <h2>Sistema de Ventas Automatizado por WhatsApp</h2>
+        <p>Bienvenido al panel de control del WhatsApp Sales Bot. Este sistema le permite gestionar ventas automáticamente a través de WhatsApp, con protección integrada contra extorsiones.</p>
+        <p>Entorno actual: <strong>{{ environment }}</strong></p>
+    </div>
+    
+    <div class="tools">
+        <div class="tool-card">
+            <h3>Diagnóstico de WhatsApp</h3>
+            <p>Verifique el estado de su conexión con WhatsApp y solucione problemas comunes.</p>
+            <div class="spacer"></div>
+            <a href="/help/whatsapp" class="button">Acceder a Diagnóstico</a>
+        </div>
+        
+        <div class="tool-card">
+            <h3>Estado del Sistema</h3>
+            <p>Verifique la salud general del sistema, incluyendo la base de datos y servicios externos.</p>
+            <div class="spacer"></div>
+            <a href="/health" class="button button-secondary">Verificar Estado</a>
+        </div>
+        
+        <div class="tool-card">
+            <h3>Enviar Mensaje de Prueba</h3>
+            <p>Envíe un mensaje de prueba a un número específico para verificar la conexión.</p>
+            <div class="spacer"></div>
+            <form action="/api/whatsapp/test-send" method="get" style="margin-top: auto;">
+                <input type="text" name="phone_number" placeholder="+51955743403" required style="padding: 8px; width: 100%; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ddd;">
+                <button type="submit" class="button">Enviar Prueba</button>
+            </form>
+        </div>
+        
+        <div class="tool-card">
+            <h3>Documentación API</h3>
+            <p>Explore la documentación interactiva de la API para integraciones.</p>
+            <div class="spacer"></div>
+            <a href="/docs" class="button button-secondary">Ver Documentación</a>
+        </div>
+    </div>
+    
+    <footer style="margin-top: 40px; text-align: center; color: #777; font-size: 14px;">
+        <p>WhatsApp Sales Bot v1.0.0 | Powered by FastAPI & Twilio</p>
+    </footer>
+</body>
+</html>

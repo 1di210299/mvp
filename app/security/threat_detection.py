@@ -1,156 +1,170 @@
 import re
+import json
 import logging
-from typing import Dict, Any, List, Set
-
+from typing import Dict, Any, List, Set, Tuple
 from app.services.openai_service import detect_threats
+from app.config import SUSPICIOUS_WORDS_PATH, MIN_SUSPICIOUS_SCORE, THREAT_SCORE_THRESHOLD, settings
+from app.security.access_control import is_whitelisted
 
 # Configurar logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.security.threat_detection")
 
-# Lista de palabras clave sospechosas (argot peruano para extorsiones)
-SUSPICIOUS_KEYWORDS = {
-    # Términos generales de extorsión
-    "extorsión", "amenaza", "matar", "secuestrar", "dañar", "familia", "atentado",
-    "bomba", "explosivo", "arma", "pistola", "revólver", "cuchillo",
-    
-    # Términos de extorsión comunes en Perú
-    "cupo", "protección", "colaboración", "vacuna", "aporte", "encargo",
-    "tío", "primo", "hermano", "familia", "apoyo", "favor", "préstamo",
-    
-    # Referencias a organizaciones criminales
-    "clan", "banda", "mafia", "organización", "grupo", "barrio",
-    
-    # Términos relativos a pagos forzados
-    "pagar", "depositar", "transferir", "yape", "plin", "billetera", "cuenta",
-    "transferencia", "banco", "efectivo", "dinero", "plata", "lucas", "luca",
-    
-    # Términos de presión y urgencia
-    "urgente", "inmediato", "ahora", "ya", "rápido", "hoy", "mañana",
-    
-    # Amenazas específicas
-    "atentado", "disparar", "quemar", "incendiar", "romper", "destruir",
-    "negocio", "tienda", "local", "casa", "carro", "auto", "familia",
-    
-    # Jerga peruana relacionada con extorsión
-    "tombo", "rati", "rata", "gil", "causa", "brother", "hermano", "choro",
-    "marcas", "cogotear", "apretar", "cagar", "joder", "fregar"
-}
-
-def keyword_match(text: str) -> Dict[str, Any]:
+# Cargar palabras sospechosas desde archivo
+def load_suspicious_words() -> Set[str]:
     """
-    Analiza un texto en busca de palabras clave sospechosas.
+    Carga la lista de palabras sospechosas desde un archivo.
+    
+    Returns:
+        Set[str]: Conjunto de palabras sospechosas
+    """
+    try:
+        with open(SUSPICIOUS_WORDS_PATH, 'r', encoding='utf-8') as file:
+            return {word.strip().lower() for word in file if word.strip()}
+    except Exception as e:
+        logger.error(f"Error cargando palabras sospechosas: {str(e)}")
+        # Lista básica de palabras sospechosas en caso de error
+        return {
+            "amenaza", "matar", "extorsión", "plomo", "disparar", "muerte", "dinero",
+            "cupo", "protección", "bomba", "explotar", "familia", "cuidado", "peligro",
+            "seguimiento", "vigilando", "sabemos", "conocemos", "ubicación", "dirección",
+            "hijo", "hija", "esposa", "padres", "colaboración", "pagar", "consecuencias",
+            "enterrar", "mafia", "banda", "clan", "grupo", "norte", "pulpo", "venganza",
+            "quemar", "incendiar", "cerrar", "negocio", "eliminar", "advertencia", "última",
+            "plazo", "tiempo", "inmediato", "urgente", "rápido", "atento", "visita",
+            "marcar", "apuntar", "lamentar", "sufrir", "decidir", "responsable", "vives",
+            "donde", "casa", "dónde", "trabajo", "encontrar", "visitar"
+        }
+
+# Singleton para mantener las palabras cargadas
+_suspicious_words = None
+
+def get_suspicious_words() -> Set[str]:
+    """
+    Obtiene el conjunto de palabras sospechosas, cargándolo si es necesario.
+    
+    Returns:
+        Set[str]: Conjunto de palabras sospechosas
+    """
+    global _suspicious_words
+    if _suspicious_words is None:
+        _suspicious_words = load_suspicious_words()
+    return _suspicious_words
+
+def keyword_match_score(text: str) -> Tuple[float, List[str]]:
+    """
+    Calcula un score de sospecha basado en palabras clave.
     
     Args:
         text: Texto a analizar
         
     Returns:
-        dict: Resultado del análisis con score y palabras encontradas
+        tuple: (score, palabras_encontradas)
     """
-    # Normalizar texto: minúsculas y eliminar tildes
-    text_normalized = text.lower()
+    suspicious_words = get_suspicious_words()
     
-    # Buscar coincidencias
-    found_keywords: Set[str] = set()
+    # Normalizar el texto (minúsculas, sin acentos)
+    normalized_text = text.lower()
     
-    for keyword in SUSPICIOUS_KEYWORDS:
-        # Buscar la palabra completa con fronteras de palabra
-        pattern = r'\b' + re.escape(keyword) + r'\b'
-        if re.search(pattern, text_normalized):
-            found_keywords.add(keyword)
+    # Buscar palabras sospechosas
+    found_words = [word for word in suspicious_words if word in normalized_text]
     
-    # Calcular score basado en la cantidad de palabras encontradas
-    # y su relevancia (por ahora todas tienen el mismo peso)
-    count = len(found_keywords)
-    max_score = min(1.0, count / 5)  # 5+ palabras = score 1.0
+    # Calcular score básico: proporción de palabras encontradas
+    if not found_words:
+        return 0.0, []
+    
+    # Score ponderado por la cantidad y densidad de palabras encontradas
+    words_in_text = len(re.findall(r'\b\w+\b', normalized_text))
+    if words_in_text == 0:
+        return 0.0, []
+    
+    # Calcular puntuación basada en:
+    # 1. Número de palabras sospechosas diferentes encontradas
+    # 2. Densidad de palabras sospechosas en el texto
+    word_count_factor = min(len(found_words) / 10, 1.0)  # Máximo 10 palabras distintas
+    density_factor = min(len(found_words) / words_in_text, 1.0)
+    
+    # Combinar factores para obtener score final
+    score = 0.3 * word_count_factor + 0.7 * density_factor
+    
+    return min(score, 1.0), found_words
+
+def pattern_based_detection(text: str) -> Dict[str, Any]:
+    """
+    Detecta patrones comunes de amenazas o extorsiones mediante regex.
+    
+    Args:
+        text: Texto a analizar
+        
+    Returns:
+        dict: Resultados del análisis
+    """
+    patterns = {
+        "dinero_y_amenaza": r'(?i)((pagar|dinero|soles|dólares|lucas|billete|transferir|depositar).{1,30}(o|caso contrario|sino|de lo contrario|o si no))',
+        "plazo_tiempo": r'(?i)((tiempo|plazo|horas|minutos|días|fecha).{1,20}(terminado|acabado|cumplido|vencido))',
+        "datos_personales": r'(?i)(sabemos|conocemos).{1,30}(donde|dirección|casa|vives|trabajo|familia|hijo|hija|esposa|esposo|padres)',
+        "violencia_explicita": r'(?i)(matar|disparar|plomo|muerte|sangre|romper|quebrar|golpear|eliminar|desaparecer)',
+        "extorsion_directa": r'(?i)(colabora|cupo|cuota|protección|seguridad).{1,30}(negocio|tienda|local|familia)',
+    }
+    
+    findings = {}
+    matches_found = False
+    
+    for pattern_name, pattern in patterns.items():
+        matches = re.findall(pattern, text)
+        if matches:
+            matches_found = True
+            findings[pattern_name] = matches
+    
+    # Calcular score basado en los patrones encontrados
+    pattern_score = min(len(findings) / len(patterns), 1.0) if matches_found else 0.0
     
     return {
-        "score": max_score,
-        "is_threat": max_score >= 0.4,  # Umbral arbitrario
-        "keywords": list(found_keywords),
-        "method": "keyword_match"
+        "patterns_found": findings,
+        "score": pattern_score,
+        "matches_found": matches_found
     }
 
-def analyze_message(text: str) -> Dict[str, Any]:
+def analyze_message(message: str, phone_number: str = None) -> Tuple[bool, float, Dict[str, Any]]:
     """
-    Analiza un mensaje en busca de amenazas o contenido sospechoso.
-    
-    Combina análisis simple de palabras clave con análisis de IA
-    para mayor precisión.
+    Analyzes a message to detect possible threats or extortion attempts
     
     Args:
-        text: Texto a analizar
-        
+        message: The message to analyze
+        phone_number: Sender's phone number (optional)
+    
     Returns:
-        dict: Resultado del análisis
+        Tuple with:
+        - is_threat: If the message is a threat
+        - score: Threat score (0-1)
+        - details: Additional details about the analysis
     """
-    # Resultado por defecto (en caso de error)
-    default_result = {
-        "score": 0.0,
-        "is_threat": False,
-        "threat_type": "ninguna",
-        "keywords": [],
-        "explanation": "Análisis no disponible"
-    }
+    # Check if the number is whitelisted
+    if phone_number and is_whitelisted(phone_number):
+        logger.info(f"Number {phone_number} is whitelisted, skipping threat analysis")
+        return False, 0.0, {"whitelisted": True, "analysis": None}
+    
+    # If the message is very short, it's unlikely to be a threat
+    if len(message) < 5:
+        return False, 0.0, {"reason": "message too short", "analysis": None}
     
     try:
-        # 1. Primero análisis rápido con palabras clave
-        keyword_result = keyword_match(text)
+        # Try to analyze with OpenAI
+        analysis = detect_threats(message)
+        score = analysis.get("threat_score", 0.0)
         
-        # Si el texto es muy corto o no tiene palabras clave, evitamos llamar a la API
-        if len(text.strip()) < 10 or not keyword_result["keywords"]:
-            return {
-                "score": 0.0,
-                "is_threat": False,
-                "threat_type": "ninguna",
-                "keywords": [],
-                "explanation": "Mensaje demasiado corto o sin contenido sospechoso",
-                "method": "keyword_only"
-            }
+        # Determine if it's a threat based on the configured threshold
+        is_threat = score >= THREAT_SCORE_THRESHOLD
         
-        # 2. Si hay palabras clave sospechosas, usar IA para análisis profundo
-        if keyword_result["score"] > 0.2:
-            try:
-                # Obtener análisis de OpenAI
-                ai_result = detect_threats(text)
-                
-                # Combinar ambos resultados (dando más peso al análisis de IA)
-                combined_score = (ai_result.get("score", 0) * 0.7) + (keyword_result["score"] * 0.3)
-                
-                # Preparar resultado combinado
-                result = {
-                    "score": min(1.0, combined_score),  # Asegurar max 1.0
-                    "is_threat": ai_result.get("is_threat", False) or (combined_score >= 0.5),
-                    "threat_type": ai_result.get("threat_type", "posible"),
-                    "keywords": list(set(ai_result.get("keywords", []) + keyword_result["keywords"])),
-                    "explanation": ai_result.get("explanation", "Análisis automático detectó contenido sospechoso"),
-                    "method": "combined"
-                }
-                
-                logger.info(f"Análisis de amenaza completado: Score {result['score']:.2f}")
-                return result
-                
-            except Exception as e:
-                logger.error(f"Error en análisis IA: {str(e)}")
-                # En caso de error con IA, usar solo análisis de palabras clave
-                return {
-                    "score": keyword_result["score"],
-                    "is_threat": keyword_result["is_threat"],
-                    "threat_type": "posible" if keyword_result["is_threat"] else "ninguna",
-                    "keywords": keyword_result["keywords"],
-                    "explanation": "Análisis simple detectó palabras clave sospechosas",
-                    "method": "keyword_fallback"
-                }
+        # Check if auto-blocking is enabled
+        enable_auto_blocking = getattr(settings, "ENABLE_AUTO_BLOCKING", True)
         
-        # Si no hay suficientes palabras clave, devolver resultado simple
-        return {
-            "score": keyword_result["score"],
-            "is_threat": keyword_result["is_threat"],
-            "threat_type": "posible" if keyword_result["is_threat"] else "ninguna",
-            "keywords": keyword_result["keywords"],
-            "explanation": "Mensaje de bajo riesgo",
-            "method": "keyword_only"
-        }
+        if is_threat and not enable_auto_blocking:
+            logger.warning(f"Message detected as threat (score: {score}) but auto-blocking is disabled")
+            is_threat = False  # Don't block if auto-blocking is disabled
+        
+        return is_threat, score, {"analysis": analysis}
         
     except Exception as e:
-        logger.error(f"Error en análisis de amenazas: {str(e)}")
-        return default_result
+        logger.error(f"Error analyzing message: {str(e)}")
+        # In case of error, don't block the message
+        return False, 0.0, {"error": str(e), "analysis": None}

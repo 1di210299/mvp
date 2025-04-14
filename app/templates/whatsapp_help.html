@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ayuda de WhatsApp</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            color: #075e54;
+            border-bottom: 2px solid #25d366;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #128c7e;
+            margin-top: 30px;
+        }
+        .step {
+            background-color: #f7f7f7;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 5px solid #25d366;
+        }
+        code {
+            background-color: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .button {
+            display: inline-block;
+            background-color: #25d366;
+            color: white;
+            padding: 10px 15px;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .warning {
+            background-color: #fff9e6;
+            border-left: 5px solid #ffcc00;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .url-info {
+            background-color: #e6f7ff;
+            border-left: 5px solid #0099ff;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .error-info {
+            background-color: #ffe6e6;
+            border-left: 5px solid #ff4d4d;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .solution-info {
+            background-color: #e6ffe6;
+            border-left: 5px solid #00cc00;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .card {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #results {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #25d366;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Guía de Solución de Problemas de WhatsApp</h1>
+    
+    <p>Esta página le ayudará a diagnosticar y resolver problemas con su conexión de WhatsApp al sistema.</p>
+    
+    <div class="url-info">
+        <strong>URL de acceso:</strong>
+        <p>Esta página está disponible en:</p>
+        <ul>
+            <li><strong>Local:</strong> <code>http://localhost:8000/help/whatsapp</code></li>
+            <li><strong>Internet:</strong> <code>{{ request.url }}</code></li>
+        </ul>
+        <p>Utilice la URL de Internet para acceder desde cualquier dispositivo.</p>
+    </div>
+    
+    <div class="warning">
+        <strong>Importante:</strong> Para usar WhatsApp en modo sandbox, primero debe enviar un mensaje con la palabra <code>join move-weather</code> (o el código de su sandbox) al número <code>+14155238886</code>.
+    </div>
+    
+    <div class="error-info">
+        <h3>🚨 Problema común: El bot no responde a mis mensajes</h3>
+        <p>Si puedes recibir mensajes del bot, pero cuando envías mensajes no obtienes respuesta, aquí están las causas más probables:</p>
+        <ol>
+            <li><strong>Webhook mal configurado:</strong> El webhook de Twilio no está recibiendo tus mensajes.</li>
+            <li><strong>Sesión expirada:</strong> Tu sesión de WhatsApp Sandbox ha expirado (dura 72 horas).</li>
+            <li><strong>Formato de mensaje incorrecto:</strong> El bot solo responde a ciertos formatos o palabras clave.</li>
+            <li><strong>Problemas de conexión:</strong> El servidor ngrok puede haberse reiniciado o la URL ha cambiado.</li>
+        </ol>
+    </div>
+    
+    <div class="solution-info">
+        <h3>✅ Solución rápida para mensajes no respondidos</h3>
+        <ol>
+            <li><strong>Reactivar el sandbox:</strong> Envía <code>join move-weather</code> al número <code>+14155238886</code> nuevamente.</li>
+            <li><strong>Verificar URL de ngrok:</strong> Asegúrate que la URL actual de ngrok (<code id="ngrok-url">{{request.url.netloc}}</code>) corresponde con la configurada en Twilio.</li>
+            <li><strong>Reiniciar la aplicación:</strong> A veces reiniciar el servidor soluciona el problema.</li>
+            <li><strong>Verificar los webhooks:</strong> <a href="#" onclick="checkWebhooks(event)" class="button" style="font-size: 0.8em; padding: 5px 10px;">Verificar Configuración de Webhooks</a></li>
+        </ol>
+    </div>
+    
+    <div class="card">
+        <h2>Resumen de Estado</h2>
+        <p>Basado en nuestros diagnósticos, aquí está el estado actual de su sistema WhatsApp:</p>
+        <div id="statusSummary">
+            <button onclick="checkStatus()" class="button">Verificar Estado</button>
+            <span id="statusLoader" style="display: none;"><div class="loader"></div> Verificando...</span>
+        </div>
+        <div id="results"></div>
+    </div>
+    
+    <h2>Paso 1: Verificar el Estado General de WhatsApp</h2>
+    
+    <div class="step">
+        <p>Primero, verifiquemos si la conexión general de WhatsApp está funcionando:</p>
+        <a href="/api/whatsapp/diagnose" class="button" onclick="showLoader('diagnoseLoader')">Ejecutar Diagnóstico</a>
+        <span id="diagnoseLoader" style="display: none;"><div class="loader"></div></span>
+        <p>Este diagnóstico le mostrará si hay problemas generales con la configuración de Twilio/WhatsApp.</p>
+    </div>
+    
+    <h2>Paso 2: Verificar el Estado de Su Número</h2>
+    
+    <div class="step">
+        <p>Ahora, verifiquemos específicamente su número de teléfono:</p>
+        <form onsubmit="checkNumber(event)">
+            <input type="text" id="phoneNumber" placeholder="+51955743403" value="+51955743403" required style="padding: 8px; width: 60%; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ddd;">
+            <button type="submit" class="button">Verificar Número</button>
+            <span id="numberLoader" style="display: none;"><div class="loader"></div></span>
+        </form>
+        <p>Esto le mostrará si su número está activo en el sandbox, si ha enviado o recibido mensajes, etc.</p>
+    </div>
+    
+    <h2>Paso 3: Enviar un Mensaje de Prueba</h2>
+    
+    <div class="step">
+        <p>Si los pasos anteriores no muestran problemas evidentes, intentemos enviar un mensaje de prueba:</p>
+        <form onsubmit="sendTestMessage(event)">
+            <label for="testPhoneNumber">Su número (con código de país):</label>
+            <input type="text" id="testPhoneNumber" name="phone_number" placeholder="+51955743403" value="+51955743403" required style="padding: 8px; width: 60%; margin-bottom: 10px; border-radius: 4px; border: 1px solid #ddd;">
+            <button type="submit" class="button">Enviar Mensaje de Prueba</button>
+            <span id="testLoader" style="display: none;"><div class="loader"></div></span>
+        </form>
+    </div>
+    
+    <h2>Soluciones Comunes</h2>
+    
+    <div class="step">
+        <h3>Si no recibe mensajes de WhatsApp:</h3>
+        <ol>
+            <li>Asegúrese de haber enviado <code>join move-weather</code> al número de sandbox de Twilio</li>
+            <li>Verifique que su teléfono tiene conexión a internet</li>
+            <li>Asegúrese de que no ha enviado STOP o bloqueado el número</li>
+            <li>Intente enviar un nuevo mensaje al número de sandbox para refrescar la conexión</li>
+        </ol>
+        
+        <h3>Si ha sido bloqueado o ha enviado STOP:</h3>
+        <ol>
+            <li>Envíe <code>START</code> al número de WhatsApp de Twilio</li>
+            <li>Si eso no funciona, vuelva a enviar <code>join move-weather</code></li>
+        </ol>
+    </div>
+    
+    <div style="margin-top: 30px; text-align: center;">
+        <a href="/" class="button" style="background-color: #075e54;">Volver al Inicio</a>
+    </div>
+    
+    <script>
+        function showLoader(id) {
+            document.getElementById(id).style.display = 'inline-block';
+        }
+        
+        function hideLoader(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        
+        function showResults(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.style.display = 'block';
+            
+            if (typeof data === 'object') {
+                resultsDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } else {
+                resultsDiv.innerHTML = data;
+            }
+        }
+        
+        async function checkStatus() {
+            showLoader('statusLoader');
+            document.getElementById('results').style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/whatsapp/status');
+                const data = await response.json();
+                
+                let statusHtml = '<h3>Estado de WhatsApp:</h3>';
+                statusHtml += `<p><strong>Estado:</strong> ${data.whatsapp_status}</p>`;
+                statusHtml += `<p><strong>Último activo:</strong> ${data.last_active || 'No disponible'}</p>`;
+                
+                if (data.last_message_received) {
+                    statusHtml += `<p><strong>Último mensaje recibido:</strong> ${data.last_message_received}</p>`;
+                }
+                
+                if (data.last_message_sent) {
+                    statusHtml += `<p><strong>Último mensaje enviado:</strong> ${data.last_message_sent}</p>`;
+                }
+                
+                statusHtml += `<p><strong>Detalles:</strong> ${data.details}</p>`;
+                
+                showResults(statusHtml);
+            } catch (error) {
+                showResults(`<p>Error al verificar estado: ${error.message}</p>`);
+            } finally {
+                hideLoader('statusLoader');
+            }
+        }
+        
+        async function checkNumber(event) {
+            event.preventDefault();
+            showLoader('numberLoader');
+            document.getElementById('results').style.display = 'none';
+            
+            const phoneNumber = document.getElementById('phoneNumber').value;
+            
+            try {
+                const response = await fetch(`/api/whatsapp/check-number/${phoneNumber}`);
+                const data = await response.json();
+                
+                let statusHtml = `<h3>Estado del número: ${phoneNumber}</h3>`;
+                statusHtml += `<p><strong>Estado:</strong> ${data.status}</p>`;
+                statusHtml += `<p><strong>Activo en sandbox:</strong> ${data.active_in_sandbox ? 'Sí' : 'No'}</p>`;
+                statusHtml += `<p><strong>Mensajes recibidos:</strong> ${data.messages_received}</p>`;
+                statusHtml += `<p><strong>Mensajes enviados:</strong> ${data.messages_sent}</p>`;
+                
+                if (data.issues && data.issues.length > 0) {
+                    statusHtml += `<p><strong>Problemas detectados:</strong></p><ul>`;
+                    data.issues.forEach(issue => {
+                        statusHtml += `<li>${issue}</li>`;
+                    });
+                    statusHtml += `</ul>`;
+                }
+                
+                if (data.recommendations && data.recommendations.length > 0) {
+                    statusHtml += `<p><strong>Recomendaciones:</strong></p><ul>`;
+                    data.recommendations.forEach(rec => {
+                        statusHtml += `<li>${rec}</li>`;
+                    });
+                    statusHtml += `</ul>`;
+                }
+                
+                showResults(statusHtml);
+            } catch (error) {
+                showResults(`<p>Error al verificar número: ${error.message}</p>`);
+            } finally {
+                hideLoader('numberLoader');
+            }
+        }
+        
+        async function sendTestMessage(event) {
+            event.preventDefault();
+            showLoader('testLoader');
+            document.getElementById('results').style.display = 'none';
+            
+            const phoneNumber = document.getElementById('testPhoneNumber').value;
+            
+            try {
+                const response = await fetch(`/api/whatsapp/test-send?phone_number=${encodeURIComponent(phoneNumber)}`);
+                const data = await response.json();
+                
+                let statusHtml = `<h3>Resultado de envío de mensaje:</h3>`;
+                
+                if (data.success) {
+                    statusHtml += `<p style="color: green;"><strong>✓ Mensaje enviado correctamente</strong></p>`;
+                    statusHtml += `<p><strong>SID:</strong> ${data.sid}</p>`;
+                } else {
+                    statusHtml += `<p style="color: red;"><strong>✗ Error al enviar mensaje</strong></p>`;
+                    statusHtml += `<p><strong>Error:</strong> ${data.error || data.message}</p>`;
+                }
+                
+                statusHtml += `<p>Verifique su teléfono para confirmar si ha recibido el mensaje.</p>`;
+                
+                showResults(statusHtml);
+            } catch (error) {
+                showResults(`<p>Error al enviar mensaje: ${error.message}</p>`);
+            } finally {
+                hideLoader('testLoader');
+            }
+        }
+        
+        async function checkWebhooks(event) {
+            event.preventDefault();
+            showLoader('statusLoader');
+            document.getElementById('results').style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/whatsapp/diagnose');
+                const data = await response.json();
+                
+                let statusHtml = '<h3>Verificación de Webhooks:</h3>';
+                
+                if (data.webhook_config && data.webhook_config.sms_url) {
+                    statusHtml += `<p><strong>URL de webhook configurada en Twilio:</strong> ${data.webhook_config.sms_url}</p>`;
+                    
+                    const currentUrl = window.location.origin + "/api/webhooks/twilio";
+                    statusHtml += `<p><strong>URL actual de este servidor:</strong> ${currentUrl}</p>`;
+                    
+                    if (data.webhook_config.sms_url === currentUrl) {
+                        statusHtml += `<p style="color: green;"><strong>✓ ¡Las URLs coinciden! El webhook está correctamente configurado.</strong></p>`;
+                    } else {
+                        statusHtml += `<p style="color: red;"><strong>✗ ¡Las URLs no coinciden! Este es el problema por el que no recibe tus mensajes.</strong></p>`;
+                        statusHtml += `<div class="solution-info">
+                            <h4>Pasos para corregir:</h4>
+                            <ol>
+                                <li>Inicia sesión en tu <a href="https://console.twilio.com/" target="_blank">cuenta de Twilio</a></li>
+                                <li>Ve a la sección de WhatsApp Sandbox</li>
+                                <li>Actualiza la URL del webhook a: <code>${currentUrl}</code></li>
+                                <li>Guarda los cambios y prueba nuevamente</li>
+                            </ol>
+                        </div>`;
+                    }
+                } else if (data.issues && data.issues.length > 0) {
+                    // Buscar problemas específicos de webhook
+                    const webhookIssues = data.issues.filter(issue => issue.toLowerCase().includes('webhook') || issue.toLowerCase().includes('url'));
+                    
+                    if (webhookIssues.length > 0) {
+                        statusHtml += `<p style="color: red;"><strong>Se encontraron problemas con el webhook:</strong></p><ul>`;
+                        webhookIssues.forEach(issue => {
+                            statusHtml += `<li>${issue}</li>`;
+                        });
+                        statusHtml += `</ul>`;
+                    } else {
+                        statusHtml += `<p>No se pudo verificar el webhook. Intente usar el diagnóstico completo.</p>`;
+                    }
+                } else {
+                    statusHtml += `<p>No se pudo obtener información del webhook. Verifique manualmente en la consola de Twilio.</p>`;
+                }
+                
+                statusHtml += `<h4>Otros datos importantes:</h4>`;
+                statusHtml += `<p><strong>Número de mensajes recibidos:</strong> ${data.incoming_messages ? data.incoming_messages.length : 'No disponible'}</p>`;
+                statusHtml += `<p><strong>Número de mensajes enviados:</strong> ${data.outgoing_messages ? data.outgoing_messages.length : 'No disponible'}</p>`;
+                
+                showResults(statusHtml);
+            } catch (error) {
+                showResults(`<p>Error al verificar webhooks: ${error.message}</p>`);
+            } finally {
+                hideLoader('statusLoader');
+            }
+        }
+        
+        // Actualizar la URL de ngrok al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            const ngrokUrl = document.getElementById('ngrok-url');
+            if (ngrokUrl) {
+                ngrokUrl.textContent = window.location.host;
+            }
+        });
+    </script>
+</body>
+</html>

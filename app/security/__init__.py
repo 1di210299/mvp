@@ -1,1 +1,1 @@
-"""Módulo de seguridad para prevención de extorsiones y amenazas."""
+# Este archivo asegura que el directorio security sea reconocido como un paquete Python

@@ -1,23 +1,28 @@
+# filepath: /Users/juandiegogutierrezcortez/mvp/app/db/session.py
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+import os
 
-from app.config import DATABASE_URL
+# Get database URL from environment or use default
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./whatsapp_sales.db")
 
-# Crear el motor de base de datos
+# Create database engine
 engine = create_engine(
     DATABASE_URL, 
     connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 )
 
-# Crear la sesión
+# Create sessionmaker
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base declarativa que usarán los modelos
+# Create base class for models
 Base = declarative_base()
 
-# Función para obtener la conexión a BD
 def get_db():
+    """
+    Get database session
+    """
     db = SessionLocal()
     try:
         yield db

@@ -1,31 +1,34 @@
-# Dependencias principales
-fastapi==0.104.1
-uvicorn==0.23.2
-sqlalchemy==2.0.22
-pydantic==2.4.2
+# Core dependencies
+fastapi>=0.68.0
+uvicorn>=0.15.0
+sqlalchemy>=1.4.0
+pydantic>=1.8.0
 python-dotenv==1.0.0
 
-# Integración con WhatsApp
+# Payment processing
+qrcode>=7.3.0
+pillow>=8.0.0  # Required by qrcode for image processing
+
+# Messaging
 twilio==8.9.1
 
-# Integración con IA
+# AI Integration
 openai==1.2.0
 
-# Procesamiento de datos y reportes
+# Data processing
 pandas==2.1.1
 openpyxl==3.1.2
 
-# Seguridad
+# Authentication
 passlib==1.7.4
 python-jose==3.3.0
 cryptography==41.0.4
 
-# Dashboard admin (opcional)
+# UI
 streamlit==1.28.0
 
 # Testing
 pytest==7.4.2
 
-# Utilidades
-requests==2.31.0
-python-multipart==0.0.6
+# Additional utilities
+python-multipart>=0.0.5

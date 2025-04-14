@@ -4,10 +4,87 @@ from typing import List, Dict, Any, Optional
 
 from app.db.session import get_db
 from app.db import repositories
-from app.db.models import Customer, Product, Order, ConversationStatus, OrderStatus
+from app.db.models import Customer, Product, Order, ConversationStatus, OrderStatus, BlacklistEntry
 from pydantic import BaseModel, Field
 
 router = APIRouter()
+
+# Import and register the webhooks router
+from app.api import webhooks
+router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
+
+# Try to import and register the unblock router if it exists
+try:
+    from app.api import unblock
+    router.include_router(unblock.router, prefix="/security", tags=["security"])
+except ImportError:
+    pass
+
+# Try to register other routers if they exist
+try:
+    from app.api import items
+    router.include_router(items.router, prefix="/items", tags=["items"])
+except ImportError:
+    pass
+
+try:
+    from app.api import users
+    router.include_router(users.router, prefix="/users", tags=["users"])
+except ImportError:
+    pass
+
+@router.get("/")
+async def api_root():
+    """
+    API root endpoint
+    """
+    return {
+        "status": "online",
+        "endpoints": [
+            "/api/unblock - Endpoints for unblocking phone numbers",
+            "/api/webhooks - Endpoints for webhook integrations",
+            "/api/whatsapp - WhatsApp integration endpoints"
+        ]
+    }
+
+@router.get("/whatsapp/unblock-instructions/{phone_number}", response_model=Dict[str, Any])
+async def get_unblock_instructions(
+    phone_number: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get instructions for unblocking a phone number
+    """
+    # Normalize phone number
+    if not phone_number.startswith("whatsapp:"):
+        normalized_phone = f"whatsapp:{phone_number}"
+    else:
+        normalized_phone = phone_number
+    
+    # Check if phone is blacklisted
+    blacklist_entry = db.query(BlacklistEntry).filter(
+        BlacklistEntry.phone_number == normalized_phone,
+        BlacklistEntry.is_active == True
+    ).first()
+    
+    if not blacklist_entry:
+        return {
+            "success": True,
+            "is_blocked": False,
+            "message": "Este número no está bloqueado."
+        }
+    
+    # Provide unblock instructions
+    return {
+        "success": True,
+        "is_blocked": True,
+        "message": "Tu número está bloqueado por motivos de seguridad.",
+        "instructions": [
+            "Para solicitar el desbloqueo, envía un mensaje con la palabra 'SOLICITUD DESBLOQUEO' seguido de una breve explicación.",
+            "Si ya tienes un código de verificación, envía 'VERIFICAR' seguido del código.",
+            "También puedes usar la herramienta de línea de comandos: python scripts/unblock_number.py request TU_NUMERO"
+        ]
+    }
 
 # === Modelos Pydantic ===
 

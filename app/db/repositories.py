@@ -175,6 +175,177 @@ def update_order_payment(
         db.refresh(order)
     return order
 
+def add_to_cart(db: Session, customer_id: int, product_codes: List[str], quantities: List[int] = None) -> Dict[str, Any]:
+    """
+    Añade productos al carrito (crea una orden pendiente o la actualiza).
+    
+    Args:
+        db: Sesión de base de datos
+        customer_id: ID del cliente
+        product_codes: Lista de códigos de productos
+        quantities: Lista de cantidades (opcional, por defecto 1)
+        
+    Returns:
+        dict: Información sobre los productos añadidos y el total
+    """
+    # Validar datos de entrada
+    if not product_codes:
+        return {
+            "status": "error",
+            "message": "No se proporcionaron códigos de productos"
+        }
+    
+    # Si no se proporcionan cantidades, asumir 1 para cada producto
+    if not quantities:
+        quantities = [1] * len(product_codes)
+    elif len(quantities) != len(product_codes):
+        return {
+            "status": "error",
+            "message": "La cantidad de cantidades no coincide con la cantidad de productos"
+        }
+    
+    # Verificar si el cliente tiene una orden pendiente
+    pending_order = db.query(Order).filter(
+        Order.customer_id == customer_id,
+        Order.status == OrderStatus.PENDING
+    ).first()
+    
+    # Si no hay orden pendiente, crear una nueva
+    if not pending_order:
+        pending_order = Order(
+            customer_id=customer_id,
+            total_amount=0,
+            status=OrderStatus.PENDING
+        )
+        db.add(pending_order)
+        db.commit()
+        db.refresh(pending_order)
+    
+    # Lista para almacenar información de productos añadidos
+    added_items = []
+    total_order_amount = 0
+    
+    # Añadir cada producto al carrito
+    for i, code in enumerate(product_codes):
+        quantity = quantities[i]
+        
+        # Buscar el producto por código
+        product = get_product_by_code(db, code)
+        if not product:
+            continue  # Saltar productos que no existen
+        
+        # Verificar si el producto ya está en la orden
+        existing_item = db.query(OrderItem).filter(
+            OrderItem.order_id == pending_order.id,
+            OrderItem.product_id == product.id
+        ).first()
+        
+        # Si el producto ya está en la orden, actualizar cantidad
+        if existing_item:
+            existing_item.quantity += quantity
+            existing_item.updated_at = datetime.utcnow()
+        else:
+            # Si no, crear nuevo item de orden
+            existing_item = OrderItem(
+                order_id=pending_order.id,
+                product_id=product.id,
+                quantity=quantity,
+                unit_price=product.price
+            )
+            db.add(existing_item)
+        
+        # Actualizar total
+        item_total = product.price * quantity
+        added_items.append({
+            "product_id": product.id,
+            "product_name": product.name,
+            "code": product.code,
+            "quantity": quantity,
+            "unit_price": product.price,
+            "total": item_total
+        })
+    
+    # Recalcular el total de la orden
+    db.commit()  # Guardar primero para asegurar que los ítems estén en la DB
+    
+    # Obtener todos los items de la orden actualizada
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == pending_order.id).all()
+    total_amount = sum(item.quantity * item.unit_price for item in order_items)
+    
+    # Actualizar el total de la orden
+    pending_order.total_amount = total_amount
+    pending_order.updated_at = datetime.utcnow()
+    db.commit()
+    
+    # Obtener todos los ítems de la orden para el resumen del carrito
+    all_items = []
+    for item in order_items:
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        all_items.append({
+            "product_id": product.id,
+            "product_name": product.name,
+            "code": product.code,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "total": item.quantity * item.unit_price
+        })
+    
+    return {
+        "status": "success",
+        "added_items": added_items,
+        "all_items": all_items,
+        "order_id": pending_order.id,
+        "total_amount": total_amount
+    }
+
+def get_cart(db: Session, customer_id: int) -> Dict[str, Any]:
+    """
+    Obtiene el carrito actual (orden pendiente) de un cliente.
+    
+    Args:
+        db: Sesión de base de datos
+        customer_id: ID del cliente
+        
+    Returns:
+        dict: Información sobre los productos en el carrito y el total
+    """
+    # Buscar orden pendiente
+    pending_order = db.query(Order).filter(
+        Order.customer_id == customer_id,
+        Order.status == OrderStatus.PENDING
+    ).first()
+    
+    # Si no hay orden pendiente, retornar carrito vacío
+    if not pending_order:
+        return {
+            "status": "success",
+            "items": [],
+            "total_amount": 0
+        }
+    
+    # Obtener items de la orden
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == pending_order.id).all()
+    
+    # Formatear items para la respuesta
+    items = []
+    for item in order_items:
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        items.append({
+            "product_id": product.id,
+            "product_name": product.name,
+            "code": product.code,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "total": item.quantity * item.unit_price
+        })
+    
+    return {
+        "status": "success",
+        "order_id": pending_order.id,
+        "items": items,
+        "total_amount": pending_order.total_amount
+    }
+
 # === Conversation Repository ===
 
 def create_conversation(db: Session, customer_id: int) -> Conversation:

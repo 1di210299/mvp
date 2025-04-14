@@ -10,7 +10,10 @@ from app.db import repositories
 from app.security import threat_detection
 from app.bot import conversation
 from app.services import twilio_service, notification_service
-from app.config import TWILIO_ACCOUNT_SID
+from app.config import TWILIO_ACCOUNT_SID, APP_ENV
+from app.db.models import ConversationStatus  # Importando ConversationStatus
+from app.utils.whatsapp import update_message_received, update_message_sent  # Importando update_message_received y update_message_sent
+from app.security.access_control import is_whitelisted  # Importando is_whitelisted
 
 router = APIRouter()
 
@@ -31,6 +34,9 @@ async def twilio_webhook(
     """
     form_data = await request.form()
     
+    # Actualizar el estado de conexión cuando se recibe un mensaje
+    update_message_received()
+    
     # Extraer datos del mensaje de WhatsApp
     try:
         # Obtener datos básicos
@@ -50,15 +56,24 @@ async def twilio_webhook(
         # Esta es una versión simplificada, en producción deberías validar 
         # la firma del webhook usando el TWILIO_AUTH_TOKEN
         account_sid = form_data.get("AccountSid")
-        if account_sid != TWILIO_ACCOUNT_SID:
+        
+        # En desarrollo, permitimos solicitudes sin SID para facilitar pruebas
+        if APP_ENV == "production" and account_sid != TWILIO_ACCOUNT_SID:
             logger.warning(f"Intento de webhook con SID inválido: {account_sid}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="No autorizado"
             )
         
-        # Verificar si el número está en la lista negra
-        if repositories.is_phone_blacklisted(db, from_number):
+        # Registrar todos los datos del formulario para depuración
+        logger.info(f"Datos del formulario recibidos: {dict(form_data)}")
+        
+        # Verificar si el número está en la lista negra o en la whitelist
+        phone_without_prefix = from_number.replace("whatsapp:", "")
+        if is_whitelisted(phone_without_prefix):
+            logger.info(f"Número en whitelist, permitiendo mensaje: {from_number}")
+            # Permitir que el mensaje continúe
+        elif repositories.is_phone_blacklisted(db, from_number):
             logger.warning(f"Mensaje bloqueado de número en lista negra: {from_number}")
             # Opcionalmente, enviar un mensaje de bloqueo
             background_tasks.add_task(
@@ -108,34 +123,86 @@ async def twilio_webhook(
             ai_analysis=threat_result
         )
         
-        # Si el mensaje es sospechoso (nivel alto), notificar
+        # Si el mensaje es sospechoso (nivel alto), notificar y posiblemente bloquear
         if threat_score >= 0.8:
             logger.warning(f"Mensaje altamente sospechoso detectado: {from_number}, score: {threat_score}")
             
-            # Notificar al administrador
-            notification_content = (
-                f"⚠️ ALERTA: Mensaje sospechoso\n"
-                f"Número: {from_number}\n"
-                f"Score: {threat_score}\n"
-                f"Mensaje: {message_body}\n"
-                f"Análisis: {json.dumps(threat_result, indent=2)}"
-            )
-            background_tasks.add_task(
-                notification_service.send_alert,
-                notification_content
+            # Notificar al administrador utilizando el servicio mejorado
+            customer_info = {
+                "name": customer.name or "No registrado",
+                "dni": customer.dni or "No registrado",
+                "created_at": customer.created_at.isoformat() if customer.created_at else "Desconocido",
+                "id": customer.id
+            }
+            
+            notification_service.send_threat_alert(
+                phone_number=from_number,
+                message_content=message_body,
+                threat_analysis=threat_result,
+                customer_info=customer_info
             )
             
-            # Enviar respuesta disuasiva
+            # Si el nivel es crítico, bloqueamos automáticamente
+            if threat_result.get("threat_level") == "alto":
+                # Añadir a la lista negra
+                from app.security import blacklist
+                reason = f"Mensaje de amenaza automáticamente detectado. Score: {threat_score}"
+                blacklist.add_to_blacklist(
+                    db=db, 
+                    phone_number=from_number, 
+                    reason=reason,
+                    source="automatic"
+                )
+                
+                # Bloquear cliente
+                repositories.block_customer(db, customer.id, reason=reason)
+                
+                # Marcar conversación como bloqueada
+                repositories.update_conversation_status(
+                    db=db,
+                    conversation_id=active_conversation.id,
+                    status=ConversationStatus.BLOCKED,
+                    suspicious_score=threat_score
+                )
+                
+                logger.warning(f"Cliente bloqueado automáticamente: {from_number}")
+                
+                # Enviar mensaje de bloqueo
+                response_text = (
+                    "⚠️ AVISO IMPORTANTE: Esta conversación ha sido suspendida y reportada a las autoridades. "
+                    "Si está realizando una amenaza o intento de extorsión, sepa que la información "
+                    "ya ha sido enviada a la Policía Nacional. Este "
+                    "número ha sido registrado en nuestra base de datos y bloqueado permanentemente."
+                )
+                background_tasks.add_task(
+                    twilio_service.send_message,
+                    to=from_number,
+                    message=response_text
+                )
+                
+                return JSONResponse(
+                    content={"status": "blocked", "message": "Cliente bloqueado por amenazas"},
+                    status_code=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Si es sospechoso pero no crítico, enviamos advertencia pero continuamos
             response_text = (
                 "AVISO IMPORTANTE: Esta conversación está siendo monitoreada. "
-                "Si está realizando una amenaza o intento de extorsión, la información "
-                "será enviada automáticamente a la Policía Nacional del Perú. Este "
-                "número ya ha sido registrado en nuestra base de datos."
+                "Todas las comunicaciones son registradas y analizadas. "
+                "Este canal colabora con las autoridades en casos de extorsión o amenazas."
             )
             background_tasks.add_task(
                 twilio_service.send_message,
                 to=from_number,
                 message=response_text
+            )
+            
+            # Marcar conversación como sospechosa
+            repositories.update_conversation_status(
+                db=db,
+                conversation_id=active_conversation.id,
+                status=ConversationStatus.SUSPICIOUS,
+                suspicious_score=threat_score
             )
             
             return JSONResponse(
