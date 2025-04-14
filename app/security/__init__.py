@@ -1,0 +1,1 @@
+"""Módulo de seguridad para prevención de extorsiones y amenazas."""

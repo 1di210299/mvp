@@ -1,0 +1,1 @@
+"""Módulo que maneja la lógica de conversación del bot de ventas."""

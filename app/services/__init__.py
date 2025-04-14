@@ -1,0 +1,1 @@
+"""Servicios externos e integraciones para el sistema de ventas."""
