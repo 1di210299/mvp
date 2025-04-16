@@ -9,17 +9,39 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+# Importaciones para métricas
+from starlette_exporter import PrometheusMiddleware, handle_metrics
+import prometheus_client as prom
 
 # Create necessary directories before configuring logging
 os.makedirs("logs", exist_ok=True)
 
 from app.db.session import engine, get_db
 from app.db import models
-from app.api import routes, webhooks
+from app.api import routes, webhooks, client
 from app.config import is_env_ready, APP_ENV, DEBUG
 from app.utils.whatsapp import check_whatsapp_connection
 from app.utils.diagnose_whatsapp import diagnose_twilio_configuration, test_send_message
 from app.utils.check_number_status import check_whatsapp_number_status
+
+# Contadores para métricas personalizadas
+whatsapp_messages_received = prom.Counter(
+    'whatsapp_messages_received_total', 
+    'Total number of WhatsApp messages received'
+)
+whatsapp_messages_sent = prom.Counter(
+    'whatsapp_messages_sent_total', 
+    'Total number of WhatsApp messages sent'
+)
+suspicious_activities = prom.Counter(
+    'suspicious_activities_total', 
+    'Total number of suspicious activities detected'
+)
+payment_attempts = prom.Counter(
+    'payment_attempts_total', 
+    'Total number of payment attempts',
+    ['provider', 'status']
+)
 
 # Configure logging
 logging.basicConfig(
@@ -52,6 +74,15 @@ app = FastAPI(
     debug=DEBUG,
 )
 
+# Middleware para métricas Prometheus
+app.add_middleware(
+    PrometheusMiddleware,
+    app_name="whatsapp_sales",
+    group_paths=True,
+    prefix="whatsapp_sales",
+    buckets=[0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10],
+)
+
 # Mount static files directory
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
@@ -63,6 +94,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Endpoint para métricas
+app.add_route("/metrics", handle_metrics)
 
 # Middleware para loguear todas las solicitudes (para depuración)
 @app.middleware("http")
@@ -89,6 +123,16 @@ async def log_requests(request: Request, call_next):
 app.include_router(routes.router, prefix="/api", tags=["API"])
 # Cambiar de /webhook a /api/webhooks para coincidir con la URL que espera Twilio
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Webhooks"])
+# Incluir el nuevo router para la API del cliente web
+app.include_router(client.router, prefix="/api/client", tags=["Client API"])
+
+# Importar y registrar el router de productos
+from app.routes import products as products_router
+app.include_router(products_router.router, prefix="/api/products", tags=["Products"])
+
+# Importar y registrar el router de honeypot
+from app.routes import honeypot as honeypot_router
+app.include_router(honeypot_router.router, prefix="/api/security", tags=["Security"])
 
 @app.get("/")
 async def root(request: Request):
@@ -165,6 +209,11 @@ async def check_number_status(phone_number: str):
 async def whatsapp_help(request: Request):
     """Página de ayuda para solucionar problemas de WhatsApp."""
     return templates.TemplateResponse("whatsapp_help.html", {"request": request})
+
+@app.get("/admin/products", response_class=HTMLResponse)
+async def product_manager(request: Request):
+    """Página para gestionar productos mediante interfaz gráfica"""
+    return templates.TemplateResponse("product_manager.html", {"request": request})
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

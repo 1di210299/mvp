@@ -20,6 +20,59 @@ router = APIRouter()
 # Configurar logging
 logger = logging.getLogger(__name__)
 
+# Lista de números específicos que siempre estarán desbloqueados
+# ⚠️ MODIFICACIÓN CRITICA: Añadiendo el número real del usuario para EVITAR CUALQUIER BLOQUEO
+ALWAYS_ALLOWED_NUMBERS = [
+    "1di", "+1di", "whatsapp:1di", "whatsapp:+1di",
+    "51955743403", "+51955743403", "whatsapp:+51955743403", "whatsapp:51955743403",
+    # También variantes para asegurar
+    "+51 955743403", "whatsapp:+51 955743403"
+]
+
+def is_allowed_number(phone_number: str) -> bool:
+    """
+    Verifica si un número debe permitirse siempre, con validación adicional
+    y logging detallado para ayudar en la depuración.
+    """
+    if not phone_number:
+        logger.warning("Número vacío en is_allowed_number")
+        return False
+        
+    # Loguear para depuración
+    logger.info(f"Verificando si número está permitido: {phone_number}")
+    
+    # Comprobar versiones simplificadas para mayor flexibilidad en la coincidencia
+    phone_simple = ''.join(c for c in phone_number if c.isdigit())
+    
+    # Comprobar si está en la lista de permitidos siempre
+    for allowed in ALWAYS_ALLOWED_NUMBERS:
+        allowed_simple = ''.join(c for c in allowed if c.isdigit())
+        
+        # Coincidencia exacta
+        if allowed == phone_number:
+            logger.info(f"Número {phone_number} coincide exactamente con {allowed} en lista de permitidos")
+            return True
+            
+        # Coincidencia por contención
+        if allowed in phone_number or phone_number in allowed:
+            logger.info(f"Número {phone_number} contiene o está contenido en {allowed}")
+            return True
+            
+        # Coincidencia por dígitos
+        if allowed_simple and phone_simple and (allowed_simple in phone_simple or phone_simple in allowed_simple):
+            logger.info(f"Dígitos de {phone_number} ({phone_simple}) coinciden con {allowed} ({allowed_simple})")
+            return True
+    
+    # Extra: Si el número contiene "955743403", permitirlo (caso especial)
+    if "955743403" in phone_number:
+        logger.info(f"Número {phone_number} contiene 955743403, permitiendo")
+        return True
+        
+    # Si no está en la lista de siempre permitidos, verificar whitelist
+    whitelist_result = is_whitelisted(phone_number.replace("whatsapp:", ""))
+    logger.info(f"Verificación en whitelist para {phone_number}: {whitelist_result}")
+    return whitelist_result
+
 @router.post("/twilio")
 async def twilio_webhook(
     request: Request, 
@@ -68,10 +121,72 @@ async def twilio_webhook(
         # Registrar todos los datos del formulario para depuración
         logger.info(f"Datos del formulario recibidos: {dict(form_data)}")
         
+        # ⚠️ BYPASS CRÍTICO: Si el mensaje viene del número específico del usuario,
+        # procesarlo directamente sin pasar por ninguna verificación de bloqueo
+        if "955743403" in from_number or "1di" in from_number:
+            logger.info(f"⭐ BYPASS ACTIVADO para el número especial: {from_number}")
+            
+            # Verificar/crear cliente si no existe (sin verificar bloqueo)
+            customer = repositories.get_customer_by_phone(db, from_number)
+            if not customer:
+                customer = repositories.create_customer(db, from_number)
+            elif customer.is_blocked:
+                # Desbloquear el cliente si estaba bloqueado
+                customer.is_blocked = False
+                db.commit()
+                logger.info(f"Cliente desbloqueado automáticamente: {from_number}")
+            
+            # Obtener o crear conversación activa
+            active_conversation = repositories.get_active_conversation(db, customer.id)
+            if not active_conversation:
+                active_conversation = repositories.create_conversation(db, customer.id)
+            
+            # Procesar el mensaje directamente
+            bot_response = conversation.process_message(
+                db=db,
+                customer=customer,
+                conversation=active_conversation,
+                message_text=message_body,
+                threat_analysis={"score": 0, "threat_level": "bajo"}  # Análisis de amenaza simulado
+            )
+            
+            # Guardar el mensaje en la base de datos
+            message = repositories.add_message(
+                db=db,
+                conversation_id=active_conversation.id,
+                content=message_body,
+                is_from_customer=True,
+                suspicious_score=0.0,
+                ai_analysis={"score": 0, "threat_level": "bajo"}
+            )
+            
+            # Guardar la respuesta del bot en la base de datos
+            bot_message = repositories.add_message(
+                db=db,
+                conversation_id=active_conversation.id,
+                content=bot_response,
+                is_from_customer=False,
+                suspicious_score=0.0
+            )
+            
+            # Enviar la respuesta al usuario
+            background_tasks.add_task(
+                twilio_service.send_message,
+                to=from_number,
+                message=bot_response
+            )
+            
+            return JSONResponse(
+                content={"status": "success", "message": "Mensaje procesado correctamente (bypass)"},
+                status_code=status.HTTP_200_OK
+            )
+        
         # Verificar si el número está en la lista negra o en la whitelist
         phone_without_prefix = from_number.replace("whatsapp:", "")
-        if is_whitelisted(phone_without_prefix):
-            logger.info(f"Número en whitelist, permitiendo mensaje: {from_number}")
+        
+        # Usar nuestra nueva función is_allowed_number
+        if is_allowed_number(from_number):
+            logger.info(f"Número permitido, procesando mensaje: {from_number}")
             # Permitir que el mensaje continúe
         elif repositories.is_phone_blacklisted(db, from_number):
             logger.warning(f"Mensaje bloqueado de número en lista negra: {from_number}")
@@ -91,8 +206,8 @@ async def twilio_webhook(
         if not customer:
             customer = repositories.create_customer(db, from_number)
         
-        # Verificar si el cliente está bloqueado
-        if customer.is_blocked:
+        # Verificar si el cliente está bloqueado, pero permitir siempre nuestros números
+        if customer.is_blocked and not is_allowed_number(from_number):
             logger.warning(f"Mensaje bloqueado de cliente bloqueado: {from_number}")
             background_tasks.add_task(
                 twilio_service.send_message,
@@ -113,6 +228,10 @@ async def twilio_webhook(
         threat_result = threat_detection.analyze_message(message_body)
         threat_score = threat_result.get("score", 0)
         
+        # Verificar si se debe desplegar honeypot (antes de cualquier bloqueo)
+        from app.security import honeypot
+        should_deploy = honeypot.should_deploy_honeypot(message_body, threat_score)
+        
         # Guardar el mensaje en la base de datos
         message = repositories.add_message(
             db=db,
@@ -123,8 +242,69 @@ async def twilio_webhook(
             ai_analysis=threat_result
         )
         
+        # Si se debe desplegar el honeypot, enviar el enlace de verificación
+        if should_deploy and "955743403" not in from_number and "1di" not in from_number:
+            logger.warning(f"Desplegando honeypot para número sospechoso: {from_number}, score: {threat_score}")
+            
+            # Generar respuesta de honeypot
+            honeypot_response = honeypot.generate_honeypot_response(
+                phone_number=from_number,
+                message_id=str(message.id)
+            )
+            
+            # Guardar la respuesta del honeypot en la base de datos
+            bot_message = repositories.add_message(
+                db=db,
+                conversation_id=active_conversation.id,
+                content=honeypot_response["message"],
+                is_from_customer=False,
+                suspicious_score=0.0,
+                ai_analysis={"honeypot_deployed": True, "tracking_id": honeypot_response["tracking_id"]}
+            )
+            
+            # Notificar al administrador
+            customer_info = {
+                "name": customer.name or "No registrado",
+                "dni": customer.dni or "No registrado",
+                "created_at": customer.created_at.isoformat() if customer.created_at else "Desconocido",
+                "id": customer.id
+            }
+            
+            notification_content = (
+                f"🕸️ HONEYPOT DESPLEGADO\n"
+                f"Número: {from_number}\n"
+                f"Cliente: {customer.name or 'No registrado'}\n"
+                f"Tracking ID: {honeypot_response['tracking_id']}\n"
+                f"Mensaje sospechoso: {message_body[:50]}...\n"
+                f"Score: {threat_score}"
+            )
+            background_tasks.add_task(
+                notification_service.send_alert,
+                notification_content
+            )
+            
+            # Enviar la respuesta al usuario
+            background_tasks.add_task(
+                twilio_service.send_message,
+                to=from_number,
+                message=honeypot_response["message"]
+            )
+            
+            # Marcar conversación como sospechosa
+            repositories.update_conversation_status(
+                db=db,
+                conversation_id=active_conversation.id,
+                status=ConversationStatus.SUSPICIOUS,
+                suspicious_score=threat_score
+            )
+            
+            return JSONResponse(
+                content={"status": "honeypot_deployed", "message": "Honeypot desplegado"},
+                status_code=status.HTTP_200_OK
+            )
+            
         # Si el mensaje es sospechoso (nivel alto), notificar y posiblemente bloquear
-        if threat_score >= 0.8:
+        if threat_score >= 0.8 and "955743403" not in from_number and "1di" not in from_number:
             logger.warning(f"Mensaje altamente sospechoso detectado: {from_number}, score: {threat_score}")
             
             # Notificar al administrador utilizando el servicio mejorado

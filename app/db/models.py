@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text, JSON, Enum
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text, JSON, Enum, func
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -35,6 +35,23 @@ class PaymentStatus(str, enum.Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     REFUNDED = "refunded"
+
+class SecurityIncidentType(enum.Enum):
+    SUSPICIOUS_MESSAGE = "suspicious_message"
+    SPAM = "spam"
+    PHISHING = "phishing"
+    BLACKLISTED_NUMBER = "blacklisted_number"
+    RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+    HONEYPOT_TRIGGERED = "honeypot_triggered"
+    SUSPICIOUS_PAYMENT = "suspicious_payment"
+    UNAUTHORIZED_ACCESS = "unauthorized_access"
+    OTHER = "other"
+
+class SecurityIncidentSeverity(enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -179,3 +196,41 @@ class UnblockRequest(Base):
     request_date = Column(DateTime, default=datetime.utcnow)
     processed_date = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
+
+
+class HoneypotRecord(Base):
+    __tablename__ = "honeypot_records"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tracking_id = Column(String(36), unique=True, index=True)
+    phone_number = Column(String(50))
+    message_id = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    status = Column(String(20), default="created")  # created, clicked, completed
+    clicks = Column(Integer, default=0)
+    ip_addresses = Column(JSON, nullable=True)
+    user_agents = Column(JSON, nullable=True)
+    telegram_info = Column(JSON, nullable=True)
+    location_data = Column(JSON, nullable=True)
+    notes = Column(Text, nullable=True)
+
+
+class SecurityIncident(Base):
+    __tablename__ = "security_incidents"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String(50), nullable=False)
+    description = Column(Text)
+    severity = Column(String(20), default="medium")
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+    phone_number = Column(String(20))
+    ip_address = Column(String(50))
+    message_content = Column(Text)
+    confidence_score = Column(Float)  # Puntuación entre 0 y 1 para la confianza de la detección
+    is_resolved = Column(Boolean, default=False)
+    resolution_notes = Column(Text)
+    timestamp = Column(DateTime, default=func.now())
+    resolved_at = Column(DateTime)
+    
+    customer = relationship("Customer")

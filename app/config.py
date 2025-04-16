@@ -97,7 +97,14 @@ LOGGING_CONFIG = {
             "level": LOG_LEVEL,
             "formatter": "standard",
             "class": "logging.FileHandler",
-            "filename": "app.log",
+            "filename": os.path.join(BASE_DIR, "logs", "app.log"),
+            "mode": "a",
+        },
+        "debug_file": {
+            "level": "DEBUG",
+            "formatter": "standard",
+            "class": "logging.FileHandler",
+            "filename": os.path.join(BASE_DIR, "logs", "webhook_debug.log"),
             "mode": "a",
         },
     },
@@ -110,6 +117,11 @@ LOGGING_CONFIG = {
         "app": {
             "handlers": ["default", "file"],
             "level": LOG_LEVEL,
+            "propagate": False
+        },
+        "webhook_debug": {
+            "handlers": ["default", "debug_file"],
+            "level": "DEBUG",
             "propagate": False
         },
     }

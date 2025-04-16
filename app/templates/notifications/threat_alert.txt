@@ -1,0 +1,27 @@
+*AMENAZA DETECTADA*
+
+📱 *Número*: {{ phone_number }}
+🔍 *Score*: {{ score|round(2) }}
+⚠️ *Nivel*: {{ threat_level }}
+🔴 *Tipo*: {{ threat_type }}
+
+*Mensaje detectado*:
+```
+{{ message_content }}
+```
+
+{% if customer_info %}
+*Información del cliente*:
+• *Nombre*: {{ customer_info.get('name', 'No registrado') }}
+• *Cliente desde*: {{ customer_info.get('created_at', 'Desconocido') }}
+{% endif %}
+
+*Palabras clave detectadas*:
+{% for word in threat_analysis.get('keywords', []) %}
+• {{ word }}
+{% else %}
+No se detectaron palabras clave específicas
+{% endfor %}
+
+*Explicación*:
+{{ threat_analysis.get('explanation', 'No hay explicación disponible') }}

@@ -1,6 +1,10 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any, Union
+import json
+import csv
+import logging
+from pathlib import Path
 
 from app.db.models import (
     Customer, 
@@ -13,6 +17,9 @@ from app.db.models import (
     OrderStatus,
     ConversationStatus
 )
+
+# Configurar logging
+logger = logging.getLogger(__name__)
 
 # === Customer Repository ===
 
@@ -101,6 +108,214 @@ def get_all_active_products(db: Session) -> List[Product]:
     """Obtiene todos los productos activos."""
     return db.query(Product).filter(Product.is_active == True).all()
 
+def import_products_from_file(db: Session, file_path: str) -> Dict[str, Any]:
+    """
+    Importa productos desde un archivo CSV o JSON proporcionado por la empresa.
+    
+    Args:
+        db: Sesión de base de datos
+        file_path: Ruta al archivo de productos (CSV o JSON)
+        
+    Returns:
+        dict: Información sobre los productos importados
+    """
+    try:
+        path = Path(file_path)
+        if not path.exists():
+            return {
+                "status": "error",
+                "message": f"El archivo {file_path} no existe"
+            }
+        
+        file_extension = path.suffix.lower()
+        products_data = []
+        
+        # Procesar según el tipo de archivo
+        if file_extension == '.json':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                products_data = json.load(f)
+        elif file_extension == '.csv':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                products_data = list(reader)
+        else:
+            return {
+                "status": "error",
+                "message": f"Formato de archivo no soportado: {file_extension}. Use CSV o JSON."
+            }
+        
+        # Estadísticas de importación
+        stats = {
+            "added": 0,
+            "updated": 0,
+            "skipped": 0,
+            "errors": 0
+        }
+        
+        # Procesar cada producto
+        for item in products_data:
+            try:
+                # Validar datos mínimos requeridos
+                if not item.get('code') or not item.get('name') or not item.get('price'):
+                    stats["skipped"] += 1
+                    logger.warning(f"Producto sin datos requeridos: {item}")
+                    continue
+                
+                # Convertir precio a float
+                try:
+                    price = float(item.get('price'))
+                except ValueError:
+                    stats["errors"] += 1
+                    logger.error(f"Precio inválido para producto {item.get('code')}: {item.get('price')}")
+                    continue
+                
+                # Verificar si el producto ya existe
+                existing_product = db.query(Product).filter(Product.code == item.get('code')).first()
+                
+                if existing_product:
+                    # Actualizar producto existente
+                    existing_product.name = item.get('name')
+                    existing_product.description = item.get('description', existing_product.description)
+                    existing_product.price = price
+                    existing_product.stock = int(item.get('stock', existing_product.stock))
+                    existing_product.image_url = item.get('image_url', existing_product.image_url)
+                    existing_product.is_active = item.get('is_active', True) in [True, 'true', 'True', '1', 1]
+                    existing_product.updated_at = datetime.utcnow()
+                    stats["updated"] += 1
+                else:
+                    # Crear nuevo producto
+                    new_product = Product(
+                        code=item.get('code'),
+                        name=item.get('name'),
+                        description=item.get('description', ''),
+                        price=price,
+                        stock=int(item.get('stock', 0)),
+                        image_url=item.get('image_url', None),
+                        is_active=item.get('is_active', True) in [True, 'true', 'True', '1', 1],
+                    )
+                    db.add(new_product)
+                    stats["added"] += 1
+            
+            except Exception as e:
+                stats["errors"] += 1
+                logger.error(f"Error procesando producto {item.get('code')}: {str(e)}")
+        
+        # Guardar cambios en la base de datos
+        db.commit()
+        
+        logger.info(f"Importación de productos completada: {stats}")
+        return {
+            "status": "success",
+            "message": "Importación de productos completada",
+            "stats": stats
+        }
+        
+    except Exception as e:
+        logger.error(f"Error importando productos: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Error importando productos: {str(e)}"
+        }
+
+def import_products_from_documentation(db: Session, company_info_path: str, products_path: str) -> Dict[str, Any]:
+    """
+    Importa productos y actualiza información de la empresa desde documentación proporcionada.
+    
+    Args:
+        db: Sesión de base de datos
+        company_info_path: Ruta al archivo con información de la empresa
+        products_path: Ruta al archivo con lista de productos
+        
+    Returns:
+        dict: Información sobre la importación
+    """
+    results = {
+        "company_info": None,
+        "products": None
+    }
+    
+    # Importar información de la empresa (podría guardarla en otra tabla o configuración)
+    if company_info_path:
+        try:
+            path = Path(company_info_path)
+            if path.exists():
+                file_extension = path.suffix.lower()
+                company_data = {}
+                
+                if file_extension == '.json':
+                    with open(company_info_path, 'r', encoding='utf-8') as f:
+                        company_data = json.load(f)
+                elif file_extension == '.csv':
+                    with open(company_info_path, 'r', encoding='utf-8') as f:
+                        reader = csv.DictReader(f)
+                        rows = list(reader)
+                        if rows:
+                            company_data = rows[0]  # Tomar la primera fila
+                
+                # Aquí podrías guardar la información de la empresa en una tabla específica
+                # o en una tabla de configuración general
+                
+                results["company_info"] = {
+                    "status": "success",
+                    "data": company_data
+                }
+                
+                logger.info(f"Información de empresa actualizada desde {company_info_path}")
+            else:
+                results["company_info"] = {
+                    "status": "error",
+                    "message": f"El archivo {company_info_path} no existe"
+                }
+        except Exception as e:
+            logger.error(f"Error procesando información de empresa: {str(e)}")
+            results["company_info"] = {
+                "status": "error",
+                "message": str(e)
+            }
+    
+    # Importar productos
+    if products_path:
+        results["products"] = import_products_from_file(db, products_path)
+    
+    return results
+
+def get_product_updates(db: Session, since_date: datetime = None) -> List[Dict[str, Any]]:
+    """
+    Obtiene productos actualizados desde una fecha específica.
+    
+    Args:
+        db: Sesión de base de datos
+        since_date: Fecha desde la cual buscar actualizaciones
+        
+    Returns:
+        list: Lista de productos actualizados desde la fecha especificada
+    """
+    query = db.query(Product)
+    
+    if since_date:
+        query = query.filter(Product.updated_at >= since_date)
+    
+    # Ordenar por fecha de actualización, más recientes primero
+    query = query.order_by(Product.updated_at.desc())
+    
+    products = query.all()
+    
+    # Formatear para la respuesta
+    result = []
+    for product in products:
+        result.append({
+            "id": product.id,
+            "code": product.code,
+            "name": product.name,
+            "description": product.description,
+            "price": product.price,
+            "stock": product.stock,
+            "is_active": product.is_active,
+            "updated_at": product.updated_at.isoformat() if product.updated_at else None
+        })
+    
+    return result
+
 # === Order Repository ===
 
 def create_order(
@@ -134,11 +349,15 @@ def create_order(
     
     # Crear los items de la orden
     for item in items:
+        # Calcular el subtotal para cada item
+        subtotal = item["quantity"] * item["unit_price"]
+        
         order_item = OrderItem(
             order_id=order.id,
             product_id=item["product_id"],
             quantity=item["quantity"],
-            unit_price=item["unit_price"]
+            unit_price=item["unit_price"],
+            subtotal=subtotal  # Añadir el subtotal calculado
         )
         db.add(order_item)
     
@@ -246,11 +465,13 @@ def add_to_cart(db: Session, customer_id: int, product_codes: List[str], quantit
             existing_item.updated_at = datetime.utcnow()
         else:
             # Si no, crear nuevo item de orden
+            item_subtotal = quantity * product.price
             existing_item = OrderItem(
                 order_id=pending_order.id,
                 product_id=product.id,
                 quantity=quantity,
-                unit_price=product.price
+                unit_price=product.price,
+                subtotal=item_subtotal  # Añadir el subtotal calculado
             )
             db.add(existing_item)
         

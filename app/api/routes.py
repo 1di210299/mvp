@@ -13,6 +13,13 @@ router = APIRouter()
 from app.api import webhooks
 router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
 
+# Import the diagnostico router for debugging
+try:
+    from app.api import diagnostico
+    router.include_router(diagnostico.router, prefix="/debug", tags=["diagnostico"])
+except ImportError:
+    pass
+
 # Try to import and register the unblock router if it exists
 try:
     from app.api import unblock
@@ -133,11 +140,13 @@ class ProductResponse(BaseModel):
     code: str
     description: Optional[str] = None
     price: float
-    inventory: int
+    inventory: int = Field(alias="stock")  # Mapea stock a inventory para compatibilidad
     is_active: bool
+    image_url: Optional[str] = None
     
     class Config:
         orm_mode = True
+        populate_by_name = True
 
 class BlacklistRequest(BaseModel):
     phone_number: str

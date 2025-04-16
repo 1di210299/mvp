@@ -1,0 +1,47 @@
+[
+  {
+    "code": "P001",
+    "name": "Camiseta Premium",
+    "description": "Camiseta de algodón 100% orgánico, disponible en varios colores",
+    "price": 29.99,
+    "stock": 50,
+    "is_active": true,
+    "image_url": "https://example.com/images/p001.jpg"
+  },
+  {
+    "code": "P002",
+    "name": "Jeans Clásicos",
+    "description": "Jeans de corte regular, ideal para uso diario",
+    "price": 59.99,
+    "stock": 30,
+    "is_active": true,
+    "image_url": "https://example.com/images/p002.jpg"
+  },
+  {
+    "code": "P003",
+    "name": "Zapatillas Deportivas",
+    "description": "Zapatillas para correr con soporte especial para el arco",
+    "price": 89.99,
+    "stock": 25,
+    "is_active": true,
+    "image_url": "https://example.com/images/p003.jpg"
+  },
+  {
+    "code": "P004",
+    "name": "Gorra Ajustable",
+    "description": "Gorra con visera curva y ajuste trasero",
+    "price": 19.99,
+    "stock": 40,
+    "is_active": true,
+    "image_url": "https://example.com/images/p004.jpg"
+  },
+  {
+    "code": "P005",
+    "name": "Reloj Digital",
+    "description": "Reloj resistente al agua con múltiples funciones",
+    "price": 119.99,
+    "stock": 15,
+    "is_active": true,
+    "image_url": "https://example.com/images/p005.jpg"
+  }
+]
