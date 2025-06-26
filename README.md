@@ -1,181 +1,213 @@
-# WhatsApp Sales Bot
+# 🇵🇪 Coach de Empleo con IA - MVP
 
-Un sistema de ventas automatizado a través de WhatsApp con características avanzadas de prevención de extorsiones y detección de amenazas.
+Una plataforma completa de coaching laboral powered by IA, especializada en el mercado peruano. Ayuda a profesionales a mejorar sus CVs, crear cartas de presentación personalizadas y practicar entrevistas laborales.
 
-## Características principales
+## 🚀 Características Principales
 
-- **Bot de ventas por WhatsApp**: Automatiza el proceso de ventas completo a través de WhatsApp.
-- **Detección de amenazas**: Sistema avanzado de detección de extorsiones y mensajes sospechosos.
-- **Honeypot**: Mecanismo para detectar y rastrear intentos de extorsión.
-- **Panel de administración**: Interface web para gestionar productos, órdenes y clientes.
-- **API completa**: Endpoints para integración con otros sistemas.
-- **Monitoreo en tiempo real**: Integración con Prometheus y Grafana para métricas.
-- **Múltiples métodos de pago**: Integración con diversas pasarelas de pago (Culqi, Yape, etc.)
+### ✅ **Editor Inteligente de CV** (Gratuito)
+- Mejora automática de currículums con IA
+- Optimización para ATS (Applicant Tracking Systems)
+- Feedback personalizado para el mercado peruano
+- Historial de versiones
 
-## Estructura del proyecto
+### 👑 **Generador de Cartas de Presentación** (Premium)
+- Cartas personalizadas por puesto y empresa
+- Tono profesional adaptado al contexto peruano
+- Integración con descripciones de trabajo
+- Generación ilimitada
 
-```
-app/                  # Directorio principal de la aplicación
-  ├── api/            # API endpoints y webhooks
-  ├── bot/            # Lógica del bot de conversación
-  ├── config/         # Configuraciones
-  ├── data/           # Datos estáticos
-  ├── db/             # Modelos de base de datos y sesiones
-  ├── payments/       # Integración con pasarelas de pago
-  ├── routes/         # Rutas web
-  ├── security/       # Mecanismos de seguridad y detección de amenazas
-  ├── services/       # Servicios compartidos
-  ├── static/         # Archivos estáticos para web
-  ├── templates/      # Plantillas Jinja2
-  ├── utils/          # Utilidades
-  └── main.py         # Punto de entrada principal
+### 🎭 **Simulador de Entrevistas** (Premium)
+- Entrevistas simuladas con IA
+- Feedback inmediato y detallado
+- Preguntas adaptadas al mercado laboral peruano
+- Práctica ilimitada
 
-admin/                # Panel de administración con Streamlit
-alembic/              # Migraciones de base de datos
-docs/                 # Documentación
-scripts/              # Scripts de utilidad
-tests/                # Pruebas automatizadas
-```
+## 🛠️ Stack Tecnológico
 
-## Requisitos
+### Backend
+- **FastAPI** - Framework web moderno y rápido
+- **SQLAlchemy** - ORM para base de datos
+- **PostgreSQL/SQLite** - Base de datos
+- **OpenAI GPT-4** - Motor de IA
+- **JWT** - Autenticación segura
 
-- Python 3.9+
-- Base de datos SQLite (por defecto) o PostgreSQL
-- Cuenta de Twilio con WhatsApp Business API habilitado
-- Claves de API para servicios de pago (opcional)
-- Cuenta de OpenAI para análisis de texto (opcional)
+### Frontend
+- **React 18** - Biblioteca de interfaz de usuario
+- **TypeScript** - Tipado estático
+- **Tailwind CSS** - Framework de estilos
+- **React Router** - Navegación
+- **Axios** - Cliente HTTP
 
-## Instalación
+## 📦 Instalación y Configuración
 
-1. Clona el repositorio:
-   ```
-   git clone https://github.com/tu-usuario/whatsapp-sales-bot.git
-   cd whatsapp-sales-bot
-   ```
+### Prerrequisitos
+- Node.js 18+ y npm
+- Python 3.8+
+- Cuenta de OpenAI con API key
 
-2. Crea un entorno virtual:
-   ```
-   python -m venv venv
-   source venv/bin/activate   # En Windows: venv\Scripts\activate
-   ```
-
-3. Instala las dependencias:
-   ```
-   pip install -r requirements.txt
-   ```
-
-4. Copia el archivo de variables de entorno y configúralo:
-   ```
-   cp .env.example .env
-   # Edita el archivo .env con tus configuraciones
-   ```
-
-5. Configura la base de datos:
-   ```
-   python scripts/setup_db.py
-   ```
-
-## Configuración
-
-El sistema utiliza variables de entorno para la configuración. Las principales son:
-
-| Variable | Descripción | Valor por defecto |
-|----------|-------------|------------------|
-| `APP_ENV` | Entorno de la aplicación | `development` |
-| `DEBUG` | Modo de depuración | `True` |
-| `DATABASE_URL` | URL de conexión a la base de datos | `sqlite:///whatsapp_sales.db` |
-| `TWILIO_ACCOUNT_SID` | SID de cuenta Twilio | - |
-| `TWILIO_AUTH_TOKEN` | Token de autenticación Twilio | - |
-| `TWILIO_PHONE_NUMBER` | Número de WhatsApp en formato `whatsapp:+123456789` | - |
-| `OPENAI_API_KEY` | Clave API de OpenAI | - |
-| `ADMIN_EMAIL` | Email para notificaciones administrativas | - |
-| `ADMIN_PHONE` | Teléfono para notificaciones administrativas | - |
-| `TELEGRAM_BOT_TOKEN` | Token del bot de Telegram para notificaciones | - |
-| `TELEGRAM_CHAT_ID` | ID del chat de Telegram para notificaciones | - |
-| `CULQI_PUBLIC_KEY` | Clave pública para Culqi | - |
-| `CULQI_PRIVATE_KEY` | Clave privada para Culqi | - |
-
-Consulta `.env.example` para ver todas las variables disponibles.
-
-## Ejecución
-
-### Iniciar la aplicación principal
-
-```
-uvicorn app.main:app --reload --port 8000
+### 1. Clonar el repositorio
+```bash
+git clone <tu-repositorio>
+cd mvp
 ```
 
-### Iniciar el panel de administración
+### 2. Configurar el Backend
 
-```
-streamlit run admin/app.py
-```
+```bash
+cd backend
 
-### Iniciar monitoreo con Prometheus y Grafana
+# Crear entorno virtual
+python -m venv venv
+source venv/bin/activate  # En Windows: venv\Scripts\activate
 
-```
-docker-compose up -d
-```
+# Instalar dependencias
+pip install -r requirements.txt
 
-## Endpoints principales
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus configuraciones (especialmente OPENAI_API_KEY)
 
-- `POST /api/webhooks/whatsapp`: Endpoint para webhooks de WhatsApp
-- `GET /api/products`: Listado de productos
-- `GET /api/client/dashboard/stats`: Estadísticas para el dashboard
-- `GET /api/client/orders`: Listado de órdenes
-- `GET /api/security/incidents`: Listado de incidentes de seguridad
-- `GET /health`: Verificación de estado del sistema
+# Crear base de datos
+python -c "from database import engine, Base; Base.metadata.create_all(bind=engine)"
 
-La documentación completa de la API está disponible en `/docs` o `/redoc` cuando la aplicación está en ejecución.
-
-## Sistema de seguridad
-
-El sistema incluye múltiples capas de seguridad:
-
-1. **Detección de mensajes sospechosos**: Analiza el contenido de los mensajes para detectar patrones de extorsión.
-2. **Lista negra de números**: Bloquea automáticamente números con historial de comportamiento sospechoso.
-3. **Honeypot**: Crea enlaces especiales para rastrear posibles atacantes.
-4. **Monitoreo de actividad**: Detecta patrones inusuales de mensajes.
-5. **Integración con IA**: Utiliza modelos de OpenAI para análisis avanzado de texto.
-
-## Monitoreo y métricas
-
-El sistema está integrado con Prometheus y Grafana para monitoreo en tiempo real. Las métricas principales incluyen:
-
-- Mensajes de WhatsApp recibidos y enviados
-- Intentos de pago (exitosos y fallidos)
-- Actividades sospechosas detectadas
-- Tiempos de respuesta de la API
-- Uso de recursos del sistema
-
-## Pruebas
-
-Para ejecutar las pruebas unitarias:
-
-```
-pytest
+# Ejecutar servidor
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Para pruebas específicas:
+### 3. Configurar el Frontend
+
+```bash
+cd frontend
+
+# Instalar dependencias
+npm install
+
+# Ejecutar aplicación
+npm start
+```
+
+## 🌐 URLs de Acceso
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **Documentación API**: http://localhost:8000/docs
+
+## 🔑 Variables de Entorno Importantes
+
+### Backend (.env)
+```bash
+SECRET_KEY=tu_clave_secreta_muy_segura
+OPENAI_API_KEY=sk-tu_api_key_de_openai
+DATABASE_URL=sqlite:///./coach_empleo_ia.db
+FRONTEND_URL=http://localhost:3000
+```
+
+## 📱 Uso de la Aplicación
+
+### Para Usuarios Gratuitos
+1. Regístrate en la plataforma
+2. Accede al **Editor de CV**
+3. Pega o escribe tu CV actual
+4. Haz clic en "Mejorar con IA"
+5. Descarga tu CV optimizado
+
+### Para Usuarios Premium
+1. Actualiza a cualquier plan premium
+2. Accede a todas las funciones:
+   - **Cartas de Presentación**: Crea cartas personalizadas
+   - **Simulador de Entrevistas**: Practica con IA
+   - **Análisis Avanzado**: Feedback detallado
+
+## 🏗️ Arquitectura del Proyecto
 
 ```
-pytest tests/test_security.py
+mvp/
+├── backend/                 # API FastAPI
+│   ├── main.py             # Punto de entrada
+│   ├── models.py           # Modelos de base de datos
+│   ├── schemas.py          # Esquemas Pydantic
+│   ├── database.py         # Configuración DB
+│   ├── auth_utils.py       # Utilidades de autenticación
+│   ├── openai_service.py   # Servicio de OpenAI
+│   └── routers/            # Endpoints organizados
+│       ├── auth.py         # Autenticación
+│       ├── cv.py           # Editor de CV
+│       ├── cover_letter.py # Cartas de presentación
+│       ├── interview.py    # Simulador de entrevistas
+│       └── payments.py     # Sistema de pagos
+├── frontend/               # App React
+│   ├── src/
+│   │   ├── components/     # Componentes reutilizables
+│   │   ├── contexts/       # Contextos React
+│   │   ├── pages/          # Páginas principales
+│   │   ├── services/       # Servicios API
+│   │   ├── types/          # Tipos TypeScript
+│   │   └── utils/          # Utilidades
+│   └── public/             # Archivos estáticos
+└── README.md               # Este archivo
 ```
 
-## Guía de contribución
+## 🎯 Funcionalidades Específicas para Perú
 
-1. Haz un fork del repositorio
-2. Crea una rama para tu funcionalidad (`git checkout -b feature/amazing-feature`)
-3. Realiza tus cambios y confirma (`git commit -m 'Add some amazing feature'`)
-4. Empuja a la rama (`git push origin feature/amazing-feature`)
+### Editor de CV
+- Formatos preferidos por empresas peruanas
+- Terminología laboral local
+- Optimización para ATS populares en Perú
+
+### Cartas de Presentación
+- Tono formal apropiado para el mercado peruano
+- Referencias a empresas locales conocidas
+- Estructura valorada por reclutadores peruanos
+
+### Simulador de Entrevistas
+- Preguntas típicas del mercado laboral peruano
+- Escenarios de empresas locales
+- Feedback cultural y profesional específico
+
+## 💰 Modelo de Precios
+
+- **Gratuito**: Editor de CV ilimitado
+- **Prueba Premium (S/ 9.90)**: 7 días, todas las funciones
+- **Mensual (S/ 29.90)**: Plan completo mensual
+- **Anual (S/ 299.90)**: Plan completo anual (17% descuento)
+
+## 🔐 Seguridad y Privacidad
+
+- Autenticación JWT segura
+- Encriptación de contraseñas con bcrypt
+- Datos almacenados localmente (no compartidos)
+- API de OpenAI con prompts optimizados
+
+## 🚀 Próximas Funcionalidades
+
+- [ ] Integración con LinkedIn
+- [ ] Análisis de mercado laboral en tiempo real
+- [ ] Red de networking profesional
+- [ ] Sesiones de coaching 1:1
+- [ ] Integración con portales de empleo peruanos
+
+## 🤝 Contribución
+
+Este es un MVP en desarrollo. Para contribuir:
+
+1. Fork el proyecto
+2. Crea una branch para tu feature
+3. Commit tus cambios
+4. Push a la branch
 5. Abre un Pull Request
 
-## Licencia
+## 📞 Soporte
 
-Este proyecto está bajo la licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+Para soporte técnico y preguntas:
+- Email: soporte@coachempleo.pe
+- Website: https://coachempleo.pe
 
-## Contacto
+## 📄 Licencia
 
-Juan Diego Gutiérrez - juandiegogutierrez@example.com
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
 
-Enlace del proyecto: [https://github.com/tu-usuario/whatsapp-sales-bot](https://github.com/tu-usuario/whatsapp-sales-bot)
+---
+
+**Desarrollado con ❤️ para el mercado laboral peruano**
+
+¿Listo para impulsar tu carrera profesional? ¡Comienza ahora! 🚀

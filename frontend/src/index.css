@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Colores personalizados para Perú */
+:root {
+  --peru-red: #C51E3A;
+  --peru-red-hover: #A01729;
+}
+
+.text-peru-red {
+  color: var(--peru-red);
+}
+
+.bg-peru-red {
+  background-color: var(--peru-red);
+}
+
+.border-peru-red {
+  border-color: var(--peru-red);
+}
+
+.hover\:bg-peru-red:hover {
+  background-color: var(--peru-red);
+}
+
+.hover\:text-peru-red:hover {
+  color: var(--peru-red);
+}
+
+.focus\:ring-peru-red:focus {
+  --tw-ring-color: var(--peru-red);
+}
+
+.focus\:border-peru-red:focus {
+  border-color: var(--peru-red);
+}
+
+/* Clases de utilidad adicionales */
+.animate-gradient {
+  background-size: 400% 400%;
+  animation: gradient 15s ease infinite;
+}
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Mejoras para la experiencia del usuario */
+.shadow-custom {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.transition-all-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Estilo para el spinner de carga */
+.spinner {
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid var(--peru-red);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8fafc;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}

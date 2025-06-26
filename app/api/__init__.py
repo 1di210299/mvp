@@ -1,1 +1,0 @@
-"""API endpoints y webhooks para el sistema de ventas."""
