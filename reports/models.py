@@ -555,3 +555,76 @@ class ReportSchedule(models.Model):
         if next_run:
             self.next_run_at = next_run
             self.save(update_fields=['next_run_at'])
+
+
+class ReportDistribution(models.Model):
+    """Registro de distribución de reportes"""
+    
+    DISTRIBUTION_TYPES = [
+        ('email', 'Email'),
+        ('download', 'Descarga'),
+        ('api', 'API'),
+        ('ftp', 'FTP'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('sent', 'Enviado'),
+        ('failed', 'Falló'),
+        ('delivered', 'Entregado'),
+    ]
+    
+    report = models.ForeignKey(
+        Report,
+        on_delete=models.CASCADE,
+        related_name='distributions'
+    )
+    distribution_type = models.CharField(
+        max_length=20,
+        choices=DISTRIBUTION_TYPES,
+        verbose_name="Tipo de distribución"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name="Estado"
+    )
+    
+    # Destinatarios
+    recipients = models.JSONField(
+        default=list,
+        verbose_name="Lista de destinatarios"
+    )
+    
+    # Tiempos
+    sent_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    
+    # Información adicional
+    error_message = models.TextField(
+        blank=True,
+        verbose_name="Mensaje de error"
+    )
+    delivery_details = models.JSONField(
+        default=dict,
+        verbose_name="Detalles de entrega"
+    )
+    
+    # Metadatos
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "Distribución de reporte"
+        verbose_name_plural = "Distribuciones de reportes"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Distribution {self.id} - {self.report.title} ({self.distribution_type})"
+    
+    @property
+    def recipient_count(self):
+        """Número de destinatarios"""
+        if isinstance(self.recipients, list):
+            return len(self.recipients)
+        return 0

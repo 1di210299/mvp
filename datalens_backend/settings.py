@@ -263,3 +263,68 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+# Machine Learning Configuration
+ML_MODELS_PATH = BASE_DIR / 'models' / 'ml_models'
+ML_EXPERIMENTS_PATH = BASE_DIR / 'experiments'
+ML_PLOTS_PATH = MEDIA_ROOT / 'ml_plots'
+
+# Asegura que los directorios ML existen
+os.makedirs(ML_MODELS_PATH, exist_ok=True)
+os.makedirs(ML_EXPERIMENTS_PATH, exist_ok=True)
+os.makedirs(ML_PLOTS_PATH, exist_ok=True)
+
+# Configuración de pronósticos
+FORECASTING_CONFIG = {
+    'default_horizon_days': 30,
+    'max_horizon_days': 365,
+    'min_training_data_points': 30,
+    'default_confidence_interval': 95,
+    'auto_retrain_threshold_days': 7,
+    'hyperparameter_optimization_timeout': 3600,  # 1 hora
+    'parallel_training_workers': 3,
+}
+
+# Configuración de algoritmos ML
+ML_ALGORITHMS_CONFIG = {
+    'prophet': {
+        'enabled': True,
+        'default_hyperparameters': {
+            'seasonality_mode': 'additive',
+            'changepoint_prior_scale': 0.05,
+            'seasonality_prior_scale': 10.0,
+            'yearly_seasonality': 'auto',
+            'weekly_seasonality': 'auto',
+            'daily_seasonality': 'auto'
+        }
+    },
+    'arima': {
+        'enabled': True,
+        'default_hyperparameters': {
+            'auto_arima': True,
+            'seasonal': True,
+            'stepwise': True,
+            'max_p': 5,
+            'max_d': 2,
+            'max_q': 5,
+            'information_criterion': 'aic'
+        }
+    },
+    'ensemble': {
+        'enabled': True,
+        'default_hyperparameters': {
+            'voting_method': 'weighted_average',
+            'auto_weight_calculation': True,
+            'min_models': 2
+        }
+    }
+}
+
+# Configuración de evaluación de modelos
+MODEL_EVALUATION_CONFIG = {
+    'default_evaluation_period_days': 30,
+    'min_evaluation_data_points': 10,
+    'performance_metrics': ['mae', 'mape', 'rmse', 'r2', 'directional_accuracy'],
+    'auto_evaluation_schedule_hours': 24,  # Evaluar cada 24 horas
+    'performance_alert_threshold_mape': 25,  # Alertar si MAPE > 25%
+}

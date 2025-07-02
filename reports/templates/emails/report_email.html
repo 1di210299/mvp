@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Reporte DataLens</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .content {
+            padding: 20px;
+        }
+        .footer {
+            background-color: #f5f5f5;
+            padding: 10px 20px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        .info-block {
+            background-color: #f8f9fa;
+            border-left: 3px solid #007bff;
+            padding: 10px 15px;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>DataLens - Reporte</h1>
+    </div>
+    
+    <div class="content">
+        <p>Estimado(a) usuario(a),</p>
+        
+        <p>Se ha generado automáticamente el siguiente reporte:</p>
+        
+        <div class="info-block">
+            <table>
+                <tr>
+                    <th style="width:120px;">Reporte:</th>
+                    <td>{{ report.title }}</td>
+                </tr>
+                <tr>
+                    <th>Período:</th>
+                    <td>{{ report.date_from|date:"d/m/Y" }} - {{ report.date_to|date:"d/m/Y" }}</td>
+                </tr>
+                <tr>
+                    <th>Generado:</th>
+                    <td>{{ report.generated_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+                <tr>
+                    <th>Formato:</th>
+                    <td>{{ report.get_file_format_display }}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <p>El archivo del reporte se encuentra adjunto a este mensaje.</p>
+        
+        {% if report.template.description %}
+        <p><strong>Descripción del reporte:</strong><br>
+        {{ report.template.description }}</p>
+        {% endif %}
+        
+        <p>Para acceder al sistema y ver más detalles, visite: <a href="{{ frontend_url }}">DataLens</a></p>
+        
+        <p>Saludos cordiales,<br>
+        Equipo DataLens</p>
+    </div>
+    
+    <div class="footer">
+        <p>Este es un mensaje automático, por favor no responda a este correo.</p>
+        <p>© {% now "Y" %} DataLens. Todos los derechos reservados.</p>
+    </div>
+</body>
+</html>

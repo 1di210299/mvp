@@ -1,0 +1,35 @@
+NUEVO REPORTE GENERADO - DataLens
+
+¡Hola!
+
+Se ha generado un nuevo reporte en el sistema DataLens y está listo para su revisión.
+
+INFORMACIÓN DEL REPORTE:
+- Título: {{ report.title }}
+- Tipo: {{ template.get_report_type_display }}
+- Período: {{ report.date_from|date:"d/m/Y" }} - {{ report.date_to|date:"d/m/Y" }}
+- Formato: {{ report.file_format|upper }}
+- Generado: {{ report.generation_completed_at|date:"d/m/Y H:i" }}
+{% if report.file_size_mb %}
+- Tamaño: {{ report.file_size_mb }} MB
+{% endif %}
+{% if report.total_records %}
+- Registros: {{ report.total_records }}
+{% endif %}
+{% if report.generation_time_seconds %}
+- Tiempo de generación: {{ report.generation_time_seconds }} segundos
+{% endif %}
+
+El reporte se ha adjuntado a este correo para su descarga.
+
+INFORMACIÓN DE LA EMPRESA:
+{{ company.name }}
+{% if company.ruc %}
+RUC: {{ company.ruc }}
+{% endif %}
+
+---
+Este es un mensaje automático del sistema DataLens.
+Si tienes alguna pregunta, por favor contacta al administrador del sistema.
+
+© 2024 DataLens - Sistema de Gestión de Inventarios

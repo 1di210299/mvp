@@ -500,3 +500,74 @@ class ReorderRecommendation(models.Model):
         """Determina si la recomendación es urgente"""
         days_left = self.days_until_stockout
         return days_left is not None and days_left <= self.lead_time_days
+
+
+class ModelTrainingJob(models.Model):
+    """Registro de trabajos de entrenamiento de modelos"""
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pendiente'),
+        ('running', 'Ejecutando'),
+        ('completed', 'Completado'),
+        ('failed', 'Falló'),
+        ('cancelled', 'Cancelado'),
+    ]
+    
+    model = models.ForeignKey(
+        ForecastModel,
+        on_delete=models.CASCADE,
+        related_name='training_jobs'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name="Estado"
+    )
+    
+    # Tiempos de ejecución
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Resultados
+    metrics = models.JSONField(
+        default=dict,
+        verbose_name="Métricas obtenidas"
+    )
+    error_message = models.TextField(
+        blank=True,
+        verbose_name="Mensaje de error"
+    )
+    
+    # Metadatos
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_training_jobs'
+    )
+    
+    class Meta:
+        verbose_name = "Trabajo de entrenamiento"
+        verbose_name_plural = "Trabajos de entrenamiento"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Training Job {self.id} - {self.model.name} ({self.status})"
+    
+    @property
+    def duration(self):
+        """Duración del trabajo de entrenamiento"""
+        if self.started_at and self.completed_at:
+            return self.completed_at - self.started_at
+        return None
+    
+    @property
+    def duration_seconds(self):
+        """Duración en segundos"""
+        duration = self.duration
+        if duration:
+            return duration.total_seconds()
+        return None
