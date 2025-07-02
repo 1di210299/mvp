@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - DATABASE_URL=postgresql://datalens:datalens123@db:5432/datalens
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./media:/app/media
+      - ./logs:/app/logs
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=datalens
+      - POSTGRES_USER=datalens
+      - POSTGRES_PASSWORD=datalens123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  celery:
+    build: .
+    command: celery -A datalens_backend worker -l info
+    environment:
+      - DATABASE_URL=postgresql://datalens:datalens123@db:5432/datalens
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./media:/app/media
+      - ./logs:/app/logs
+
+  celery-beat:
+    build: .
+    command: celery -A datalens_backend beat -l info
+    environment:
+      - DATABASE_URL=postgresql://datalens:datalens123@db:5432/datalens
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./media:/app/media
+      - ./logs:/app/logs
+
+volumes:
+  postgres_data:

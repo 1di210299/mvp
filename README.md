@@ -1,8 +1,332 @@
-# 🇵🇪 Coach de Empleo con IA - MVP
+# DataLens MVP - Backend
 
-Una plataforma completa de coaching laboral powered by IA, especializada en el mercado peruano. Ayuda a profesionales a mejorar sus CVs, crear cartas de presentación personalizadas y practicar entrevistas laborales.
+DataLens es una plataforma integral de análisis y gestión de inventarios para pequeñas y medianas empresas peruanas. Utiliza modelos avanzados de machine learning para ofrecer insights detallados sobre rotación de inventario, predicción de demanda, rendimiento de productos y sugerencias automáticas de reabastecimiento.
 
 ## 🚀 Características Principales
+
+### MVP (Versión 1.0)
+- ✅ **Sistema de Autenticación**: JWT con roles (Superadmin, Admin, Analista)
+- ✅ **Gestión de Inventarios**: Productos, categorías, ubicaciones, proveedores
+- ✅ **Transacciones**: Control de movimientos de stock
+- ✅ **API REST**: Endpoints documentados con Swagger/OpenAPI
+- 🚧 **Dashboard Operativo**: Métricas y KPIs en tiempo real
+- 🚧 **Pronóstico de Demanda**: Modelos Prophet/ARIMA para predicción
+- 🚧 **Sistema de Alertas**: Notificaciones automáticas de stock
+- 🚧 **Reportes**: Generación automática de reportes PDF/CSV
+
+## 🏗️ Arquitectura del Sistema
+
+```
+[Frontend React] <--> [API Gateway] --> [Django REST API] --> [PostgreSQL/SQLite]
+                                          |                    
+                                          --> [ML Service] --> [Prophet/ARIMA Models]
+                                          |
+                                          --> [Celery Tasks] --> [Redis]
+```
+
+## 📋 Requisitos del Sistema
+
+- Python 3.11+
+- Django 4.2+
+- PostgreSQL (Producción) / SQLite (Desarrollo)
+- Redis (Para Celery)
+- Git
+
+## 🛠️ Instalación y Configuración
+
+### 1. Clonar el Repositorio
+```bash
+git clone <repository-url>
+cd mvp
+```
+
+### 2. Crear Entorno Virtual
+```bash
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # Linux/Mac
+```
+
+### 3. Instalar Dependencias
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configurar Variables de Entorno
+Copia el archivo `.env` y configura las variables:
+
+```env
+# Django Configuration
+DEBUG=True
+SECRET_KEY=django-insecure-datalens-mvp-2025-development-key
+ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+
+# Database Configuration
+DATABASE_URL=sqlite:///db.sqlite3
+
+# Redis Configuration (para Celery)
+REDIS_URL=redis://localhost:6379/0
+
+# Email Configuration
+EMAIL_HOST=localhost
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+DEFAULT_FROM_EMAIL=noreply@datalens.com
+```
+
+### 5. Ejecutar Migraciones
+```bash
+python manage.py migrate
+```
+
+### 6. Crear Superusuario (Opcional)
+```bash
+python manage.py createsuperuser
+```
+
+### 7. Iniciar Servidor de Desarrollo
+
+**Opción 1 - Usar script:**
+```bash
+# Windows
+start_server.bat
+
+# Linux/Mac
+chmod +x start_server.sh
+./start_server.sh
+```
+
+**Opción 2 - Comando manual:**
+```bash
+python manage.py runserver 0.0.0.0:8080
+```
+
+El servidor estará disponible en: http://0.0.0.0:8080/ (accesible desde cualquier IP de tu red)
+
+## 📚 Documentación de la API
+
+### Endpoints Principales
+
+#### Autenticación
+- `POST /api/auth/login/` - Iniciar sesión (JWT)
+- `POST /api/auth/refresh/` - Renovar token
+- `POST /api/auth/register/` - Registrar nueva empresa/usuario
+- `GET /api/auth/profile/` - Obtener perfil de usuario
+
+#### Inventario
+- `GET /api/inventory/products/` - Listar productos
+- `POST /api/inventory/products/` - Crear producto
+- `GET /api/inventory/dashboard/` - Dashboard principal
+- `GET /api/inventory/low-stock/` - Productos con stock bajo
+- `POST /api/inventory/upload/` - Subir archivo CSV
+
+#### Alertas
+- `GET /api/alerts/alerts/` - Listar alertas
+- `POST /api/alerts/rules/` - Crear regla de alerta
+- `POST /api/alerts/check-alerts/` - Verificar alertas
+
+#### Pronósticos
+- `POST /api/forecasting/predict/` - Generar pronóstico
+- `GET /api/forecasting/forecasts/` - Listar pronósticos
+- `POST /api/forecasting/train-model/` - Entrenar modelo
+
+#### Reportes
+- `POST /api/reports/generate/` - Generar reporte
+- `GET /api/reports/reports/` - Listar reportes
+- `GET /api/reports/kpis/` - Obtener KPIs
+
+### Documentación Interactiva
+
+- **Swagger UI**: http://0.0.0.0:8080/api/docs/
+- **ReDoc**: http://0.0.0.0:8080/api/redoc/
+- **Schema JSON**: http://0.0.0.0:8080/api/schema/
+
+## 🗃️ Estructura del Proyecto
+
+```
+mvp/
+├── datalens_backend/          # Configuración principal de Django
+│   ├── settings.py           # Configuraciones
+│   ├── urls.py              # URLs principales
+│   └── wsgi.py              # WSGI para producción
+├── authentication/           # Sistema de autenticación
+│   ├── models.py            # Modelos de Usuario y Empresa
+│   ├── views.py             # Vistas de autenticación
+│   ├── serializers.py       # Serializers DRF
+│   └── urls.py              # URLs de autenticación
+├── inventory/               # Gestión de inventarios
+│   ├── models.py            # Modelos de productos, stock, etc.
+│   ├── views.py             # Vistas de inventario
+│   ├── serializers.py       # Serializers de inventario
+│   └── urls.py              # URLs de inventario
+├── forecasting/             # Módulo de pronósticos ML
+│   ├── models.py            # Modelos de pronóstico
+│   ├── views.py             # Vistas de ML
+│   └── urls.py              # URLs de pronósticos
+├── alerts/                  # Sistema de alertas
+│   ├── models.py            # Modelos de alertas
+│   ├── views.py             # Vistas de alertas
+│   └── urls.py              # URLs de alertas
+├── reports/                 # Generación de reportes
+│   ├── models.py            # Modelos de reportes
+│   ├── views.py             # Vistas de reportes
+│   └── urls.py              # URLs de reportes
+├── static/                  # Archivos estáticos
+├── media/                   # Archivos subidos
+├── logs/                    # Logs del sistema
+├── requirements.txt         # Dependencias Python
+├── manage.py               # Comando de Django
+└── README.md               # Este archivo
+```
+
+## 🔐 Roles y Permisos
+
+### Superadmin
+- Acceso total al sistema
+- Gestión de empresas y usuarios
+- Configuración global
+
+### Administrador
+- Gestión completa de su empresa
+- Crear/editar usuarios, productos, alertas
+- Acceso a todos los reportes
+
+### Analista
+- Visualización de dashboards
+- Generación de reportes
+- Solo lectura de inventarios
+
+## 🔍 Modelos de Datos Principales
+
+### Company (Empresa)
+- Información básica de la empresa
+- Configuración de suscripción
+- Límites de usuarios
+
+### User (Usuario)
+- Extensión del modelo User de Django
+- Roles y permisos
+- Preferencias personalizadas
+
+### Product (Producto)
+- SKU, nombre, descripción
+- Precios, categorías, proveedores
+- Configuración de stock (min/max)
+
+### InventoryItem (Item de Inventario)
+- Stock por ubicación
+- Control de lotes y vencimientos
+- Costos promedio ponderado
+
+### Transaction (Transacción)
+- Historial de movimientos
+- Compras, ventas, ajustes
+- Trazabilidad completa
+
+## 🤖 Machine Learning
+
+### Modelos Implementados
+- **Prophet**: Para series temporales con estacionalidad
+- **ARIMA**: Para análisis de tendencias
+- **Regresión Lineal**: Para pronósticos simples
+
+### Características ML
+- Entrenamiento automático semanal
+- Versionado de modelos con MLflow
+- Métricas de precisión (MAE, MAPE, RMSE)
+- Intervalos de confianza
+
+## 📊 KPIs y Métricas
+
+### Indicadores Principales
+- **Rotación de Inventario**: Veces que rota el stock por período
+- **Días de Inventario**: Días de cobertura con stock actual
+- **Nivel de Servicio**: % de pedidos atendidos sin faltantes
+- **Costo de Inventario**: Valor total del stock
+- **Productos de Baja Rotación**: SKUs con movimiento lento
+
+### Alertas Automáticas
+- Stock por debajo del mínimo
+- Productos próximos a vencer
+- Demanda proyectada vs stock disponible
+- Productos sin movimiento
+
+## 🚀 Despliegue
+
+### Desarrollo Local
+```bash
+# Usar script personalizado
+start_server.bat  # Windows
+./start_server.sh # Linux/Mac
+
+# O comando manual
+python manage.py runserver 0.0.0.0:8080
+```
+
+### Producción (Docker)
+```bash
+docker build -t datalens-backend .
+docker run -p 8000:8000 datalens-backend
+```
+
+### Variables de Entorno para Producción
+```env
+DEBUG=False
+SECRET_KEY=<secret-key-production>
+DATABASE_URL=postgresql://user:pass@host:port/dbname
+REDIS_URL=redis://redis-host:6379/0
+EMAIL_HOST=smtp.mailserver.com
+```
+
+## 🧪 Testing
+
+```bash
+# Ejecutar todas las pruebas
+python manage.py test
+
+# Ejecutar pruebas con coverage
+coverage run --source='.' manage.py test
+coverage report
+```
+
+## 📝 Próximas Funcionalidades
+
+### Fase 2
+- [ ] Dashboard interactivo con gráficos
+- [ ] Integración con ERPs (SAP, Odoo)
+- [ ] Alertas por WhatsApp/SMS
+- [ ] Pronósticos por ML avanzado (LSTM)
+- [ ] Optimización de inventarios
+
+### Fase 3
+- [ ] Módulo de compras automáticas
+- [ ] Integración con proveedores
+- [ ] Analytics avanzado
+- [ ] Mobile app (React Native)
+- [ ] Inteligencia artificial conversacional
+
+## 🤝 Contribución
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## � Licencia
+
+Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
+
+## 📞 Soporte
+
+Para soporte técnico o consultas:
+- Email: soporte@datalens.com
+- Documentación: [docs.datalens.com](https://docs.datalens.com)
+- Issues: [GitHub Issues](https://github.com/datalens/issues)
+
+---
+
+**DataLens MVP v1.0** - Transformando la gestión de inventarios con inteligencia artificial 🚀
 
 ### ✅ **Editor Inteligente de CV** (Gratuito)
 - Mejora automática de currículums con IA

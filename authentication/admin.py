@@ -1,0 +1,53 @@
+from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from .models import Company, User
+
+
+@admin.register(Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ('name', 'ruc', 'industry', 'subscription_type', 'is_active', 'created_at')
+    list_filter = ('subscription_type', 'is_active', 'industry', 'created_at')
+    search_fields = ('name', 'ruc', 'email')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Información básica', {
+            'fields': ('name', 'ruc', 'address', 'phone', 'email', 'industry', 'website')
+        }),
+        ('Configuración', {
+            'fields': ('max_users', 'subscription_type', 'is_active')
+        }),
+        ('Metadatos', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(User)
+class UserAdmin(BaseUserAdmin):
+    list_display = ('username', 'email', 'company', 'role', 'is_active', 'is_staff', 'created_at')
+    list_filter = ('role', 'is_active', 'is_staff', 'company', 'created_at')
+    search_fields = ('username', 'email', 'first_name', 'last_name', 'company__name')
+    ordering = ('-created_at',)
+    
+    fieldsets = BaseUserAdmin.fieldsets + (
+        ('Información de la empresa', {
+            'fields': ('company', 'role', 'phone', 'position', 'department')
+        }),
+        ('Configuraciones', {
+            'fields': ('email_notifications', 'dashboard_preferences')
+        }),
+        ('Metadatos adicionales', {
+            'fields': ('last_login_ip', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    add_fieldsets = BaseUserAdmin.add_fieldsets + (
+        ('Información adicional', {
+            'fields': ('email', 'company', 'role', 'first_name', 'last_name')
+        }),
+    )
+    
+    readonly_fields = ('created_at', 'updated_at', 'last_login_ip')
