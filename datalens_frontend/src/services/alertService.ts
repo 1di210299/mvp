@@ -1,41 +1,4 @@
-interface AlertData {
-  id: number;
-  title: string;
-  message: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  status: 'active' | 'acknowledged' | 'resolved' | 'dismissed';
-  current_value: number;
-  threshold_value: number;
-  created_at: string;
-  acknowledged_at?: string;
-  resolved_at?: string;
-  product_data?: {
-    id: number;
-    name: string;
-    sku: string;
-  };
-  location_data?: {
-    id: number;
-    name: string;
-  };
-  rule_data?: {
-    id: number;
-    name: string;
-    alert_type: string;
-  };
-}
-
-interface DashboardData {
-  total_alerts: number;
-  active_alerts: number;
-  critical_alerts: number;
-  acknowledged_alerts: number;
-  resolved_alerts: number;
-  alerts_by_severity: Record<string, number>;
-  alerts_by_type: Record<string, number>;
-  recent_alerts: AlertData[];
-  alert_trends: Record<string, number>;
-}
+import { AlertData, DashboardData } from '../types';
 
 interface AlertRule {
   id: number;

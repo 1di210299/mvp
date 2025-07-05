@@ -12,7 +12,7 @@ import {
   ApiResponse 
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = 'http://localhost:8081/api';
 
 // Configuración de axios
 const api = axios.create({
@@ -71,6 +71,7 @@ export const authService = {
 
 // Servicios de inventario
 export const inventoryService = {
+  // Productos
   getProducts: async (): Promise<ApiResponse<Product>> => {
     const response = await api.get('/inventory/products/');
     return response.data;
@@ -95,11 +96,85 @@ export const inventoryService = {
     await api.delete(`/inventory/products/${id}/`);
   },
 
-  getInventory: async (): Promise<ApiResponse<Inventory>> => {
-    const response = await api.get('/inventory/inventory/');
+  // Categorías
+  getCategories: async (): Promise<ApiResponse<any>> => {
+    const response = await api.get('/inventory/categories/');
     return response.data;
   },
 
+  createCategory: async (category: any): Promise<any> => {
+    const response = await api.post('/inventory/categories/', category);
+    return response.data;
+  },
+
+  updateCategory: async (id: number, category: any): Promise<any> => {
+    const response = await api.put(`/inventory/categories/${id}/`, category);
+    return response.data;
+  },
+
+  deleteCategory: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/categories/${id}/`);
+  },
+
+  // Proveedores
+  getSuppliers: async (): Promise<ApiResponse<any>> => {
+    const response = await api.get('/inventory/suppliers/');
+    return response.data;
+  },
+
+  createSupplier: async (supplier: any): Promise<any> => {
+    const response = await api.post('/inventory/suppliers/', supplier);
+    return response.data;
+  },
+
+  updateSupplier: async (id: number, supplier: any): Promise<any> => {
+    const response = await api.put(`/inventory/suppliers/${id}/`, supplier);
+    return response.data;
+  },
+
+  deleteSupplier: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/suppliers/${id}/`);
+  },
+
+  // Ubicaciones
+  getLocations: async (): Promise<ApiResponse<any>> => {
+    const response = await api.get('/inventory/locations/');
+    return response.data;
+  },
+
+  // Inventario/Items
+  getInventoryItems: async (): Promise<ApiResponse<Inventory>> => {
+    const response = await api.get('/inventory/inventory-items/');
+    return response.data;
+  },
+
+  createInventoryItem: async (item: any): Promise<any> => {
+    const response = await api.post('/inventory/inventory-items/', item);
+    return response.data;
+  },
+
+  updateInventoryItem: async (id: number, item: any): Promise<any> => {
+    const response = await api.put(`/inventory/inventory-items/${id}/`, item);
+    return response.data;
+  },
+
+  // Stock endpoints
+  getProductStock: async (productId: number): Promise<any> => {
+    const response = await api.get(`/inventory/products/${productId}/stock/`);
+    return response.data;
+  },
+
+  getLowStock: async (): Promise<any> => {
+    const response = await api.get('/inventory/low-stock/');
+    return response.data;
+  },
+
+  getStockMovements: async (): Promise<any> => {
+    const response = await api.get('/inventory/stock-movements/');
+    return response.data;
+  },
+
+  // Transacciones
   getTransactions: async (): Promise<ApiResponse<Transaction>> => {
     const response = await api.get('/inventory/transactions/');
     return response.data;
@@ -109,12 +184,38 @@ export const inventoryService = {
     const response = await api.post('/inventory/transactions/', transaction);
     return response.data;
   },
+
+  // Dashboard de inventario
+  getInventoryDashboard: async (): Promise<any> => {
+    const response = await api.get('/inventory/dashboard/');
+    return response.data;
+  },
+
+  // Upload
+  uploadFile: async (file: FormData): Promise<any> => {
+    const response = await api.post('/inventory/upload/', file, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
 
 // Servicios de alertas
 export const alertService = {
   getAlerts: async (): Promise<ApiResponse<Alert>> => {
     const response = await api.get('/alerts/alerts/');
+    return response.data;
+  },
+
+  createAlert: async (alert: any): Promise<Alert> => {
+    const response = await api.post('/alerts/alerts/', alert);
+    return response.data;
+  },
+
+  updateAlert: async (id: number, alert: any): Promise<Alert> => {
+    const response = await api.patch(`/alerts/alerts/${id}/`, alert);
     return response.data;
   },
 
@@ -127,22 +228,245 @@ export const alertService = {
     const response = await api.patch(`/alerts/alerts/${id}/`, { is_resolved: true });
     return response.data;
   },
+
+  acknowledgeAlert: async (id: number, note?: string): Promise<Alert> => {
+    const response = await api.post(`/alerts/alerts/${id}/acknowledge/`, { note });
+    return response.data;
+  },
+
+  dismissAlert: async (id: number, note?: string): Promise<Alert> => {
+    const response = await api.post(`/alerts/alerts/${id}/dismiss/`, { note });
+    return response.data;
+  },
+
+  // Reglas de alertas
+  getAlertRules: async (): Promise<any> => {
+    const response = await api.get('/alerts/rules/');
+    return response.data;
+  },
+
+  createAlertRule: async (rule: any): Promise<any> => {
+    const response = await api.post('/alerts/rules/', rule);
+    return response.data;
+  },
+
+  updateAlertRule: async (id: number, rule: any): Promise<any> => {
+    const response = await api.put(`/alerts/rules/${id}/`, rule);
+    return response.data;
+  },
+
+  deleteAlertRule: async (id: number): Promise<void> => {
+    await api.delete(`/alerts/rules/${id}/`);
+  },
+
+  testAlertRule: async (id: number): Promise<any> => {
+    const response = await api.post(`/alerts/test-rule/${id}/`);
+    return response.data;
+  },
+
+  // Dashboard y verificación
+  getAlertsDashboard: async (): Promise<any> => {
+    const response = await api.get('/alerts/dashboard/');
+    return response.data;
+  },
+
+  checkAlerts: async (): Promise<any> => {
+    const response = await api.post('/alerts/check-alerts/');
+    return response.data;
+  },
+
+  // Notificaciones
+  getNotifications: async (): Promise<any> => {
+    const response = await api.get('/alerts/notifications/');
+    return response.data;
+  },
+};
+
+// Servicios de forecasting/ML
+export const forecastingService = {
+  // Modelos
+  getModels: async (): Promise<any> => {
+    const response = await api.get('/forecasting/models/');
+    return response.data;
+  },
+
+  createModel: async (model: any): Promise<any> => {
+    const response = await api.post('/forecasting/models/', model);
+    return response.data;
+  },
+
+  updateModel: async (id: number, model: any): Promise<any> => {
+    const response = await api.put(`/forecasting/models/${id}/`, model);
+    return response.data;
+  },
+
+  deleteModel: async (id: number): Promise<void> => {
+    await api.delete(`/forecasting/models/${id}/`);
+  },
+
+  getModelAccuracy: async (id: number): Promise<any> => {
+    const response = await api.get(`/forecasting/models/${id}/accuracy/`);
+    return response.data;
+  },
+
+  // Pronósticos
+  getForecasts: async (): Promise<any> => {
+    const response = await api.get('/forecasting/forecasts/');
+    return response.data;
+  },
+
+  createForecast: async (forecast: any): Promise<any> => {
+    const response = await api.post('/forecasting/forecasts/', forecast);
+    return response.data;
+  },
+
+  getProductForecast: async (productId: number): Promise<any> => {
+    const response = await api.get(`/forecasting/products/${productId}/forecast/`);
+    return response.data;
+  },
+
+  // Predicciones
+  predictDemand: async (data: any): Promise<any> => {
+    const response = await api.post('/forecasting/predict/', data);
+    return response.data;
+  },
+
+  trainModel: async (data: any): Promise<any> => {
+    const response = await api.post('/forecasting/train-model/', data);
+    return response.data;
+  },
+
+  // Recomendaciones
+  getReorderRecommendations: async (): Promise<any> => {
+    const response = await api.get('/forecasting/reorder-recommendations/');
+    return response.data;
+  },
+
+  generateRecommendations: async (): Promise<any> => {
+    const response = await api.post('/forecasting/generate-recommendations/');
+    return response.data;
+  },
 };
 
 // Servicios de reportes
 export const reportService = {
+  // Reportes
   getReports: async (): Promise<ApiResponse<Report>> => {
     const response = await api.get('/reports/reports/');
     return response.data;
   },
 
-  generateReport: async (reportData: Partial<Report>): Promise<Report> => {
-    const response = await api.post('/reports/reports/', reportData);
+  createReport: async (report: any): Promise<Report> => {
+    const response = await api.post('/reports/reports/', report);
     return response.data;
+  },
+
+  updateReport: async (id: number, report: any): Promise<Report> => {
+    const response = await api.put(`/reports/reports/${id}/`, report);
+    return response.data;
+  },
+
+  deleteReport: async (id: number): Promise<void> => {
+    await api.delete(`/reports/reports/${id}/`);
   },
 
   getReport: async (id: number): Promise<Report> => {
     const response = await api.get(`/reports/reports/${id}/`);
+    return response.data;
+  },
+
+  generateReport: async (reportData: any): Promise<any> => {
+    const response = await api.post('/reports/generate/', reportData);
+    return response.data;
+  },
+
+  downloadReport: async (id: number): Promise<Blob> => {
+    const response = await api.get(`/reports/reports/${id}/download/`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  // Templates
+  getReportTemplates: async (): Promise<any> => {
+    const response = await api.get('/reports/templates/');
+    return response.data;
+  },
+
+  createReportTemplate: async (template: any): Promise<any> => {
+    const response = await api.post('/reports/templates/', template);
+    return response.data;
+  },
+
+  updateReportTemplate: async (id: number, template: any): Promise<any> => {
+    const response = await api.put(`/reports/templates/${id}/`, template);
+    return response.data;
+  },
+
+  deleteReportTemplate: async (id: number): Promise<void> => {
+    await api.delete(`/reports/templates/${id}/`);
+  },
+
+  // KPIs
+  getKPIDefinitions: async (): Promise<any> => {
+    const response = await api.get('/reports/kpis/');
+    return response.data;
+  },
+
+  createKPIDefinition: async (kpi: any): Promise<any> => {
+    const response = await api.post('/reports/kpis/', kpi);
+    return response.data;
+  },
+
+  updateKPIDefinition: async (id: number, kpi: any): Promise<any> => {
+    const response = await api.put(`/reports/kpis/${id}/`, kpi);
+    return response.data;
+  },
+
+  deleteKPIDefinition: async (id: number): Promise<void> => {
+    await api.delete(`/reports/kpis/${id}/`);
+  },
+
+  getKPIValues: async (): Promise<any> => {
+    const response = await api.get('/reports/kpi-values/');
+    return response.data;
+  },
+
+  calculateKPIs: async (): Promise<any> => {
+    const response = await api.post('/reports/kpis/calculate/');
+    return response.data;
+  },
+
+  // Programación
+  getReportSchedules: async (): Promise<any> => {
+    const response = await api.get('/reports/schedules/');
+    return response.data;
+  },
+
+  createReportSchedule: async (schedule: any): Promise<any> => {
+    const response = await api.post('/reports/schedules/', schedule);
+    return response.data;
+  },
+
+  updateReportSchedule: async (id: number, schedule: any): Promise<any> => {
+    const response = await api.put(`/reports/schedules/${id}/`, schedule);
+    return response.data;
+  },
+
+  deleteReportSchedule: async (id: number): Promise<void> => {
+    await api.delete(`/reports/schedules/${id}/`);
+  },
+
+  // Dashboard y exportación
+  getReportsDashboard: async (): Promise<any> => {
+    const response = await api.get('/reports/dashboard/');
+    return response.data;
+  },
+
+  exportData: async (exportConfig: any): Promise<Blob> => {
+    const response = await api.post('/reports/export/', exportConfig, {
+      responseType: 'blob'
+    });
     return response.data;
   },
 };

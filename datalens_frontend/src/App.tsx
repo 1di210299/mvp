@@ -1,10 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login/Login';
 import Dashboard from './components/Dashboard/Dashboard';
 import Navbar from './components/Navbar/Navbar';
 import { User } from './types';
 import { authService } from './services/api';
 import './styles/global.css';
+
+// Import all pages
+import ProductsPage from './pages/ProductsPage';
+import CategoriesPage from './pages/CategoriesPage';
+import SuppliersPage from './pages/SuppliersPage';
+import TransactionsPage from './pages/TransactionsPage';
+import AlertsPage from './pages/AlertsPage';
+import ForecastingPage from './pages/ForecastingPage';
+import ReportsPage from './pages/ReportsPage';
+import SettingsPage from './pages/SettingsPage';
+import InventoryPage from './pages/InventoryPage';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -86,12 +98,27 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="app">
-      <Navbar user={user} onLogout={handleLogout} />
-      <main className="app-main">
-        <Dashboard />
-      </main>
-    </div>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <div className="app">
+        <Navbar user={user} onLogout={handleLogout} />
+        <main className="app-main">
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/products" element={<ProductsPage />} />
+            <Route path="/categories" element={<CategoriesPage />} />
+            <Route path="/suppliers" element={<SuppliersPage />} />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/transactions" element={<TransactionsPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/forecasting" element={<ForecastingPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
   );
 };
 

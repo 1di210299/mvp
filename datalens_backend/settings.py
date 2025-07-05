@@ -328,3 +328,24 @@ MODEL_EVALUATION_CONFIG = {
     'auto_evaluation_schedule_hours': 24,  # Evaluar cada 24 horas
     'performance_alert_threshold_mape': 25,  # Alertar si MAPE > 25%
 }
+
+# Configuración de OpenAI
+OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
+
+# Configuración de campos personalizados
+CUSTOM_FIELDS_CONFIG = {
+    'max_fields_per_model': 50,  # Máximo número de campos personalizados por modelo
+    'max_choice_options': 100,   # Máximo número de opciones para campos tipo choice
+    'enable_ai_suggestions': True,  # Habilitar sugerencias de IA para nuevos campos
+    'auto_validation': True,     # Validación automática de campos
+}
+
+# Configuración de análisis con IA
+AI_ANALYTICS_CONFIG = {
+    'enabled': True,
+    'model': 'gpt-4',
+    'max_tokens': 2000,
+    'temperature': 0.3,
+    'cache_insights_hours': 6,  # Cachear insights por 6 horas
+    'batch_analysis_size': 100,  # Tamaño de lote para análisis masivo
+}

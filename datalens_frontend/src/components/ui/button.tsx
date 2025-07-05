@@ -5,7 +5,7 @@ interface ButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
-  variant?: 'default' | 'outline' | 'destructive';
+  variant?: 'primary' | 'secondary' | 'destructive' | 'ghost' | 'success' | 'warning' | 'outline';
   className?: string;
   type?: 'button' | 'submit' | 'reset';
 }
@@ -15,25 +15,29 @@ export const Button: React.FC<ButtonProps> = ({
   onClick,
   disabled = false,
   size = 'md',
-  variant = 'default',
+  variant = 'primary',
   className = '',
   type = 'button'
 }) => {
-  const baseClasses = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+  const baseClasses = 'btn hover-lift';
   
   const sizeClasses = {
-    sm: 'px-3 py-2 text-sm',
+    sm: 'px-3 py-1.5 text-xs',
     md: 'px-4 py-2 text-sm',
     lg: 'px-6 py-3 text-base'
   };
   
   const variantClasses = {
-    default: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
-    outline: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-blue-500',
-    destructive: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500'
+    primary: 'btn-primary',
+    secondary: 'btn-secondary', 
+    destructive: 'btn-destructive',
+    ghost: 'btn-ghost',
+    success: 'btn-success',
+    warning: 'btn-warning',
+    outline: 'btn-outline'
   };
   
-  const classes = `${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]} ${className}`;
+  const classes = `${baseClasses} ${sizeClasses[size]} ${variantClasses[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`;
   
   return (
     <button

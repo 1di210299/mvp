@@ -21,25 +21,19 @@ const InventoryPage: React.FC = () => {
       
       // Obtener productos reales de la API
       const productsResponse = await inventoryService.getProducts();
-      console.log('Products response:', productsResponse);
       const productsData = productsResponse.results || productsResponse;
       setProducts(productsData);
       
-      // Los productos ya incluyen información de stock, 
-      // pero también carguemos los items de inventario para ubicaciones
-      try {
-        const inventoryResponse = await inventoryService.getInventoryItems();
-        const inventoryData = inventoryResponse.results || inventoryResponse;
-        setInventory(inventoryData);
-      } catch (invErr) {
-        console.warn('Error loading inventory items:', invErr);
-        // No es crítico si no podemos cargar los items de inventario
-        setInventory([]);
-      }
+      // Obtener inventario real de la API
+      const inventoryResponse = await inventoryService.getInventoryItems();
+      const inventoryData = inventoryResponse.results || inventoryResponse;
+      setInventory(inventoryData);
       
     } catch (err) {
       console.error('Error loading inventory data:', err);
       setError('Error al cargar datos del inventario. Verificar conexión con API.');
+      
+      // No usar fallback, mostrar el error
       setProducts([]);
       setInventory([]);
     } finally {
@@ -60,13 +54,12 @@ const InventoryPage: React.FC = () => {
   };
 
   const getStockStatus = (product: Product) => {
-    const currentStock = product.current_stock || 0;
-    const minStock = typeof product.min_stock === 'string' ? parseFloat(product.min_stock) : product.min_stock;
-    const maxStock = typeof product.max_stock === 'string' ? parseFloat(product.max_stock) : product.max_stock;
+    const inv = getInventoryForProduct(product.id);
+    const currentStock = inv?.quantity || 0;
     
     if (currentStock <= 0) return { status: 'out-of-stock', label: 'Sin Stock', color: 'red' };
-    if (currentStock <= minStock) return { status: 'low-stock', label: 'Stock Bajo', color: 'orange' };
-    if (currentStock >= maxStock) return { status: 'high-stock', label: 'Stock Alto', color: 'blue' };
+    if (currentStock <= product.min_stock) return { status: 'low-stock', label: 'Stock Bajo', color: 'orange' };
+    if (currentStock >= product.max_stock) return { status: 'high-stock', label: 'Stock Alto', color: 'blue' };
     return { status: 'normal', label: 'Normal', color: 'green' };
   };
 
@@ -104,9 +97,8 @@ const InventoryPage: React.FC = () => {
           <h3>Stock Bajo</h3>
           <div className="stat-value">
             {products.filter(p => {
-              const currentStock = p.current_stock || 0;
-              const minStock = typeof p.min_stock === 'string' ? parseFloat(p.min_stock) : p.min_stock;
-              return currentStock <= minStock;
+              const inv = getInventoryForProduct(p.id);
+              return (inv?.quantity || 0) <= p.min_stock;
             }).length}
           </div>
         </div>
@@ -114,16 +106,19 @@ const InventoryPage: React.FC = () => {
           <h3>Sin Stock</h3>
           <div className="stat-value">
             {products.filter(p => {
-              const currentStock = p.current_stock || 0;
-              return currentStock <= 0;
+              const inv = getInventoryForProduct(p.id);
+              return (inv?.quantity || 0) <= 0;
             }).length}
           </div>
         </div>
         <div className="stat-card">
           <h3>Valor Total</h3>
           <div className="stat-value">
-            S/ {products.reduce((total, p) => {
-              return total + (p.stock_value || 0);
+            S/ {inventory.reduce((total, inv) => {
+              const productId = typeof inv.product === 'number' ? inv.product : inv.product?.id;
+              const product = products.find(p => p.id === productId);
+              const costPrice = typeof product?.cost_price === 'string' ? parseFloat(product.cost_price) : (product?.cost_price || 0);
+              return total + ((inv.quantity || 0) * costPrice);
             }, 0).toFixed(2)}
           </div>
         </div>
@@ -158,7 +153,7 @@ const InventoryPage: React.FC = () => {
             {filteredProducts.map(product => {
               const inv = getInventoryForProduct(product.id);
               const stockStatus = getStockStatus(product);
-              const currentStock = product.current_stock || 0;
+              const currentStock = inv?.quantity || 0;
               const costPrice = typeof product.cost_price === 'string' ? parseFloat(product.cost_price) : product.cost_price;
               const stockValue = currentStock * costPrice;
 
@@ -179,8 +174,8 @@ const InventoryPage: React.FC = () => {
                       {currentStock}
                     </span>
                   </td>
-                  <td>{typeof product.min_stock === 'string' ? parseFloat(product.min_stock) : product.min_stock}</td>
-                  <td>{typeof product.max_stock === 'string' ? parseFloat(product.max_stock) : product.max_stock}</td>
+                  <td>{product.min_stock}</td>
+                  <td>{product.max_stock}</td>
                   <td>
                     <span 
                       className={`status-badge ${stockStatus.status}`}

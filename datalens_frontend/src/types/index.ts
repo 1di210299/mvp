@@ -44,21 +44,28 @@ export interface Product {
   name: string;
   sku: string;
   description?: string;
-  category: Category;
-  unit_price: number;
-  cost_price: number;
-  min_stock: number;
-  max_stock: number;
-  reorder_point: number;
-  weight?: number;
+  category: number;
+  category_name?: string;
+  supplier?: number;
+  supplier_name?: string;
+  unit_price?: number;
+  cost_price: number | string;
+  sale_price?: number | string;
+  min_stock: number | string;
+  max_stock: number | string;
+  reorder_point: number | string;
+  weight?: number | string;
   dimensions?: string;
   unit: string;
   barcode?: string;
   track_batches: boolean;
   has_expiration: boolean;
   shelf_life_days?: number;
+  current_stock?: number;
+  stock_value?: number;
   is_active: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Category {
@@ -107,14 +114,15 @@ export interface Location {
 
 export interface Transaction {
   id: number;
-  product: Product;
-  warehouse: Warehouse;
-  transaction_type: 'in' | 'out' | 'adjustment';
+  product: Product; // Always a complete Product object for display purposes
+  warehouse?: number | Warehouse; // Puede ser ID o objeto completo
+  location?: number; // Para ubicaciones específicas
+  transaction_type: 'IN' | 'OUT' | 'PURCHASE' | 'SALE' | 'TRANSFER' | 'ADJUSTMENT' | 'RETURN';
   quantity: number;
   unit_cost?: number;
   reference_number?: string;
   notes?: string;
-  created_by: User;
+  created_by?: number | User;
   created_at: string;
 }
 
@@ -130,6 +138,33 @@ export interface Alert {
   product?: Product;
   warehouse?: Warehouse;
   created_at: string;
+}
+
+export interface AlertData {
+  id: number;
+  title: string;
+  message: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  status: 'active' | 'acknowledged' | 'resolved' | 'dismissed';
+  current_value: number;
+  threshold_value: number;
+  created_at: string;
+  acknowledged_at?: string;
+  resolved_at?: string;
+  product_data?: {
+    id: number;
+    name: string;
+    sku: string;
+  };
+  location_data?: {
+    id: number;
+    name: string;
+  };
+  rule_data?: {
+    id: number;
+    name: string;
+    alert_type: string;
+  };
 }
 
 // Tipos para reportes
@@ -160,6 +195,18 @@ export interface DashboardStats {
     min_stock: number;
     max_stock: number;
   }>;
+}
+
+export interface DashboardData {
+  total_alerts: number;
+  active_alerts: number;
+  critical_alerts: number;
+  acknowledged_alerts: number;
+  resolved_alerts: number;
+  alerts_by_severity: Record<string, number>;
+  alerts_by_type: Record<string, number>;
+  recent_alerts: AlertData[];
+  alert_trends: Record<string, number>;
 }
 
 // Tipos para forecasting

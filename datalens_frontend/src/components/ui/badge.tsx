@@ -3,22 +3,23 @@ import React from 'react';
 interface BadgeProps {
   children: React.ReactNode;
   className?: string;
-  variant?: 'default' | 'secondary' | 'success' | 'warning' | 'danger';
+  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'destructive';
 }
 
 export const Badge: React.FC<BadgeProps> = ({
   children,
   className = '',
-  variant = 'default'
+  variant = 'primary'
 }) => {
-  const baseClasses = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium';
+  const baseClasses = 'badge animate-fade-in';
   
   const variantClasses = {
-    default: 'bg-gray-100 text-gray-800',
-    secondary: 'bg-gray-100 text-gray-700',
-    success: 'bg-green-100 text-green-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    danger: 'bg-red-100 text-red-800'
+    primary: 'badge-primary',
+    secondary: 'badge-secondary',
+    success: 'badge-success',
+    warning: 'badge-warning',
+    danger: 'badge-destructive',
+    destructive: 'badge-destructive'
   };
   
   const classes = `${baseClasses} ${variantClasses[variant]} ${className}`;

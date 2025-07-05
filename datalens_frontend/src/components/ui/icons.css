@@ -1,0 +1,142 @@
+/* Estilos modernos para iconos SVG */
+.icon-svg {
+  filter: drop-shadow(0 2px 6px rgba(37,99,235,0.15));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --icon-stroke: currentColor;
+}
+
+.icon-svg:hover {
+  transform: scale(1.1) rotate(-3deg);
+  filter: drop-shadow(0 4px 12px rgba(37,99,235,0.25));
+}
+
+/* Estilos específicos por tipo de icono */
+.bell-icon {
+  --icon-stroke: #3b82f6;
+}
+
+.bell-icon:hover {
+  animation: ring 0.6s ease-in-out;
+}
+
+.alert-icon {
+  --icon-stroke: #f59e0b;
+}
+
+.alert-icon:hover {
+  animation: pulse 0.8s ease-in-out;
+}
+
+.check-icon {
+  --icon-stroke: #10b981;
+}
+
+.check-icon:hover {
+  animation: bounce 0.6s ease-in-out;
+}
+
+.search-icon {
+  --icon-stroke: #6366f1;
+}
+
+.edit-icon {
+  --icon-stroke: #8b5cf6;
+}
+
+.delete-icon {
+  --icon-stroke: #ef4444;
+}
+
+.package-icon {
+  --icon-stroke: #06b6d4;
+}
+
+.settings-icon {
+  --icon-stroke: #64748b;
+}
+
+.user-icon {
+  --icon-stroke: #ec4899;
+}
+
+/* Animaciones específicas */
+@keyframes ring {
+  0%, 100% { transform: rotate(0deg); }
+  10%, 30%, 50%, 70%, 90% { transform: rotate(-10deg); }
+  20%, 40%, 60%, 80% { transform: rotate(10deg); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% { transform: translateY(0); }
+  40%, 43% { transform: translateY(-8px); }
+  70% { transform: translateY(-4px); }
+  90% { transform: translateY(-2px); }
+}
+
+/* Iconos con gradientes de fondo */
+.icon-with-bg {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+}
+
+.icon-with-bg:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.icon-with-bg .icon-svg {
+  filter: none;
+  color: white;
+}
+
+/* Iconos en navbar */
+.navbar .icon-svg {
+  transition: all 0.2s ease;
+}
+
+.navbar .icon-svg:hover {
+  color: var(--primary-color);
+  transform: scale(1.05);
+}
+
+/* Iconos en botones */
+.btn .icon-svg {
+  transition: transform 0.2s ease;
+}
+
+.btn:hover .icon-svg {
+  transform: scale(1.1);
+}
+
+/* Iconos con estado */
+.icon-success {
+  color: #10b981;
+  filter: drop-shadow(0 2px 6px rgba(16, 185, 129, 0.3));
+}
+
+.icon-warning {
+  color: #f59e0b;
+  filter: drop-shadow(0 2px 6px rgba(245, 158, 11, 0.3));
+}
+
+.icon-error {
+  color: #ef4444;
+  filter: drop-shadow(0 2px 6px rgba(239, 68, 68, 0.3));
+}
+
+.icon-info {
+  color: #3b82f6;
+  filter: drop-shadow(0 2px 6px rgba(59, 130, 246, 0.3));
+}

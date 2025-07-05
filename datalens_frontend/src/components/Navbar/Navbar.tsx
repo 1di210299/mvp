@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { User } from '../../types';
 import './Navbar.css';
 
@@ -8,6 +9,12 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
+  const location = useLocation();
+
+  const isActiveLink = (path: string) => {
+    return location.pathname === path;
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-container">
@@ -18,11 +25,66 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
         
         <div className="navbar-menu">
           <div className="navbar-links">
-            <a href="#dashboard" className="navbar-link active">Dashboard</a>
-            <a href="#inventory" className="navbar-link">Inventario</a>
-            <a href="#products" className="navbar-link">Productos</a>
-            <a href="#reports" className="navbar-link">Reportes</a>
-            <a href="#alerts" className="navbar-link">Alertas</a>
+            <Link 
+              to="/dashboard" 
+              className={`navbar-link ${isActiveLink('/dashboard') ? 'active' : ''}`}
+            >
+              Dashboard
+            </Link>
+            <Link 
+              to="/inventory" 
+              className={`navbar-link ${isActiveLink('/inventory') ? 'active' : ''}`}
+            >
+              Inventario
+            </Link>
+            <Link 
+              to="/products" 
+              className={`navbar-link ${isActiveLink('/products') ? 'active' : ''}`}
+            >
+              Productos
+            </Link>
+            <Link 
+              to="/categories" 
+              className={`navbar-link ${isActiveLink('/categories') ? 'active' : ''}`}
+            >
+              Categorías
+            </Link>
+            <Link 
+              to="/suppliers" 
+              className={`navbar-link ${isActiveLink('/suppliers') ? 'active' : ''}`}
+            >
+              Proveedores
+            </Link>
+            <Link 
+              to="/transactions" 
+              className={`navbar-link ${isActiveLink('/transactions') ? 'active' : ''}`}
+            >
+              Transacciones
+            </Link>
+            <Link 
+              to="/alerts" 
+              className={`navbar-link ${isActiveLink('/alerts') ? 'active' : ''}`}
+            >
+              Alertas
+            </Link>
+            <Link 
+              to="/forecasting" 
+              className={`navbar-link ${isActiveLink('/forecasting') ? 'active' : ''}`}
+            >
+              Pronósticos
+            </Link>
+            <Link 
+              to="/reports" 
+              className={`navbar-link ${isActiveLink('/reports') ? 'active' : ''}`}
+            >
+              Reportes
+            </Link>
+            <Link 
+              to="/settings" 
+              className={`navbar-link ${isActiveLink('/settings') ? 'active' : ''}`}
+            >
+              Configuración
+            </Link>
           </div>
           
           <div className="navbar-user">

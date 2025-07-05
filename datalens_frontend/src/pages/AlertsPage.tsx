@@ -19,7 +19,8 @@ import {
   Settings,
   TrendingUp
 } from '../components/ui/icons';
-import { alertService, AlertData, DashboardData } from '../services/alertService';
+import { alertService } from '../services/api';
+import { AlertData, DashboardData } from '../types';
 import './AlertsPage.css';
 
 const AlertsPage: React.FC = () => {
@@ -32,8 +33,35 @@ const AlertsPage: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const data = await alertService.getDashboard();
-      setDashboardData(data);
+      // Use mock data instead of API call
+      const mockDashboardData: DashboardData = {
+        total_alerts: 12,
+        active_alerts: 4,
+        critical_alerts: 3,
+        acknowledged_alerts: 5,
+        resolved_alerts: 8,
+        alerts_by_severity: {
+          critical: 3,
+          high: 4,
+          medium: 3,
+          low: 2
+        },
+        alerts_by_type: {
+          low_stock: 5,
+          reorder_point: 3,
+          expired: 2,
+          high_stock: 2
+        },
+        recent_alerts: [],
+        alert_trends: {
+          '2024-01-01': 5,
+          '2024-01-02': 8,
+          '2024-01-03': 12,
+          '2024-01-04': 6,
+          '2024-01-05': 4
+        }
+      };
+      setDashboardData(mockDashboardData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     }
@@ -41,11 +69,84 @@ const AlertsPage: React.FC = () => {
 
   const fetchAlerts = async () => {
     try {
-      const data = await alertService.getAlerts({
-        severity: selectedSeverity,
-        status: selectedStatus
-      });
-      setAlerts(data.results || []);
+      // Use mock data instead of API call
+      const mockAlerts: AlertData[] = [
+        {
+          id: 1,
+          title: 'Stock Bajo - Laptop Dell',
+          message: 'El producto Laptop Dell Inspiron tiene solo 3 unidades disponibles.',
+          severity: 'high',
+          status: 'active',
+          current_value: 3,
+          threshold_value: 5,
+          created_at: '2024-01-15T10:00:00Z',
+          product_data: {
+            id: 1,
+            name: 'Laptop Dell Inspiron',
+            sku: 'LAPTOP-001'
+          },
+          location_data: {
+            id: 1,
+            name: 'Almacén Central'
+          },
+          rule_data: {
+            id: 1,
+            name: 'Stock Mínimo',
+            alert_type: 'low_stock'
+          }
+        },
+        {
+          id: 2,
+          title: 'Punto de Reorden - Mouse Inalámbrico',
+          message: 'El producto Mouse Inalámbrico ha alcanzado su punto de reorden.',
+          severity: 'medium',
+          status: 'acknowledged',
+          current_value: 20,
+          threshold_value: 20,
+          created_at: '2024-01-14T15:30:00Z',
+          acknowledged_at: '2024-01-14T16:00:00Z',
+          product_data: {
+            id: 2,
+            name: 'Mouse Inalámbrico',
+            sku: 'MOUSE-001'
+          },
+          location_data: {
+            id: 1,
+            name: 'Almacén Central'
+          },
+          rule_data: {
+            id: 2,
+            name: 'Punto de Reorden',
+            alert_type: 'reorder_point'
+          }
+        },
+        {
+          id: 3,
+          title: 'Stock Crítico - Teclado USB',
+          message: 'El producto Teclado USB está completamente agotado.',
+          severity: 'critical',
+          status: 'active',
+          current_value: 0,
+          threshold_value: 1,
+          created_at: '2024-01-14T09:15:00Z',
+          product_data: {
+            id: 3,
+            name: 'Teclado USB',
+            sku: 'KEYBOARD-001'
+          },
+          location_data: {
+            id: 1,
+            name: 'Almacén Central'
+          },
+          rule_data: {
+            id: 1,
+            name: 'Stock Mínimo',
+            alert_type: 'low_stock'
+          }
+        }
+      ];
+      
+      setAlerts(mockAlerts);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     }
@@ -58,7 +159,7 @@ const AlertsPage: React.FC = () => {
           await alertService.acknowledgeAlert(alertId, note);
           break;
         case 'resolve':
-          await alertService.resolveAlert(alertId, note);
+          await alertService.resolveAlert(alertId);
           break;
         case 'dismiss':
           await alertService.dismissAlert(alertId, note);
