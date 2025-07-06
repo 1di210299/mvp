@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Category, Supplier, Location, Product, InventoryItem, Transaction
+from .models import (
+    Category, Supplier, Location, Product, InventoryItem, Transaction,
+    Customer, Lead, Opportunity, OpportunityProduct, Contact, Activity
+)
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -140,3 +143,133 @@ class DashboardStatsSerializer(serializers.Serializer):
     recent_transactions = serializers.IntegerField()
     top_products = serializers.ListField()
     stock_by_category = serializers.ListField()
+
+
+# ===== SERIALIZERS CRM =====
+
+class CustomerSerializer(serializers.ModelSerializer):
+    """Serializer para clientes"""
+    display_name = serializers.ReadOnlyField()
+    total_sales = serializers.ReadOnlyField()
+    custom_fields = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Customer
+        fields = '__all__'
+        read_only_fields = ('company', 'created_at', 'updated_at')
+    
+    def get_custom_fields(self, obj):
+        """Obtiene los campos personalizados del cliente"""
+        return obj.get_custom_field_values()
+
+
+class LeadSerializer(serializers.ModelSerializer):
+    """Serializer para leads"""
+    custom_fields = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Lead
+        fields = '__all__'
+        read_only_fields = ('company', 'created_at', 'updated_at')
+    
+    def get_custom_fields(self, obj):
+        """Obtiene los campos personalizados del lead"""
+        return obj.get_custom_field_values()
+
+
+class OpportunitySerializer(serializers.ModelSerializer):
+    """Serializer para oportunidades"""
+    weighted_amount = serializers.ReadOnlyField()
+    custom_fields = serializers.SerializerMethodField()
+    customer_name = serializers.CharField(source='customer.display_name', read_only=True)
+    lead_name = serializers.CharField(source='lead.__str__', read_only=True)
+    
+    class Meta:
+        model = Opportunity
+        fields = '__all__'
+        read_only_fields = ('company', 'created_at', 'updated_at')
+    
+    def get_custom_fields(self, obj):
+        """Obtiene los campos personalizados de la oportunidad"""
+        return obj.get_custom_field_values()
+
+
+class OpportunityProductSerializer(serializers.ModelSerializer):
+    """Serializer para productos de oportunidades"""
+    total_price = serializers.ReadOnlyField()
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_sku = serializers.CharField(source='product.sku', read_only=True)
+    
+    class Meta:
+        model = OpportunityProduct
+        fields = '__all__'
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    """Serializer para contactos"""
+    full_name = serializers.ReadOnlyField()
+    custom_fields = serializers.SerializerMethodField()
+    customer_name = serializers.CharField(source='customer.display_name', read_only=True)
+    lead_name = serializers.CharField(source='lead.__str__', read_only=True)
+    
+    class Meta:
+        model = Contact
+        fields = '__all__'
+        read_only_fields = ('company', 'created_at', 'updated_at')
+    
+    def get_custom_fields(self, obj):
+        """Obtiene los campos personalizados del contacto"""
+        return obj.get_custom_field_values()
+
+
+class ActivitySerializer(serializers.ModelSerializer):
+    """Serializer para actividades"""
+    customer_name = serializers.CharField(source='customer.display_name', read_only=True)
+    lead_name = serializers.CharField(source='lead.__str__', read_only=True)
+    opportunity_name = serializers.CharField(source='opportunity.name', read_only=True)
+    contact_name = serializers.CharField(source='contact.full_name', read_only=True)
+    assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
+    
+    class Meta:
+        model = Activity
+        fields = '__all__'
+        read_only_fields = ('company', 'created_at', 'updated_at')
+
+
+# ===== SERIALIZERS ESPECIALES CRM =====
+
+class LeadConvertSerializer(serializers.Serializer):
+    """Serializer para convertir lead a cliente"""
+    create_opportunity = serializers.BooleanField(default=False)
+    opportunity_name = serializers.CharField(required=False, allow_blank=True)
+    opportunity_amount = serializers.DecimalField(max_digits=15, decimal_places=2, required=False)
+    opportunity_close_date = serializers.DateField(required=False)
+
+
+class CRMDashboardSerializer(serializers.Serializer):
+    """Serializer para datos del dashboard CRM"""
+    total_customers = serializers.IntegerField()
+    total_leads = serializers.IntegerField()
+    total_opportunities = serializers.IntegerField()
+    pipeline_value = serializers.DecimalField(max_digits=15, decimal_places=2)
+    leads_this_month = serializers.IntegerField()
+    customers_this_month = serializers.IntegerField()
+    opportunities_won_this_month = serializers.IntegerField()
+    conversion_rate = serializers.FloatField()
+    
+    # Charts data
+    leads_by_source = serializers.ListField()
+    opportunities_by_stage = serializers.ListField()
+    sales_pipeline = serializers.ListField()
+    activities_this_week = serializers.ListField()
+
+
+class CustomerInsightsSerializer(serializers.Serializer):
+    """Serializer para insights de IA sobre clientes"""
+    customer_id = serializers.IntegerField()
+    customer_name = serializers.CharField()
+    insights = serializers.ListField()
+    recommendations = serializers.ListField()
+    risk_score = serializers.FloatField()
+    lifetime_value = serializers.DecimalField(max_digits=15, decimal_places=2)
+    next_best_action = serializers.CharField()

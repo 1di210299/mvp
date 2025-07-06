@@ -62,7 +62,7 @@ export function AdvancedTable<T extends Record<string, any>>({
     if (searchTerm) {
       filtered = filtered.filter(item =>
         Object.values(item).some(value =>
-          String(value).toLowerCase().includes(searchTerm.toLowerCase())
+          String(value || '').toLowerCase().includes((searchTerm || '').toLowerCase())
         )
       );
     }
@@ -71,7 +71,7 @@ export function AdvancedTable<T extends Record<string, any>>({
     Object.entries(filters).forEach(([key, value]) => {
       if (value) {
         filtered = filtered.filter(item =>
-          String(item[key]).toLowerCase().includes(value.toLowerCase())
+          String(item[key] || '').toLowerCase().includes((value || '').toLowerCase())
         );
       }
     });

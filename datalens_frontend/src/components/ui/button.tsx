@@ -8,6 +8,7 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'destructive' | 'ghost' | 'success' | 'warning' | 'outline';
   className?: string;
   type?: 'button' | 'submit' | 'reset';
+  title?: string;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -17,7 +18,8 @@ export const Button: React.FC<ButtonProps> = ({
   size = 'md',
   variant = 'primary',
   className = '',
-  type = 'button'
+  type = 'button',
+  title
 }) => {
   const baseClasses = 'btn hover-lift';
   
@@ -45,6 +47,7 @@ export const Button: React.FC<ButtonProps> = ({
       onClick={onClick}
       disabled={disabled}
       className={classes}
+      title={title}
     >
       {children}
     </button>

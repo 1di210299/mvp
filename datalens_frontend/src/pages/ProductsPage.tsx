@@ -199,8 +199,8 @@ const ProductsPage: React.FC = () => {
   };
 
   const filteredProducts = state.products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
-                         product.sku.toLowerCase().includes(state.searchTerm.toLowerCase());
+    const matchesSearch = (product.name || '').toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+                         (product.sku || '').toLowerCase().includes(state.searchTerm.toLowerCase());
     const matchesCategory = state.selectedCategory === 'all' || 
                            product.category.toString() === state.selectedCategory;
     return matchesSearch && matchesCategory;

@@ -12,7 +12,7 @@ import {
   ApiResponse 
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:8081/api';
+const API_BASE_URL = 'http://localhost:8080/api';
 
 // Configuración de axios
 const api = axios.create({
@@ -31,15 +31,39 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor para manejar errores de autenticación
+// Interceptor para manejar errores de autenticación con refresh automático
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (refreshToken) {
+          const response = await api.post('/auth/refresh/', { refresh: refreshToken });
+          const { access } = response.data;
+          localStorage.setItem('access_token', access);
+          originalRequest.headers.Authorization = `Bearer ${access}`;
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        // Si el refresh falla, limpiar tokens y redirigir
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    
     if (error.response?.status === 401) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       window.location.href = '/login';
     }
+    
     return Promise.reject(error);
   }
 );
@@ -198,6 +222,159 @@ export const inventoryService = {
         'Content-Type': 'multipart/form-data',
       },
     });
+    return response.data;
+  },
+
+  // ===== CRM SERVICES =====
+  // Customers
+  getCustomers: async (): Promise<ApiResponse<any>> => {
+    const response = await api.get('/inventory/customers/');
+    return response.data;
+  },
+
+  createCustomer: async (customer: any): Promise<any> => {
+    const response = await api.post('/inventory/customers/', customer);
+    return response.data;
+  },
+
+  updateCustomer: async (id: number, customer: any): Promise<any> => {
+    const response = await api.put(`/inventory/customers/${id}/`, customer);
+    return response.data;
+  },
+
+  deleteCustomer: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/customers/${id}/`);
+  },
+
+  getCustomerInsights: async (id: number): Promise<any> => {
+    const response = await api.get(`/inventory/customers/${id}/insights/`);
+    return response.data;
+  },
+
+  // Leads
+  getLeads: async (): Promise<ApiResponse<any>> => {
+    const response = await api.get('/inventory/leads/');
+    return response.data;
+  },
+
+  createLead: async (lead: any): Promise<any> => {
+    const response = await api.post('/inventory/leads/', lead);
+    return response.data;
+  },
+
+  updateLead: async (id: number, lead: any): Promise<any> => {
+    const response = await api.put(`/inventory/leads/${id}/`, lead);
+    return response.data;
+  },
+
+  deleteLead: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/leads/${id}/`);
+  },
+
+  convertLeadToCustomer: async (id: number, data: any): Promise<any> => {
+    const response = await api.post(`/inventory/leads/${id}/convert_to_customer/`, data);
+    return response.data;
+  },
+
+  // Opportunities
+  getOpportunities: async (): Promise<ApiResponse<any>> => {
+    const response = await api.get('/inventory/opportunities/');
+    return response.data;
+  },
+
+  createOpportunity: async (opportunity: any): Promise<any> => {
+    const response = await api.post('/inventory/opportunities/', opportunity);
+    return response.data;
+  },
+
+  updateOpportunity: async (id: number, opportunity: any): Promise<any> => {
+    const response = await api.put(`/inventory/opportunities/${id}/`, opportunity);
+    return response.data;
+  },
+
+  deleteOpportunity: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/opportunities/${id}/`);
+  },
+
+  addOpportunityProduct: async (id: number, product: any): Promise<any> => {
+    const response = await api.post(`/inventory/opportunities/${id}/add_product/`, product);
+    return response.data;
+  },
+
+  getOpportunityProducts: async (id: number): Promise<any> => {
+    const response = await api.get(`/inventory/opportunities/${id}/products/`);
+    return response.data;
+  },
+
+  // Contacts
+  getContacts: async (): Promise<ApiResponse<any>> => {
+    const response = await api.get('/inventory/contacts/');
+    return response.data;
+  },
+
+  createContact: async (contact: any): Promise<any> => {
+    const response = await api.post('/inventory/contacts/', contact);
+    return response.data;
+  },
+
+  updateContact: async (id: number, contact: any): Promise<any> => {
+    const response = await api.put(`/inventory/contacts/${id}/`, contact);
+    return response.data;
+  },
+
+  deleteContact: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/contacts/${id}/`);
+  },
+
+  // Activities
+  getActivities: async (): Promise<ApiResponse<any>> => {
+    const response = await api.get('/inventory/activities/');
+    return response.data;
+  },
+
+  createActivity: async (activity: any): Promise<any> => {
+    const response = await api.post('/inventory/activities/', activity);
+    return response.data;
+  },
+
+  updateActivity: async (id: number, activity: any): Promise<any> => {
+    const response = await api.put(`/inventory/activities/${id}/`, activity);
+    return response.data;
+  },
+
+  deleteActivity: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/activities/${id}/`);
+  },
+
+  // CRM Dashboard
+  getCRMDashboard: async (): Promise<any> => {
+    const response = await api.get('/inventory/crm/dashboard/');
+    return response.data;
+  },
+};
+
+// Servicios de configuraciones (Settings)
+export const settingsService = {
+  // Configuraciones de usuario
+  getUserSettings: async (): Promise<any> => {
+    const response = await api.get('/auth/settings/');
+    return response.data;
+  },
+
+  updateUserSettings: async (settings: any): Promise<any> => {
+    const response = await api.patch('/auth/settings/', settings);
+    return response.data;
+  },
+
+  // Información del sistema
+  getSystemInfo: async (): Promise<any> => {
+    const response = await api.get('/auth/system-info/');
+    return response.data;
+  },
+
+  // Cambio de contraseña
+  changePassword: async (passwords: { current_password: string; new_password: string; confirm_password: string }): Promise<any> => {
+    const response = await api.post('/auth/change-password/', passwords);
     return response.data;
   },
 };

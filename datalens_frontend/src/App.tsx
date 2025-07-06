@@ -18,6 +18,11 @@ import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import InventoryPage from './pages/InventoryPage';
 
+// Import CRM pages
+import CustomersPage from './pages/CustomersPage';
+import LeadsPage from './pages/LeadsPage';
+import OpportunitiesPage from './pages/OpportunitiesPage';
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,35 +36,16 @@ const App: React.FC = () => {
     const token = localStorage.getItem('access_token');
     if (token) {
       try {
-        // Mock user data for MVP
-        const mockUser: User = {
-          id: 1,
-          username: 'juan',
-          email: 'juan@gmail.com',
-          first_name: 'Juan',
-          last_name: 'Pérez',
-          role: 'superadmin',
-          company: {
-            id: 1,
-            name: 'Mi Empresa',
-            ruc: '20123456789',
-            address: 'Lima, Perú',
-            email: 'contacto@miempresa.com',
-            subscription_type: 'premium',
-            is_active: true
-          },
-          phone: '+51 999 888 777',
-          position: 'Administrador',
-          department: 'Sistemas',
-          is_active: true,
-          created_at: '2024-01-01T10:00:00Z'
-        };
-        
-        setUser(mockUser);
+        // Get user profile from API instead of using mock data
+        const userData = await authService.getProfile();
+        setUser(userData);
         setIsAuthenticated(true);
       } catch (error) {
+        console.error('Error checking auth:', error);
+        // If token is invalid, clear it and show login
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        setIsAuthenticated(false);
       }
     }
     setLoading(false);
@@ -68,7 +54,7 @@ const App: React.FC = () => {
   const handleLogin = (token: string) => {
     localStorage.setItem('access_token', token);
     setIsAuthenticated(true);
-    checkAuth();
+    checkAuth(); // This will fetch the real user data
   };
 
   const handleLogout = async () => {
@@ -101,6 +87,7 @@ const App: React.FC = () => {
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="app">
         <Navbar user={user} onLogout={handleLogout} />
+        
         <main className="app-main">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -114,6 +101,12 @@ const App: React.FC = () => {
             <Route path="/forecasting" element={<ForecastingPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            
+            {/* CRM Routes */}
+            <Route path="/customers" element={<CustomersPage />} />
+            <Route path="/leads" element={<LeadsPage />} />
+            <Route path="/opportunities" element={<OpportunitiesPage />} />
+            
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>

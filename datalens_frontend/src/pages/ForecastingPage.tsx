@@ -34,6 +34,7 @@ import {
   Activity
 } from '../components/ui/icons';
 import { ForecastData, Product, Warehouse } from '../types';
+import { forecastingService } from '../services/api';
 
 interface ForecastingPageState {
   forecasts: ForecastData[];
@@ -56,157 +57,82 @@ const ForecastingPage: React.FC = () => {
     isGenerating: false
   });
 
-  // Mock data - replace with actual API calls
-  const mockForecasts: ForecastData[] = [
-    {
-      product: {
-        id: 1,
-        name: 'Laptop Dell Inspiron',
-        sku: 'LDI-001',
-        category: 1,
-        category_name: 'Electrónicos',
-        unit_price: 1200,
-        cost_price: 1000,
-        min_stock: 5,
-        max_stock: 50,
-        reorder_point: 10,
-        unit: 'pcs',
-        is_active: true,
-        track_batches: false,
-        has_expiration: false,
-        created_at: '2024-01-01T00:00:00Z'
-      },
-      warehouse: {
-        id: 1,
-        name: 'Almacén Principal',
-        address: 'Av. Industrial 123',
-        manager: 'Carlos López',
-        phone: '+51 999 123 456',
-        is_active: true
-      },
-      predicted_demand: 25,
-      confidence_interval: {
-        lower: 20,
-        upper: 30
-      },
-      period: 'Próxima semana',
-      created_at: '2024-07-02T10:00:00Z'
-    },
-    {
-      product: {
-        id: 2,
-        name: 'Mouse Inalámbrico',
-        sku: 'MW-002',
-        category: 1,
-        category_name: 'Electrónicos',
-        unit_price: 25,
-        cost_price: 15,
-        min_stock: 20,
-        max_stock: 100,
-        reorder_point: 30,
-        unit: 'pcs',
-        is_active: true,
-        track_batches: false,
-        has_expiration: false,
-        created_at: '2024-01-01T00:00:00Z'
-      },
-      warehouse: {
-        id: 1,
-        name: 'Almacén Principal',
-        address: 'Av. Industrial 123',
-        manager: 'Carlos López',
-        phone: '+51 999 123 456',
-        is_active: true
-      },
-      predicted_demand: 45,
-      confidence_interval: {
-        lower: 38,
-        upper: 52
-      },
-      period: 'Próxima semana',
-      created_at: '2024-07-02T10:00:00Z'
-    },
-    {
-      product: {
-        id: 3,
-        name: 'Teclado Mecánico',
-        sku: 'TM-003',
-        category: 1,
-        category_name: 'Electrónicos',
-        unit_price: 80,
-        cost_price: 50,
-        min_stock: 15,
-        max_stock: 75,
-        reorder_point: 25,
-        unit: 'pcs',
-        is_active: true,
-        track_batches: false,
-        has_expiration: false,
-        created_at: '2024-01-01T00:00:00Z'
-      },
-      warehouse: {
-        id: 1,
-        name: 'Almacén Principal',
-        address: 'Av. Industrial 123',
-        manager: 'Carlos López',
-        phone: '+51 999 123 456',
-        is_active: true
-      },
-      predicted_demand: 18,
-      confidence_interval: {
-        lower: 15,
-        upper: 22
-      },
-      period: 'Próxima semana',
-      created_at: '2024-07-02T10:00:00Z'
-    }
-  ];
-
   const fetchForecasts = async () => {
     try {
-      setState(prev => ({ ...prev, loading: true }));
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      // Usar API real del forecasting
+      const response = await forecastingService.getForecasts();
+      const forecastsData = response.results || response || [];
       setState(prev => ({ 
         ...prev, 
-        forecasts: mockForecasts,
+        forecasts: forecastsData,
         loading: false 
       }));
     } catch (err) {
+      console.error('Error fetching forecasts:', err);
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al cargar pronósticos',
+        error: 'Error al conectar con el sistema de pronósticos. Usando datos simulados.',
         loading: false 
       }));
+      
+      // Fallback a datos simulados solo si falla la API
+      const mockForecasts: ForecastData[] = [
+        {
+          product: {
+            id: 1,
+            name: 'Laptop Dell Inspiron',
+            sku: 'LDI-001',
+            category: 1,
+            category_name: 'Electrónicos',
+            unit_price: 1200,
+            cost_price: 1000,
+            min_stock: 5,
+            max_stock: 50,
+            reorder_point: 10,
+            unit: 'pcs',
+            is_active: true,
+            track_batches: false,
+            has_expiration: false,
+            created_at: '2024-01-01T00:00:00Z'
+          },
+          warehouse: {
+            id: 1,
+            name: 'Almacén Principal',
+            address: 'Av. Industrial 123',
+            manager: 'Carlos López',
+            phone: '+51 999 123 456',
+            is_active: true
+          },
+          predicted_demand: 25,
+          confidence_interval: {
+            lower: 20,
+            upper: 30
+          },
+          period: 'Próxima semana',
+          created_at: '2024-07-02T10:00:00Z'
+        }
+      ];
+      setState(prev => ({ ...prev, forecasts: mockForecasts }));
     }
   };
 
   const generateNewForecasts = async () => {
     try {
-      setState(prev => ({ ...prev, isGenerating: true }));
-      // Simulate ML processing time
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      setState(prev => ({ ...prev, isGenerating: true, error: null }));
+      // Usar API real para generar nuevos pronósticos
+      await forecastingService.generateRecommendations();
       
-      // Generate new predictions with some randomness
-      const updatedForecasts = mockForecasts.map(forecast => ({
-        ...forecast,
-        predicted_demand: Math.max(1, forecast.predicted_demand + Math.floor(Math.random() * 10) - 5),
-        confidence_interval: {
-          lower: Math.max(1, forecast.confidence_interval.lower + Math.floor(Math.random() * 6) - 3),
-          upper: forecast.confidence_interval.upper + Math.floor(Math.random() * 6) - 3
-        },
-        created_at: new Date().toISOString()
-      }));
-      
-      setState(prev => ({ 
-        ...prev, 
-        forecasts: updatedForecasts,
-        isGenerating: false 
-      }));
+      // Esperar un momento y recargar los datos
+      setTimeout(async () => {
+        await fetchForecasts();
+        setState(prev => ({ ...prev, isGenerating: false }));
+      }, 3000);
     } catch (err) {
+      console.error('Error generating forecasts:', err);
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al generar pronósticos',
+        error: 'Error al generar nuevos pronósticos. Verifique la conexión.',
         isGenerating: false 
       }));
     }
@@ -388,7 +314,7 @@ const ForecastingPage: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los productos</SelectItem>
-                {mockForecasts.map(f => (
+                {state.forecasts.map(f => (
                   <SelectItem key={f.product.id} value={f.product.id.toString()}>
                     {f.product.name}
                   </SelectItem>

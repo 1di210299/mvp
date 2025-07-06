@@ -46,8 +46,20 @@ class UserManager(BaseUserManager):
         """Crear un usuario regular"""
         if not username:
             raise ValueError('El nombre de usuario es obligatorio')
+        
+        # Si no se proporciona empresa, crear una por defecto
         if not company:
-            raise ValueError('La empresa es obligatoria')
+            company, created = Company.objects.get_or_create(
+                name='Empresa por Defecto',
+                defaults={
+                    'ruc': '00000000000',
+                    'address': 'Dirección por defecto',
+                    'email': 'admin@empresa.com',
+                    'industry': 'General',
+                    'subscription_type': 'premium',
+                    'max_users': 100
+                }
+            )
         
         email = self.normalize_email(email)
         user = self.model(username=username, email=email, company=company, **extra_fields)
@@ -65,6 +77,20 @@ class UserManager(BaseUserManager):
             raise ValueError('El superusuario debe tener is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('El superusuario debe tener is_superuser=True.')
+        
+        # Para superusuarios, siempre crear/usar empresa por defecto si no se especifica
+        if not company:
+            company, created = Company.objects.get_or_create(
+                name='Empresa por Defecto',
+                defaults={
+                    'ruc': '00000000000',
+                    'address': 'Dirección por defecto',
+                    'email': 'admin@empresa.com',
+                    'industry': 'General',
+                    'subscription_type': 'premium',
+                    'max_users': 100
+                }
+            )
         
         return self.create_user(username, email, password, company, **extra_fields)
 

@@ -9,7 +9,7 @@ interface LoginProps {
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [formData, setFormData] = useState<LoginData>({
-    username: '',
+    email: '',
     password: '',
   });
   const [loading, setLoading] = useState(false);
@@ -30,9 +30,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     try {
       const response = await authService.login(formData);
-      localStorage.setItem('access_token', response.access);
-      localStorage.setItem('refresh_token', response.refresh);
-      onLogin(response.access);
+      localStorage.setItem('access_token', response.tokens.access);
+      localStorage.setItem('refresh_token', response.tokens.refresh);
+      onLogin(response.tokens.access);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al iniciar sesión');
     } finally {
@@ -56,17 +56,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           )}
 
           <div className="form-group">
-            <label htmlFor="username" className="form-label">
-              Usuario
+            <label htmlFor="email" className="form-label">
+              Correo Electrónico
             </label>
             <input
-              type="text"
-              id="username"
-              name="username"
-              value={formData.username}
+              type="email"
+              id="email"
+              name="email"
+              value={formData.email}
               onChange={handleChange}
               className="form-input"
-              placeholder="Ingresa tu usuario"
+              placeholder="tu@email.com"
               required
             />
           </div>
@@ -97,9 +97,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </form>
 
         <div className="login-footer">
-          <p className="text-sm text-secondary">
-            ¿No tienes cuenta? Contacta a tu administrador
-          </p>
+          <div className="text-sm text-secondary">
+            <p className="font-medium mb-2">Credenciales de prueba:</p>
+            <div className="bg-gray-50 p-3 rounded-md space-y-1">
+              <p><strong>Superadmin:</strong> juan@gmail.com</p>
+              <p><strong>Admin:</strong> rolando.morante@distribuidorasanmartín.com.pe</p>
+              <p><strong>Manager:</strong> modesta.alberdi@distribuidorasanmartín.com.pe</p>
+              <p className="text-xs text-gray-500 mt-2">
+                Nota: Las contraseñas deben ser configuradas en el sistema
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

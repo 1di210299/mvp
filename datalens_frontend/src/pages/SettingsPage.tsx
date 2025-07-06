@@ -29,6 +29,7 @@ import {
   Check,
   Save
 } from '../components/ui/icons';
+import { settingsService } from '../services/api';
 
 interface SettingsPageState {
   loading: boolean;
@@ -61,6 +62,7 @@ interface SettingsPageState {
     lowStockThreshold: number;
     autoReorder: boolean;
   };
+  systemInfo: any;
 }
 
 const SettingsPage: React.FC = () => {
@@ -70,10 +72,10 @@ const SettingsPage: React.FC = () => {
     successMessage: null,
     activeTab: 'profile',
     userSettings: {
-      firstName: 'Juan',
-      lastName: 'Pérez',
-      email: 'juan.perez@empresa.com',
-      phone: '+51 999 123 456',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
       language: 'es',
       timezone: 'America/Lima'
     },
@@ -94,19 +96,56 @@ const SettingsPage: React.FC = () => {
       dateFormat: 'DD/MM/YYYY',
       lowStockThreshold: 10,
       autoReorder: false
-    }
+    },
+    systemInfo: null
   });
 
   const fetchSettings = async () => {
     try {
-      setState(prev => ({ ...prev, loading: true }));
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setState(prev => ({ ...prev, loading: false }));
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      
+      // Cargar configuraciones del usuario desde la API real
+      const settingsData = await settingsService.getUserSettings();
+      
+      // Cargar información del sistema
+      const systemInfo = await settingsService.getSystemInfo();
+      
+      setState(prev => ({
+        ...prev,
+        userSettings: {
+          firstName: settingsData.user_settings.first_name || '',
+          lastName: settingsData.user_settings.last_name || '',
+          email: settingsData.user_settings.email || '',
+          phone: settingsData.user_settings.phone || '',
+          language: settingsData.user_settings.language || 'es',
+          timezone: settingsData.user_settings.timezone || 'America/Lima'
+        },
+        notificationSettings: {
+          emailNotifications: settingsData.notification_settings.email_notifications || false,
+          smsNotifications: settingsData.notification_settings.sms_notifications || false,
+          lowStockAlerts: settingsData.notification_settings.low_stock_alerts || true,
+          dailyReports: settingsData.notification_settings.daily_reports || true,
+          weeklyReports: settingsData.notification_settings.weekly_reports || false
+        },
+        securitySettings: {
+          twoFactorEnabled: settingsData.security_settings.two_factor_enabled || false,
+          passwordExpiry: settingsData.security_settings.password_expiry || '90',
+          sessionTimeout: settingsData.security_settings.session_timeout || '30'
+        },
+        systemSettings: {
+          currency: settingsData.system_settings.currency || 'PEN',
+          dateFormat: settingsData.system_settings.date_format || 'DD/MM/YYYY',
+          lowStockThreshold: settingsData.system_settings.low_stock_threshold || 10,
+          autoReorder: settingsData.system_settings.auto_reorder || false
+        },
+        systemInfo: systemInfo,
+        loading: false
+      }));
     } catch (err) {
+      console.error('Error fetching settings:', err);
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al cargar configuraciones',
+        error: 'Error al cargar configuraciones. Usando valores por defecto.',
         loading: false 
       }));
     }
@@ -115,22 +154,56 @@ const SettingsPage: React.FC = () => {
   const saveSettings = async () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Preparar datos para enviar a la API
+      const settingsData = {
+        user_settings: {
+          first_name: state.userSettings.firstName,
+          last_name: state.userSettings.lastName,
+          email: state.userSettings.email,
+          phone: state.userSettings.phone,
+          language: state.userSettings.language,
+          timezone: state.userSettings.timezone
+        },
+        notification_settings: {
+          email_notifications: state.notificationSettings.emailNotifications,
+          sms_notifications: state.notificationSettings.smsNotifications,
+          low_stock_alerts: state.notificationSettings.lowStockAlerts,
+          daily_reports: state.notificationSettings.dailyReports,
+          weekly_reports: state.notificationSettings.weeklyReports
+        },
+        security_settings: {
+          two_factor_enabled: state.securitySettings.twoFactorEnabled,
+          password_expiry: state.securitySettings.passwordExpiry,
+          session_timeout: state.securitySettings.sessionTimeout
+        },
+        system_settings: {
+          currency: state.systemSettings.currency,
+          date_format: state.systemSettings.dateFormat,
+          low_stock_threshold: state.systemSettings.lowStockThreshold,
+          auto_reorder: state.systemSettings.autoReorder
+        }
+      };
+      
+      // Enviar a la API real
+      await settingsService.updateUserSettings(settingsData);
+      
       setState(prev => ({ 
         ...prev, 
         loading: false,
         successMessage: 'Configuraciones guardadas exitosamente'
       }));
       
-      // Clear success message after 3 seconds
+      // Limpiar mensaje de éxito después de 3 segundos
       setTimeout(() => {
         setState(prev => ({ ...prev, successMessage: null }));
       }, 3000);
+      
     } catch (err) {
+      console.error('Error saving settings:', err);
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al guardar configuraciones',
+        error: 'Error al guardar configuraciones. Verifique la conexión.',
         loading: false 
       }));
     }

@@ -201,7 +201,7 @@ const TransactionsPage: React.FC = () => {
   }, []);
 
   const filteredTransactions = state.transactions.filter(transaction => {
-    const matchesSearch = transaction.notes?.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+    const matchesSearch = (transaction.notes || '').toLowerCase().includes(state.searchTerm.toLowerCase()) ||
                          transaction.transaction_type.toLowerCase().includes(state.searchTerm.toLowerCase());
     
     const matchesType = state.filterType === 'all' || transaction.transaction_type === state.filterType;
@@ -419,10 +419,10 @@ const TransactionsPage: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {transaction.unit_cost ? `S/ ${transaction.unit_cost.toFixed(2)}` : '-'}
+                    {transaction.unit_cost ? `S/ ${(typeof transaction.unit_cost === 'string' ? parseFloat(transaction.unit_cost) : transaction.unit_cost).toFixed(2)}` : '-'}
                   </TableCell>
                   <TableCell className="font-semibold">
-                    {transaction.unit_cost ? `S/ ${(transaction.quantity * transaction.unit_cost).toFixed(2)}` : '-'}
+                    {transaction.unit_cost ? `S/ ${(transaction.quantity * (typeof transaction.unit_cost === 'string' ? parseFloat(transaction.unit_cost) : transaction.unit_cost)).toFixed(2)}` : '-'}
                   </TableCell>
                   <TableCell>
                     {transaction.location 

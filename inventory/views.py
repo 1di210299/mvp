@@ -9,11 +9,17 @@ from django.db import transaction
 from django.utils import timezone
 from datetime import datetime, timedelta
 from drf_spectacular.utils import extend_schema
-from .models import Category, Supplier, Location, Product, InventoryItem, Transaction
+from .models import (
+    Category, Supplier, Location, Product, InventoryItem, Transaction,
+    Customer, Lead, Opportunity, OpportunityProduct, Contact, Activity
+)
 from .serializers import (
     CategorySerializer, SupplierSerializer, LocationSerializer,
     ProductSerializer, InventoryItemSerializer, TransactionSerializer,
-    ProductStockSerializer, DashboardStatsSerializer
+    ProductStockSerializer, DashboardStatsSerializer,
+    CustomerSerializer, LeadSerializer, OpportunitySerializer,
+    OpportunityProductSerializer, ContactSerializer, ActivitySerializer,
+    LeadConvertSerializer, CRMDashboardSerializer, CustomerInsightsSerializer
 )
 
 
@@ -432,3 +438,332 @@ class StockMovementsView(APIView):
             'page_size': page_size,
             'results': serializer.data
         })
+
+
+# ===== CRM VIEWSETS =====
+
+class CustomerViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestión de clientes"""
+    serializer_class = CustomerSerializer
+    # permission_classes = [IsAuthenticated]  # TEMPORAL: Comentado para desarrollo
+    
+    def get_queryset(self):
+        # TEMPORAL: Sin filtro por empresa para desarrollo
+        return Customer.objects.all()
+        # return Customer.objects.filter(company=self.request.user.company)
+    
+    def perform_create(self, serializer):
+        # TEMPORAL: Sin asignación automática de empresa para desarrollo
+        from authentication.models import Company
+        company = Company.objects.first()
+        if company:
+            serializer.save(company=company)
+        else:
+            serializer.save()
+    
+    @action(detail=True, methods=['post'])
+    def set_custom_field(self, request, pk=None):
+        """Establece un campo personalizado para el cliente"""
+        customer = self.get_object()
+        field_name = request.data.get('field_name')
+        value = request.data.get('value')
+        
+        try:
+            customer.set_custom_field_value(field_name, value)
+            return Response({'status': 'success'})
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+    
+    @action(detail=True, methods=['get'])
+    def insights(self, request, pk=None):
+        """Obtiene insights de IA para el cliente"""
+        customer = self.get_object()
+        # Aquí podrías integrar con tu sistema de IA existente
+        insights = {
+            'customer_id': customer.id,
+            'customer_name': customer.display_name,
+            'insights': [
+                'Cliente de alto valor con historial de compras regulares',
+                'Prefiere productos de categoría premium',
+                'Responde bien a ofertas por email'
+            ],
+            'recommendations': [
+                'Enviar catálogo de productos nuevos',
+                'Ofrecer descuento por lealtad',
+                'Programar llamada de seguimiento'
+            ],
+            'risk_score': 0.2,
+            'lifetime_value': float(customer.annual_revenue or 0),
+            'next_best_action': 'Programar reunión de seguimiento'
+        }
+        
+        serializer = CustomerInsightsSerializer(insights)
+        return Response(serializer.data)
+
+
+class LeadViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestión de leads"""
+    serializer_class = LeadSerializer
+    # permission_classes = [IsAuthenticated]  # TEMPORAL: Comentado para desarrollo
+    
+    def get_queryset(self):
+        # TEMPORAL: Sin filtro por empresa para desarrollo
+        return Lead.objects.all()
+        # return Lead.objects.filter(company=self.request.user.company)
+    
+    def perform_create(self, serializer):
+        # TEMPORAL: Sin asignación automática de empresa para desarrollo
+        from authentication.models import Company
+        company = Company.objects.first()
+        if company:
+            serializer.save(company=company)
+        else:
+            serializer.save()
+    
+    @action(detail=True, methods=['post'])
+    def convert_to_customer(self, request, pk=None):
+        """Convierte un lead en cliente"""
+        lead = self.get_object()
+        
+        try:
+            customer = lead.convert_to_customer()
+            
+            # Si se requiere crear oportunidad
+            if request.data.get('create_opportunity'):
+                opportunity_data = {
+                    'name': request.data.get('opportunity_name', f'Oportunidad - {customer.display_name}'),
+                    'amount': request.data.get('opportunity_amount', 0),
+                    'expected_close_date': request.data.get('opportunity_close_date'),
+                    'customer': customer,
+                    'company': lead.company,
+                    'assigned_to': lead.assigned_to
+                }
+                
+                opportunity = Opportunity.objects.create(**{k: v for k, v in opportunity_data.items() if v is not None})
+            
+            customer_serializer = CustomerSerializer(customer)
+            return Response({
+                'status': 'success',
+                'customer': customer_serializer.data,
+                'message': f'Lead convertido exitosamente en cliente: {customer.display_name}'
+            })
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+    
+    @action(detail=True, methods=['post'])
+    def set_custom_field(self, request, pk=None):
+        """Establece un campo personalizado para el lead"""
+        lead = self.get_object()
+        field_name = request.data.get('field_name')
+        value = request.data.get('value')
+        
+        try:
+            lead.set_custom_field_value(field_name, value)
+            return Response({'status': 'success'})
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+
+
+class OpportunityViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestión de oportunidades"""
+    serializer_class = OpportunitySerializer
+    # permission_classes = [IsAuthenticated]  # TEMPORAL: Comentado para desarrollo
+    
+    def get_queryset(self):
+        # TEMPORAL: Sin filtro por empresa para desarrollo
+        return Opportunity.objects.all()
+        # return Opportunity.objects.filter(company=self.request.user.company)
+    
+    def perform_create(self, serializer):
+        # TEMPORAL: Sin asignación automática de empresa para desarrollo
+        from authentication.models import Company
+        company = Company.objects.first()
+        if company:
+            serializer.save(company=company)
+        else:
+            serializer.save()
+    
+    @action(detail=True, methods=['post'])
+    def add_product(self, request, pk=None):
+        """Agrega un producto a la oportunidad"""
+        opportunity = self.get_object()
+        
+        product_data = {
+            'opportunity': opportunity,
+            'product_id': request.data.get('product_id'),
+            'quantity': request.data.get('quantity', 1),
+            'unit_price': request.data.get('unit_price'),
+            'discount_percent': request.data.get('discount_percent', 0)
+        }
+        
+        serializer = OpportunityProductSerializer(data=product_data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+    
+    @action(detail=True, methods=['get'])
+    def products(self, request, pk=None):
+        """Lista los productos de la oportunidad"""
+        opportunity = self.get_object()
+        products = OpportunityProduct.objects.filter(opportunity=opportunity)
+        serializer = OpportunityProductSerializer(products, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def set_custom_field(self, request, pk=None):
+        """Establece un campo personalizado para la oportunidad"""
+        opportunity = self.get_object()
+        field_name = request.data.get('field_name')
+        value = request.data.get('value')
+        
+        try:
+            opportunity.set_custom_field_value(field_name, value)
+            return Response({'status': 'success'})
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+
+
+class ContactViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestión de contactos"""
+    serializer_class = ContactSerializer
+    # permission_classes = [IsAuthenticated]  # TEMPORAL: Comentado para desarrollo
+    
+    def get_queryset(self):
+        # TEMPORAL: Sin filtro por empresa para desarrollo
+        return Contact.objects.all()
+        # return Contact.objects.filter(company=self.request.user.company)
+    
+    def perform_create(self, serializer):
+        # TEMPORAL: Sin asignación automática de empresa para desarrollo
+        from authentication.models import Company
+        company = Company.objects.first()
+        if company:
+            serializer.save(company=company)
+        else:
+            serializer.save()
+    
+    @action(detail=True, methods=['post'])
+    def set_custom_field(self, request, pk=None):
+        """Establece un campo personalizado para el contacto"""
+        contact = self.get_object()
+        field_name = request.data.get('field_name')
+        value = request.data.get('value')
+        
+        try:
+            contact.set_custom_field_value(field_name, value)
+            return Response({'status': 'success'})
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+
+
+class ActivityViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestión de actividades"""
+    serializer_class = ActivitySerializer
+    # permission_classes = [IsAuthenticated]  # TEMPORAL: Comentado para desarrollo
+    
+    def get_queryset(self):
+        # TEMPORAL: Sin filtro por empresa para desarrollo
+        return Activity.objects.all()
+        # return Activity.objects.filter(company=self.request.user.company)
+    
+    def perform_create(self, serializer):
+        # TEMPORAL: Sin asignación automática de empresa para desarrollo
+        from authentication.models import Company
+        company = Company.objects.first()
+        if company:
+            serializer.save(company=company)
+        else:
+            serializer.save()
+    
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        """Marca una actividad como completada"""
+        activity = self.get_object()
+        activity.status = 'completed'
+        activity.completed_date = timezone.now()
+        activity.outcome = request.data.get('outcome', '')
+        activity.next_action = request.data.get('next_action', '')
+        activity.save()
+        
+        serializer = self.get_serializer(activity)
+        return Response(serializer.data)
+
+
+# ===== VISTAS ESPECIALES CRM =====
+
+class CRMDashboardView(APIView):
+    """Vista para el dashboard CRM"""
+    
+    def get(self, request):
+        """Obtiene estadísticas del CRM"""
+        # TEMPORAL: Sin filtro por empresa
+        from django.db.models import Count, Sum, Avg
+        from datetime import datetime, timedelta
+        
+        current_date = timezone.now().date()
+        current_month_start = current_date.replace(day=1)
+        
+        # Estadísticas básicas
+        total_customers = Customer.objects.filter(is_active=True).count()
+        total_leads = Lead.objects.filter(is_active=True).count()
+        total_opportunities = Opportunity.objects.filter(is_active=True).count()
+        
+        # Pipeline value
+        pipeline_value = Opportunity.objects.filter(
+            is_active=True,
+            stage__in=['prospecting', 'qualification', 'needs_analysis', 'value_proposition', 'proposal', 'negotiation']
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        # Estadísticas del mes
+        leads_this_month = Lead.objects.filter(
+            created_at__date__gte=current_month_start
+        ).count()
+        
+        customers_this_month = Customer.objects.filter(
+            created_at__date__gte=current_month_start
+        ).count()
+        
+        opportunities_won_this_month = Opportunity.objects.filter(
+            stage='closed_won',
+            actual_close_date__gte=current_month_start
+        ).count()
+        
+        # Tasa de conversión
+        total_converted = Lead.objects.filter(status='won').count()
+        conversion_rate = (total_converted / total_leads * 100) if total_leads > 0 else 0
+        
+        # Datos para gráficos
+        leads_by_source = list(Lead.objects.values('source').annotate(count=Count('id')))
+        opportunities_by_stage = list(Opportunity.objects.values('stage').annotate(count=Count('id')))
+        
+        # Pipeline por etapa
+        sales_pipeline = list(Opportunity.objects.values('stage').annotate(
+            count=Count('id'),
+            total_amount=Sum('amount')
+        ))
+        
+        # Actividades de la semana
+        week_start = current_date - timedelta(days=current_date.weekday())
+        activities_this_week = list(Activity.objects.filter(
+            scheduled_date__date__gte=week_start
+        ).values('activity_type').annotate(count=Count('id')))
+        
+        dashboard_data = {
+            'total_customers': total_customers,
+            'total_leads': total_leads,
+            'total_opportunities': total_opportunities,
+            'pipeline_value': pipeline_value,
+            'leads_this_month': leads_this_month,
+            'customers_this_month': customers_this_month,
+            'opportunities_won_this_month': opportunities_won_this_month,
+            'conversion_rate': conversion_rate,
+            'leads_by_source': leads_by_source,
+            'opportunities_by_stage': opportunities_by_stage,
+            'sales_pipeline': sales_pipeline,
+            'activities_this_week': activities_this_week,
+        }
+        
+        serializer = CRMDashboardSerializer(dashboard_data)
+        return Response(serializer.data)

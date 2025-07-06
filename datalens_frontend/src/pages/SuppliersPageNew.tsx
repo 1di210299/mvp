@@ -186,10 +186,10 @@ const SuppliersPage: React.FC = () => {
   }, []);
 
   const filteredSuppliers = state.suppliers.filter(supplier =>
-    supplier.name.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
-    supplier.contact_name.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
-    supplier.email.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
-    supplier.city.toLowerCase().includes(state.searchTerm.toLowerCase())
+    (supplier.name || '').toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+    (supplier.contact_name || '').toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+    (supplier.email || '').toLowerCase().includes(state.searchTerm.toLowerCase()) ||
+    (supplier.city || '').toLowerCase().includes(state.searchTerm.toLowerCase())
   );
 
   if (state.loading && state.suppliers.length === 0) {

@@ -455,6 +455,11 @@ class CustomFieldDefinition(models.Model):
         ('category', 'Categoría'),
         ('inventory_item', 'Item de Inventario'),
         ('transaction', 'Transacción'),
+        ('customer', 'Cliente'),
+        ('lead', 'Lead'),
+        ('opportunity', 'Oportunidad'),
+        ('contact', 'Contacto'),
+        ('activity', 'Actividad'),
     ]
     
     company = models.ForeignKey(
@@ -584,3 +589,484 @@ class CustomFieldValue(models.Model):
             self.datetime_value = value
         elif field_type == 'boolean':
             self.boolean_value = bool(value) if value is not None else None
+
+
+# ===== MODELOS CRM =====
+
+class Customer(CustomFieldMixin, models.Model):
+    """Clientes del CRM"""
+    
+    CUSTOMER_TYPES = [
+        ('individual', 'Persona Natural'),
+        ('business', 'Empresa'),
+    ]
+    
+    CUSTOMER_STATUS = [
+        ('active', 'Activo'),
+        ('inactive', 'Inactivo'),
+        ('prospect', 'Prospecto'),
+        ('churned', 'Perdido'),
+    ]
+    
+    company = models.ForeignKey(
+        'authentication.Company',
+        on_delete=models.CASCADE,
+        related_name='customers'
+    )
+    
+    # Información básica
+    customer_type = models.CharField(max_length=20, choices=CUSTOMER_TYPES, default='individual')
+    status = models.CharField(max_length=20, choices=CUSTOMER_STATUS, default='prospect')
+    
+    # Persona Natural
+    first_name = models.CharField(max_length=100, blank=True, verbose_name="Nombres")
+    last_name = models.CharField(max_length=100, blank=True, verbose_name="Apellidos")
+    
+    # Empresa
+    business_name = models.CharField(max_length=200, blank=True, verbose_name="Razón Social")
+    trade_name = models.CharField(max_length=200, blank=True, verbose_name="Nombre Comercial")
+    
+    # Datos generales
+    document_type = models.CharField(max_length=20, blank=True, verbose_name="Tipo de Documento")
+    document_number = models.CharField(max_length=20, blank=True, verbose_name="Número de Documento")
+    email = models.EmailField(blank=True, verbose_name="Email")
+    phone = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    mobile = models.CharField(max_length=20, blank=True, verbose_name="Celular")
+    
+    # Dirección
+    address = models.TextField(blank=True, verbose_name="Dirección")
+    city = models.CharField(max_length=100, blank=True, verbose_name="Ciudad")
+    state = models.CharField(max_length=100, blank=True, verbose_name="Región")
+    country = models.CharField(max_length=100, default='Perú', verbose_name="País")
+    postal_code = models.CharField(max_length=10, blank=True, verbose_name="Código Postal")
+    
+    # Información comercial
+    industry = models.CharField(max_length=100, blank=True, verbose_name="Industria")
+    company_size = models.CharField(max_length=50, blank=True, verbose_name="Tamaño de Empresa")
+    annual_revenue = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        null=True, 
+        blank=True, 
+        verbose_name="Ingresos Anuales"
+    )
+    
+    # Seguimiento
+    acquisition_source = models.CharField(max_length=100, blank=True, verbose_name="Fuente de Adquisición")
+    assigned_to = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_customers',
+        verbose_name="Asignado a"
+    )
+    
+    # Fechas
+    first_contact_date = models.DateField(null=True, blank=True, verbose_name="Fecha Primer Contacto")
+    last_contact_date = models.DateField(null=True, blank=True, verbose_name="Fecha Último Contacto")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        verbose_name = "Cliente"
+        verbose_name_plural = "Clientes"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        if self.customer_type == 'business':
+            return self.business_name or self.trade_name
+        return f"{self.first_name} {self.last_name}".strip()
+    
+    @property
+    def display_name(self):
+        return str(self)
+    
+    @property
+    def total_sales(self):
+        """Total de ventas del cliente"""
+        # Relacionar con transacciones de ventas
+        return Transaction.objects.filter(
+            transaction_type='sale',
+            # Aquí necesitarías un campo customer en Transaction
+        ).aggregate(
+            total=models.Sum('quantity')
+        )['total'] or 0
+
+
+class Lead(CustomFieldMixin, models.Model):
+    """Leads/Prospectos del CRM"""
+    
+    LEAD_STATUS = [
+        ('new', 'Nuevo'),
+        ('contacted', 'Contactado'),
+        ('qualified', 'Calificado'),
+        ('proposal', 'Propuesta'),
+        ('negotiation', 'Negociación'),
+        ('won', 'Ganado'),
+        ('lost', 'Perdido'),
+    ]
+    
+    LEAD_SOURCES = [
+        ('website', 'Sitio Web'),
+        ('social_media', 'Redes Sociales'),
+        ('email_marketing', 'Email Marketing'),
+        ('referral', 'Referencia'),
+        ('cold_call', 'Llamada Fría'),
+        ('event', 'Evento'),
+        ('advertisement', 'Publicidad'),
+        ('other', 'Otro'),
+    ]
+    
+    company = models.ForeignKey(
+        'authentication.Company',
+        on_delete=models.CASCADE,
+        related_name='leads'
+    )
+    
+    # Información básica
+    first_name = models.CharField(max_length=100, verbose_name="Nombres")
+    last_name = models.CharField(max_length=100, verbose_name="Apellidos")
+    email = models.EmailField(verbose_name="Email")
+    phone = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    
+    # Empresa del lead
+    company_name = models.CharField(max_length=200, blank=True, verbose_name="Empresa")
+    job_title = models.CharField(max_length=100, blank=True, verbose_name="Cargo")
+    
+    # Seguimiento
+    status = models.CharField(max_length=20, choices=LEAD_STATUS, default='new')
+    source = models.CharField(max_length=20, choices=LEAD_SOURCES, default='website')
+    score = models.IntegerField(default=0, verbose_name="Puntaje del Lead")
+    
+    # Información adicional
+    industry = models.CharField(max_length=100, blank=True, verbose_name="Industria")
+    budget = models.DecimalField(
+        max_digits=12, 
+        decimal_places=2, 
+        null=True, 
+        blank=True, 
+        verbose_name="Presupuesto"
+    )
+    notes = models.TextField(blank=True, verbose_name="Notas")
+    
+    # Asignación
+    assigned_to = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_leads',
+        verbose_name="Asignado a"
+    )
+    
+    # Fechas
+    expected_close_date = models.DateField(null=True, blank=True, verbose_name="Fecha Cierre Esperada")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        verbose_name = "Lead"
+        verbose_name_plural = "Leads"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} - {self.company_name}"
+    
+    def convert_to_customer(self):
+        """Convierte el lead en cliente"""
+        customer = Customer.objects.create(
+            company=self.company,
+            customer_type='business' if self.company_name else 'individual',
+            first_name=self.first_name,
+            last_name=self.last_name,
+            business_name=self.company_name,
+            email=self.email,
+            phone=self.phone,
+            industry=self.industry,
+            assigned_to=self.assigned_to,
+            acquisition_source=self.get_source_display(),
+            status='active',
+            first_contact_date=self.created_at.date(),
+            last_contact_date=timezone.now().date(),
+        )
+        
+        # Marcar lead como convertido
+        self.status = 'won'
+        self.save()
+        
+        return customer
+
+
+class Opportunity(CustomFieldMixin, models.Model):
+    """Oportunidades de negocio"""
+    
+    OPPORTUNITY_STAGES = [
+        ('prospecting', 'Prospección'),
+        ('qualification', 'Calificación'),
+        ('needs_analysis', 'Análisis de Necesidades'),
+        ('value_proposition', 'Propuesta de Valor'),
+        ('decision_makers', 'Tomadores de Decisión'),
+        ('perception_analysis', 'Análisis de Percepción'),
+        ('proposal', 'Propuesta'),
+        ('negotiation', 'Negociación'),
+        ('closed_won', 'Cerrado Ganado'),
+        ('closed_lost', 'Cerrado Perdido'),
+    ]
+    
+    company = models.ForeignKey(
+        'authentication.Company',
+        on_delete=models.CASCADE,
+        related_name='opportunities'
+    )
+    
+    # Información básica
+    name = models.CharField(max_length=200, verbose_name="Nombre de la Oportunidad")
+    description = models.TextField(blank=True, verbose_name="Descripción")
+    
+    # Relaciones
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='opportunities',
+        null=True,
+        blank=True
+    )
+    lead = models.ForeignKey(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name='opportunities',
+        null=True,
+        blank=True
+    )
+    
+    # Seguimiento
+    stage = models.CharField(max_length=30, choices=OPPORTUNITY_STAGES, default='prospecting')
+    probability = models.IntegerField(default=0, verbose_name="Probabilidad (%)")
+    
+    # Financiero
+    amount = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        verbose_name="Monto"
+    )
+    currency = models.CharField(max_length=3, default='PEN', verbose_name="Moneda")
+    
+    # Fechas
+    expected_close_date = models.DateField(verbose_name="Fecha Cierre Esperada")
+    actual_close_date = models.DateField(null=True, blank=True, verbose_name="Fecha Cierre Real")
+    
+    # Asignación
+    assigned_to = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_opportunities',
+        verbose_name="Asignado a"
+    )
+    
+    # Productos relacionados
+    products = models.ManyToManyField(
+        Product,
+        through='OpportunityProduct',
+        related_name='opportunities'
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        verbose_name = "Oportunidad"
+        verbose_name_plural = "Oportunidades"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.name} - {self.amount} {self.currency}"
+    
+    @property
+    def weighted_amount(self):
+        """Monto ponderado por probabilidad"""
+        return self.amount * (self.probability / 100)
+
+
+class OpportunityProduct(models.Model):
+    """Productos relacionados con oportunidades"""
+    opportunity = models.ForeignKey(Opportunity, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.DecimalField(max_digits=12, decimal_places=2)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    
+    @property
+    def total_price(self):
+        """Precio total con descuento"""
+        subtotal = self.quantity * self.unit_price
+        discount = subtotal * (self.discount_percent / 100)
+        return subtotal - discount
+
+
+class Contact(CustomFieldMixin, models.Model):
+    """Contactos del CRM"""
+    
+    CONTACT_TYPES = [
+        ('primary', 'Contacto Principal'),
+        ('secondary', 'Contacto Secundario'),
+        ('technical', 'Contacto Técnico'),
+        ('billing', 'Contacto de Facturación'),
+        ('decision_maker', 'Tomador de Decisiones'),
+    ]
+    
+    company = models.ForeignKey(
+        'authentication.Company',
+        on_delete=models.CASCADE,
+        related_name='contacts'
+    )
+    
+    # Relaciones
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='contacts',
+        null=True,
+        blank=True
+    )
+    lead = models.ForeignKey(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name='contacts',
+        null=True,
+        blank=True
+    )
+    
+    # Información personal
+    first_name = models.CharField(max_length=100, verbose_name="Nombres")
+    last_name = models.CharField(max_length=100, verbose_name="Apellidos")
+    job_title = models.CharField(max_length=100, blank=True, verbose_name="Cargo")
+    contact_type = models.CharField(max_length=20, choices=CONTACT_TYPES, default='primary')
+    
+    # Información de contacto
+    email = models.EmailField(blank=True, verbose_name="Email")
+    phone = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    mobile = models.CharField(max_length=20, blank=True, verbose_name="Celular")
+    
+    # Redes sociales
+    linkedin = models.URLField(blank=True, verbose_name="LinkedIn")
+    twitter = models.CharField(max_length=50, blank=True, verbose_name="Twitter")
+    
+    # Información adicional
+    department = models.CharField(max_length=100, blank=True, verbose_name="Departamento")
+    notes = models.TextField(blank=True, verbose_name="Notas")
+    
+    # Fechas
+    birthday = models.DateField(null=True, blank=True, verbose_name="Cumpleaños")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        verbose_name = "Contacto"
+        verbose_name_plural = "Contactos"
+        ordering = ['last_name', 'first_name']
+    
+    def __str__(self):
+        return f"{self.first_name} {self.last_name}"
+    
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
+
+class Activity(models.Model):
+    """Actividades del CRM (llamadas, emails, reuniones, etc.)"""
+    
+    ACTIVITY_TYPES = [
+        ('call', 'Llamada'),
+        ('email', 'Email'),
+        ('meeting', 'Reunión'),
+        ('task', 'Tarea'),
+        ('note', 'Nota'),
+        ('demo', 'Demostración'),
+        ('proposal', 'Propuesta'),
+        ('follow_up', 'Seguimiento'),
+    ]
+    
+    ACTIVITY_STATUS = [
+        ('planned', 'Planificado'),
+        ('in_progress', 'En Progreso'),
+        ('completed', 'Completado'),
+        ('cancelled', 'Cancelado'),
+    ]
+    
+    company = models.ForeignKey(
+        'authentication.Company',
+        on_delete=models.CASCADE,
+        related_name='activities'
+    )
+    
+    # Información básica
+    title = models.CharField(max_length=200, verbose_name="Título")
+    description = models.TextField(blank=True, verbose_name="Descripción")
+    activity_type = models.CharField(max_length=20, choices=ACTIVITY_TYPES)
+    status = models.CharField(max_length=20, choices=ACTIVITY_STATUS, default='planned')
+    
+    # Relaciones
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='activities',
+        null=True,
+        blank=True
+    )
+    lead = models.ForeignKey(
+        Lead,
+        on_delete=models.CASCADE,
+        related_name='activities',
+        null=True,
+        blank=True
+    )
+    opportunity = models.ForeignKey(
+        Opportunity,
+        on_delete=models.CASCADE,
+        related_name='activities',
+        null=True,
+        blank=True
+    )
+    contact = models.ForeignKey(
+        Contact,
+        on_delete=models.CASCADE,
+        related_name='activities',
+        null=True,
+        blank=True
+    )
+    
+    # Fechas y tiempo
+    scheduled_date = models.DateTimeField(verbose_name="Fecha Programada")
+    completed_date = models.DateTimeField(null=True, blank=True, verbose_name="Fecha Completada")
+    duration_minutes = models.IntegerField(null=True, blank=True, verbose_name="Duración (minutos)")
+    
+    # Asignación
+    assigned_to = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.CASCADE,
+        related_name='assigned_activities',
+        verbose_name="Asignado a"
+    )
+    
+    # Resultado
+    outcome = models.TextField(blank=True, verbose_name="Resultado")
+    next_action = models.TextField(blank=True, verbose_name="Próxima Acción")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Actividad"
+        verbose_name_plural = "Actividades"
+        ordering = ['-scheduled_date']
+    
+    def __str__(self):
+        return f"{self.title} - {self.scheduled_date}"

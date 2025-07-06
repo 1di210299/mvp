@@ -33,122 +33,47 @@ const AlertsPage: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // Use mock data instead of API call
-      const mockDashboardData: DashboardData = {
-        total_alerts: 12,
-        active_alerts: 4,
-        critical_alerts: 3,
-        acknowledged_alerts: 5,
-        resolved_alerts: 8,
-        alerts_by_severity: {
-          critical: 3,
-          high: 4,
-          medium: 3,
-          low: 2
-        },
-        alerts_by_type: {
-          low_stock: 5,
-          reorder_point: 3,
-          expired: 2,
-          high_stock: 2
-        },
-        recent_alerts: [],
-        alert_trends: {
-          '2024-01-01': 5,
-          '2024-01-02': 8,
-          '2024-01-03': 12,
-          '2024-01-04': 6,
-          '2024-01-05': 4
-        }
-      };
-      setDashboardData(mockDashboardData);
+      // Usar API real en lugar de datos simulados
+      const dashboardData = await alertService.getAlertsDashboard();
+      setDashboardData(dashboardData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      console.error('Error fetching alerts dashboard:', err);
+      // Fallback a datos básicos si falla la API
+      const fallbackData: DashboardData = {
+        total_alerts: 0,
+        active_alerts: 0,
+        critical_alerts: 0,
+        acknowledged_alerts: 0,
+        resolved_alerts: 0,
+        alerts_by_severity: { critical: 0, high: 0, medium: 0, low: 0 },
+        alerts_by_type: { low_stock: 0, reorder_point: 0, expired: 0, high_stock: 0 },
+        recent_alerts: [],
+        alert_trends: {}
+      };
+      setDashboardData(fallbackData);
+      setError('Error al conectar con las alertas. Usando modo offline.');
     }
   };
 
   const fetchAlerts = async () => {
     try {
-      // Use mock data instead of API call
-      const mockAlerts: AlertData[] = [
-        {
-          id: 1,
-          title: 'Stock Bajo - Laptop Dell',
-          message: 'El producto Laptop Dell Inspiron tiene solo 3 unidades disponibles.',
-          severity: 'high',
-          status: 'active',
-          current_value: 3,
-          threshold_value: 5,
-          created_at: '2024-01-15T10:00:00Z',
-          product_data: {
-            id: 1,
-            name: 'Laptop Dell Inspiron',
-            sku: 'LAPTOP-001'
-          },
-          location_data: {
-            id: 1,
-            name: 'Almacén Central'
-          },
-          rule_data: {
-            id: 1,
-            name: 'Stock Mínimo',
-            alert_type: 'low_stock'
-          }
-        },
-        {
-          id: 2,
-          title: 'Punto de Reorden - Mouse Inalámbrico',
-          message: 'El producto Mouse Inalámbrico ha alcanzado su punto de reorden.',
-          severity: 'medium',
-          status: 'acknowledged',
-          current_value: 20,
-          threshold_value: 20,
-          created_at: '2024-01-14T15:30:00Z',
-          acknowledged_at: '2024-01-14T16:00:00Z',
-          product_data: {
-            id: 2,
-            name: 'Mouse Inalámbrico',
-            sku: 'MOUSE-001'
-          },
-          location_data: {
-            id: 1,
-            name: 'Almacén Central'
-          },
-          rule_data: {
-            id: 2,
-            name: 'Punto de Reorden',
-            alert_type: 'reorder_point'
-          }
-        },
-        {
-          id: 3,
-          title: 'Stock Crítico - Teclado USB',
-          message: 'El producto Teclado USB está completamente agotado.',
-          severity: 'critical',
-          status: 'active',
-          current_value: 0,
-          threshold_value: 1,
-          created_at: '2024-01-14T09:15:00Z',
-          product_data: {
-            id: 3,
-            name: 'Teclado USB',
-            sku: 'KEYBOARD-001'
-          },
-          location_data: {
-            id: 1,
-            name: 'Almacén Central'
-          },
-          rule_data: {
-            id: 1,
-            name: 'Stock Mínimo',
-            alert_type: 'low_stock'
-          }
-        }
-      ];
+      // Usar API real en lugar de datos simulados
+      const response = await alertService.getAlerts();
+      const alertsData = response.results || response || [];
       
-      setAlerts(mockAlerts);
+      // Transform API data to match AlertData interface
+      const transformedAlerts: AlertData[] = alertsData.map((alert: any) => ({
+        ...alert,
+        status: alert.status || 'active',
+        current_value: alert.current_value || null,
+        threshold_value: alert.threshold_value || null
+      }));
+      
+      setAlerts(transformedAlerts);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      console.error('Error fetching alerts:', err);
+      setAlerts([]);
+      setError('Error al cargar alertas. Verificar conexión con API.');
     }
   };
 

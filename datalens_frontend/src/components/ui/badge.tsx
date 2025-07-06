@@ -3,7 +3,7 @@ import React from 'react';
 interface BadgeProps {
   children: React.ReactNode;
   className?: string;
-  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'destructive';
+  variant?: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'destructive' | 'outline';
 }
 
 export const Badge: React.FC<BadgeProps> = ({
@@ -19,7 +19,8 @@ export const Badge: React.FC<BadgeProps> = ({
     success: 'badge-success',
     warning: 'badge-warning',
     danger: 'badge-destructive',
-    destructive: 'badge-destructive'
+    destructive: 'badge-destructive',
+    outline: 'badge-outline'
   };
   
   const classes = `${baseClasses} ${variantClasses[variant]} ${className}`;

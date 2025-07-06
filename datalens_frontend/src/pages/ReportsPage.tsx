@@ -37,6 +37,7 @@ import {
   AlertTriangle
 } from '../components/ui/icons';
 import { Report, User } from '../types';
+import { reportService } from '../services/api';
 
 interface ReportsPageState {
   reports: Report[];
@@ -59,194 +60,94 @@ const ReportsPage: React.FC = () => {
     isGenerating: false
   });
 
-  // Mock data - replace with actual API calls
-  const mockReports: Report[] = [
-    {
-      id: 1,
-      title: 'Reporte de Inventario Mensual',
-      report_type: 'inventory',
-      filters: {
-        period: 'monthly',
-        warehouse: 'all',
-        category: 'electronics'
-      },
-      data: {
-        total_products: 245,
-        total_value: 125000,
-        low_stock_items: 12,
-        out_of_stock: 3
-      },
-      created_by: {
-        id: 1,
-        username: 'admin',
-        email: 'admin@company.com',
-        first_name: 'Admin',
-        last_name: 'User',
-        role: 'admin',
-        company: {
-          id: 1,
-          name: 'Mi Empresa',
-          ruc: '20123456789',
-          address: 'Lima, Perú',
-          email: 'info@empresa.com',
-          subscription_type: 'premium',
-          is_active: true
-        },
-        is_active: true,
-        created_at: '2024-01-01T00:00:00Z'
-      },
-      created_at: '2024-07-01T14:30:00Z'
-    },
-    {
-      id: 2,
-      title: 'Análisis de Movimientos de Stock',
-      report_type: 'movement',
-      filters: {
-        period: 'weekly',
-        transaction_type: 'all'
-      },
-      data: {
-        total_movements: 156,
-        inbound: 89,
-        outbound: 52,
-        adjustments: 15
-      },
-      created_by: {
-        id: 2,
-        username: 'analyst1',
-        email: 'analyst@company.com',
-        first_name: 'Ana',
-        last_name: 'Analista',
-        role: 'analyst',
-        company: {
-          id: 1,
-          name: 'Mi Empresa',
-          ruc: '20123456789',
-          address: 'Lima, Perú',
-          email: 'info@empresa.com',
-          subscription_type: 'premium',
-          is_active: true
-        },
-        is_active: true,
-        created_at: '2024-01-01T00:00:00Z'
-      },
-      created_at: '2024-07-02T09:15:00Z'
-    },
-    {
-      id: 3,
-      title: 'Pronóstico de Demanda Trimestral',
-      report_type: 'forecast',
-      filters: {
-        period: 'quarterly',
-        products: ['1', '2', '3']
-      },
-      data: {
-        products_analyzed: 3,
-        avg_accuracy: 92,
-        total_predicted_demand: 450
-      },
-      created_by: {
-        id: 1,
-        username: 'admin',
-        email: 'admin@company.com',
-        first_name: 'Admin',
-        last_name: 'User',
-        role: 'admin',
-        company: {
-          id: 1,
-          name: 'Mi Empresa',
-          ruc: '20123456789',
-          address: 'Lima, Perú',
-          email: 'info@empresa.com',
-          subscription_type: 'premium',
-          is_active: true
-        },
-        is_active: true,
-        created_at: '2024-01-01T00:00:00Z'
-      },
-      created_at: '2024-06-30T16:45:00Z'
-    },
-    {
-      id: 4,
-      title: 'Reporte Financiero de Inventario',
-      report_type: 'financial',
-      filters: {
-        period: 'monthly',
-        include_costs: true
-      },
-      data: {
-        total_inventory_value: 245000,
-        cost_of_goods_sold: 45000,
-        profit_margin: 18.5,
-        turnover_rate: 2.3
-      },
-      created_by: {
-        id: 3,
-        username: 'manager1',
-        email: 'manager@company.com',
-        first_name: 'Carlos',
-        last_name: 'Gerente',
-        role: 'admin',
-        company: {
-          id: 1,
-          name: 'Mi Empresa',
-          ruc: '20123456789',
-          address: 'Lima, Perú',
-          email: 'info@empresa.com',
-          subscription_type: 'premium',
-          is_active: true
-        },
-        is_active: true,
-        created_at: '2024-01-01T00:00:00Z'
-      },
-      created_at: '2024-06-28T11:20:00Z'
-    }
-  ];
-
   const fetchReports = async () => {
     try {
-      setState(prev => ({ ...prev, loading: true }));
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      // Usar API real del sistema de reportes
+      const response = await reportService.getReports();
+      const reportsData = response.results || response || [];
       setState(prev => ({ 
         ...prev, 
-        reports: mockReports,
+        reports: reportsData,
         loading: false 
       }));
     } catch (err) {
+      console.error('Error fetching reports:', err);
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al cargar reportes',
+        error: 'Error al conectar con el sistema de reportes. Usando datos simulados.',
         loading: false 
       }));
+      
+      // Fallback a datos simulados solo si falla la API
+      const mockReports: Report[] = [
+        {
+          id: 1,
+          title: 'Reporte de Inventario Mensual',
+          report_type: 'inventory',
+          filters: {
+            period: 'monthly',
+            warehouse: 'all',
+            category: 'electronics'
+          },
+          data: {
+            total_products: 245,
+            total_value: 125000,
+            low_stock_items: 12,
+            out_of_stock: 3
+          },
+          created_by: {
+            id: 1,
+            username: 'admin',
+            email: 'admin@company.com',
+            first_name: 'Admin',
+            last_name: 'User',
+            role: 'admin',
+            company: {
+              id: 1,
+              name: 'Mi Empresa',
+              ruc: '20123456789',
+              address: 'Lima, Perú',
+              email: 'info@empresa.com',
+              subscription_type: 'premium',
+              is_active: true
+            },
+            is_active: true,
+            created_at: '2024-01-01T00:00:00Z'
+          },
+          created_at: '2024-07-01T14:30:00Z'
+        }
+      ];
+      setState(prev => ({ ...prev, reports: mockReports }));
     }
   };
 
   const generateNewReport = async (type: string) => {
     try {
-      setState(prev => ({ ...prev, isGenerating: true }));
-      // Simulate report generation
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      setState(prev => ({ ...prev, isGenerating: true, error: null }));
       
-      const newReport: Report = {
-        id: Date.now(),
-        title: `Nuevo Reporte ${type === 'inventory' ? 'de Inventario' : type === 'sales' ? 'de Ventas' : 'Personalizado'}`,
-        report_type: type as any,
-        filters: { period: 'current' },
-        data: { generated: true },
-        created_by: mockReports[0].created_by,
-        created_at: new Date().toISOString()
+      // Configurar datos para el reporte según el tipo
+      const reportData = {
+        report_type: type,
+        title: `Reporte ${getReportTypeName(type)} - ${new Date().toLocaleDateString()}`,
+        filters: { 
+          period: 'current',
+          generated_at: new Date().toISOString()
+        }
       };
       
-      setState(prev => ({ 
-        ...prev, 
-        reports: [newReport, ...prev.reports],
-        isGenerating: false 
-      }));
+      // Usar API real para generar reporte
+      await reportService.generateReport(reportData);
+      
+      // Recargar lista de reportes
+      await fetchReports();
+      setState(prev => ({ ...prev, isGenerating: false }));
+      
     } catch (err) {
+      console.error('Error generating report:', err);
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al generar reporte',
+        error: 'Error al generar reporte. Verifique la conexión.',
         isGenerating: false 
       }));
     }
@@ -254,13 +155,24 @@ const ReportsPage: React.FC = () => {
 
   const downloadReport = async (reportId: number) => {
     try {
-      // Simulate download
-      console.log(`Descargando reporte ${reportId}`);
-      // In a real app, this would trigger a file download
+      // Usar API real para descargar reporte
+      const blob = await reportService.downloadReport(reportId);
+      
+      // Crear enlace de descarga
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `reporte_${reportId}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
     } catch (err) {
+      console.error('Error downloading report:', err);
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al descargar reporte' 
+        error: 'Error al descargar reporte. Verifique la conexión.' 
       }));
     }
   };
