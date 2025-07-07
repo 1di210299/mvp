@@ -11,38 +11,35 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .models import Company, User
 from .serializers import (
     CompanySerializer, UserSerializer, UserCreateSerializer,
-    RegisterSerializer, ProfileSerializer, ChangePasswordSerializer
+    RegisterSerializer, ProfileSerializer, ChangePasswordSerializer,
+    CustomTokenObtainPairSerializer
 )
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    """Custom login view that returns user data along with tokens"""
+    """Custom login view that accepts email and password"""
+    serializer_class = CustomTokenObtainPairSerializer
     
     def post(self, request, *args, **kwargs):
-        # Get the standard token response
-        response = super().post(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
         
-        if response.status_code == 200:
-            # Get the user from the email
-            email = request.data.get('email')
-            try:
-                user = User.objects.get(email=email)
-                user_data = UserSerializer(user).data
-                
-                # Return the expected format
-                return Response({
-                    'status': 'success',
-                    'message': 'Login exitoso',
-                    'user': user_data,
-                    'tokens': {
-                        'access': response.data['access'],
-                        'refresh': response.data['refresh']
-                    }
-                })
-            except User.DoesNotExist:
-                pass
-        
-        return response
+        try:
+            serializer.is_valid(raise_exception=True)
+            return Response({
+                'status': 'success',
+                'message': 'Login exitoso',
+                'user': serializer.validated_data['user'],
+                'tokens': {
+                    'access': serializer.validated_data['access'],
+                    'refresh': serializer.validated_data['refresh']
+                }
+            })
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Email o contraseña incorrectos',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CompanyViewSet(viewsets.ModelViewSet):

@@ -484,7 +484,14 @@ const OpportunitiesPage: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      <div 
+        className="grid gap-6"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '1.5rem'
+        }}
+      >
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">

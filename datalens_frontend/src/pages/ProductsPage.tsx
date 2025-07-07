@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -40,7 +41,13 @@ import {
   TrendingUp,
   DollarSign,
   BarChart3,
-  FolderOpen
+  FolderOpen,
+  RefreshCw,
+  Activity,
+  Settings,
+  ChevronDown,
+  X,
+  Check
 } from '../components/ui/icons';
 import { inventoryService } from '../services/api';
 import { Product, Category, ApiResponse } from '../types';
@@ -58,9 +65,21 @@ interface ProductsPageState {
   isUploadDialogOpen: boolean;
   selectedProduct: Product | null;
   formData: Partial<Product>;
+  selectedProducts: number[];
+  showAdvancedFilters: boolean;
+  visibleColumns: {
+    sku: boolean;
+    category: boolean;
+    price: boolean;
+    stock: boolean;
+    status: boolean;
+    actions: boolean;
+  };
+  notification: string | null;
 }
 
 const ProductsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [state, setState] = useState<ProductsPageState>({
     products: [],
     categories: [],
@@ -73,7 +92,18 @@ const ProductsPage: React.FC = () => {
     isDialogOpen: false,
     isUploadDialogOpen: false,
     selectedProduct: null,
-    formData: {}
+    formData: {},
+    selectedProducts: [],
+    showAdvancedFilters: false,
+    visibleColumns: {
+      sku: true,
+      category: true,
+      price: true,
+      stock: true,
+      status: true,
+      actions: true
+    },
+    notification: null
   });
 
   const fetchProducts = async () => {
@@ -83,8 +113,14 @@ const ProductsPage: React.FC = () => {
       setState(prev => ({ 
         ...prev, 
         products: response.results || [],
-        loading: false 
+        loading: false,
+        notification: 'Productos actualizados'
       }));
+      
+      // Auto-hide notification
+      setTimeout(() => {
+        setState(prev => ({ ...prev, notification: null }));
+      }, 3000);
     } catch (err) {
       setState(prev => ({ 
         ...prev, 
@@ -96,33 +132,66 @@ const ProductsPage: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
-      // Simulated category data - replace with actual API call
-      const mockCategories: Category[] = [
-        { id: 1, name: 'Electrónicos', description: 'Productos electrónicos', is_active: true },
-        { id: 2, name: 'Ropa', description: 'Prendas de vestir', is_active: true },
-        { id: 3, name: 'Hogar', description: 'Artículos para el hogar', is_active: true },
-        { id: 4, name: 'Deportes', description: 'Artículos deportivos', is_active: true },
-      ];
-      setState(prev => ({ ...prev, categories: mockCategories }));
+      const response = await inventoryService.getCategories();
+      const categories = response.results || response || [];
+      setState(prev => ({ ...prev, categories }));
     } catch (err) {
       console.error('Error loading categories:', err);
+      const fallbackCategories: Category[] = [
+        { id: 1, name: 'Alimentos y Bebidas', description: 'Productos alimenticios', is_active: true },
+        { id: 2, name: 'Textiles', description: 'Productos textiles', is_active: true },
+        { id: 3, name: 'Artesanías', description: 'Productos artesanales', is_active: true },
+      ];
+      setState(prev => ({ ...prev, categories: fallbackCategories }));
+    }
+  };
+
+  const handleDeleteProduct = async (id: number) => {
+    if (!window.confirm('¿Estás seguro de que quieres eliminar este producto? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    try {
+      setState(prev => ({ ...prev, loading: true }));
+      await inventoryService.deleteProduct(id);
+      await fetchProducts();
+      setState(prev => ({ ...prev, loading: false }));
+    } catch (err) {
+      setState(prev => ({ 
+        ...prev, 
+        error: err instanceof Error ? err.message : 'Error al eliminar producto',
+        loading: false 
+      }));
     }
   };
 
   const handleCreateProduct = async () => {
+    if (!state.formData.name?.trim()) {
+      setState(prev => ({ ...prev, error: 'El nombre del producto es requerido' }));
+      return;
+    }
+    
+    if (!state.formData.sku?.trim()) {
+      setState(prev => ({ ...prev, error: 'El SKU del producto es requerido' }));
+      return;
+    }
+
     try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
       await inventoryService.createProduct(state.formData);
       await fetchProducts();
       setState(prev => ({ 
         ...prev, 
         isDialogOpen: false, 
         formData: {},
-        selectedProduct: null 
+        selectedProduct: null,
+        loading: false 
       }));
     } catch (err) {
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al crear producto' 
+        error: err instanceof Error ? err.message : 'Error al crear producto',
+        loading: false 
       }));
     }
   };
@@ -130,31 +199,67 @@ const ProductsPage: React.FC = () => {
   const handleUpdateProduct = async () => {
     if (!state.selectedProduct) return;
     
+    if (!state.formData.name?.trim()) {
+      setState(prev => ({ ...prev, error: 'El nombre del producto es requerido' }));
+      return;
+    }
+    
+    if (!state.formData.sku?.trim()) {
+      setState(prev => ({ ...prev, error: 'El SKU del producto es requerido' }));
+      return;
+    }
+    
     try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
       await inventoryService.updateProduct(state.selectedProduct.id, state.formData);
       await fetchProducts();
       setState(prev => ({ 
         ...prev, 
         isDialogOpen: false, 
         formData: {},
-        selectedProduct: null 
+        selectedProduct: null,
+        loading: false 
       }));
     } catch (err) {
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al actualizar producto' 
+        error: err instanceof Error ? err.message : 'Error al actualizar producto',
+        loading: false 
       }));
     }
   };
 
-  const handleDeleteProduct = async (id: number) => {
+  const handleExportData = () => {
     try {
-      await inventoryService.deleteProduct(id);
-      await fetchProducts();
+      const headers = ['Nombre', 'SKU', 'Descripción', 'Precio Venta', 'Precio Costo', 'Stock Mín', 'Stock Máx', 'Unidad', 'Estado'];
+      const csvData = [
+        headers.join(','),
+        ...sortedProducts.map(product => [
+          `"${product.name}"`,
+          `"${product.sku}"`,
+          `"${product.description || ''}"`,
+          parseFloat(product.sale_price as string) || parseFloat(product.cost_price as string) || 0,
+          parseFloat(product.cost_price as string) || 0,
+          product.min_stock,
+          product.max_stock,
+          `"${product.unit || ''}"`,
+          product.is_active ? 'Activo' : 'Inactivo'
+        ].join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `productos_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (err) {
       setState(prev => ({ 
         ...prev, 
-        error: err instanceof Error ? err.message : 'Error al eliminar producto' 
+        error: 'Error al exportar datos' 
       }));
     }
   };
@@ -163,7 +268,6 @@ const ProductsPage: React.FC = () => {
     try {
       setState(prev => ({ ...prev, loading: true }));
       
-      // Process CSV data and create products
       for (const row of csvData) {
         const productData = {
           name: row.nombre || row.name || '',
@@ -250,13 +354,75 @@ const ProductsPage: React.FC = () => {
   };
 
   const getStockStatus = (product: Product) => {
-    // This would typically come from inventory data
-    const currentStock = Math.floor(Math.random() * 100); // Mock data
-    const minStock = typeof product.min_stock === 'string' ? parseFloat(product.min_stock) : product.min_stock;
-    const maxStock = typeof product.max_stock === 'string' ? parseFloat(product.max_stock) : product.max_stock;
-    if (currentStock <= minStock) return { status: 'Bajo', color: 'destructive' };
-    if (currentStock >= maxStock) return { status: 'Alto', color: 'warning' };
-    return { status: 'Normal', color: 'success' };
+    const currentStock = product.current_stock || 0;
+    const minStock = typeof product.min_stock === 'string' ? parseFloat(product.min_stock) : (product.min_stock || 0);
+    const maxStock = typeof product.max_stock === 'string' ? parseFloat(product.max_stock) : (product.max_stock || 100);
+    
+    if (currentStock <= 0) return { status: 'Sin Stock', color: 'red', severity: 'critical' };
+    if (currentStock <= minStock) return { status: 'Bajo', color: 'orange', severity: 'warning' };
+    if (currentStock >= maxStock) return { status: 'Alto', color: 'yellow', severity: 'info' };
+    return { status: 'Normal', color: 'green', severity: 'success' };
+  };
+
+  const handleSelectProduct = (productId: number) => {
+    setState(prev => ({
+      ...prev,
+      selectedProducts: prev.selectedProducts.includes(productId)
+        ? prev.selectedProducts.filter(id => id !== productId)
+        : [...prev.selectedProducts, productId]
+    }));
+  };
+
+  const handleSelectAll = () => {
+    setState(prev => ({
+      ...prev,
+      selectedProducts: prev.selectedProducts.length === sortedProducts.length
+        ? []
+        : sortedProducts.map(p => p.id)
+    }));
+  };
+
+  const toggleColumn = (column: keyof typeof state.visibleColumns) => {
+    setState(prev => ({
+      ...prev,
+      visibleColumns: {
+        ...prev.visibleColumns,
+        [column]: !prev.visibleColumns[column]
+      }
+    }));
+  };
+
+  const truncateDescription = (text: string, maxLength: number = 80) => {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength) + '...';
+  };
+
+  const handleBulkStatusChange = async () => {
+    try {
+      setState(prev => ({ ...prev, loading: true }));
+      // Implementar cambio masivo de estado
+      setState(prev => ({ ...prev, selectedProducts: [], loading: false }));
+    } catch (err) {
+      setState(prev => ({ ...prev, error: 'Error al cambiar estado', loading: false }));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`¿Estás seguro de que quieres eliminar ${state.selectedProducts.length} productos? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    
+    try {
+      setState(prev => ({ ...prev, loading: true }));
+      for (const id of state.selectedProducts) {
+        await inventoryService.deleteProduct(id);
+      }
+      await fetchProducts();
+      setState(prev => ({ ...prev, selectedProducts: [], loading: false }));
+    } catch (err) {
+      setState(prev => ({ ...prev, error: 'Error al eliminar productos', loading: false }));
+    }
   };
 
   useEffect(() => {
@@ -264,372 +430,922 @@ const ProductsPage: React.FC = () => {
     fetchCategories();
   }, []);
 
-  if (state.loading) {
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!state.loading) {
+        fetchProducts();
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [state.loading]);
+
+  const handleRefresh = async () => {
+    await fetchProducts();
+    await fetchCategories();
+  };
+
+  useEffect(() => {
+    if (state.error) {
+      const timer = setTimeout(() => {
+        setState(prev => ({ ...prev, error: null }));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [state.error]);
+
+  const columnConfig = [
+    { key: 'sku', label: 'SKU', icon: '🏷️' },
+    { key: 'category', label: 'Categoría', icon: '📁' },
+    { key: 'price', label: 'Precio', icon: '💰' },
+    { key: 'stock', label: 'Stock', icon: '📦' },
+    { key: 'status', label: 'Estado', icon: '✅' },
+    { key: 'actions', label: 'Acciones', icon: '⚡' },
+  ];
+
+  const activeFiltersCount = (state.searchTerm ? 1 : 0) + (state.selectedCategory !== 'all' ? 1 : 0);
+
+  if (state.loading && state.products.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-[400px] bg-slate-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-slate-600 font-medium">Cargando productos...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestión de Productos</h1>
-          <p className="text-gray-600">Administra tu catálogo de productos</p>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setState(prev => ({ ...prev, isUploadDialogOpen: true }))} 
-            className="flex items-center gap-2"
-          >
-            <FolderOpen className="h-4 w-4" />
-            Subir CSV
-          </Button>
-          <Button onClick={openCreateDialog} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Nuevo Producto
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <Package className="h-8 w-8 text-blue-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Productos</p>
-                <p className="text-2xl font-bold text-gray-900">{state.products.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <AlertTriangle className="h-8 w-8 text-yellow-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Stock Bajo</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {state.products.filter(p => getStockStatus(p).status === 'Bajo').length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <TrendingUp className="h-8 w-8 text-green-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Productos Activos</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {state.products.filter(p => p.is_active).length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <DollarSign className="h-8 w-8 text-purple-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Valor Promedio</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  S/ {(state.products.reduce((sum, p) => {
-                    const price = parseFloat(p.sale_price as string) || parseFloat(p.cost_price as string) || 0;
-                    return sum + price;
-                  }, 0) / state.products.length || 0).toFixed(0)}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
-                <Input
-                  placeholder="Buscar productos..."
-                  value={state.searchTerm}
-                  onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select 
-              value={state.selectedCategory} 
-              onValueChange={(value) => setState(prev => ({ ...prev, selectedCategory: value }))}
-            >
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filtrar por categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las categorías</SelectItem>
-                {state.categories.map(category => (
-                  <SelectItem key={category.id} value={category.id.toString()}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Exportar
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Error Alert */}
-      {state.error && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Products Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Productos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Producto</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Categoría</TableHead>
-                <TableHead>Precio</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedProducts.map((product) => {
-                const stockStatus = getStockStatus(product);
-                return (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{product.name}</div>
-                        <div className="text-sm text-gray-500">{product.description}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono">{product.sku}</TableCell>
-                    <TableCell>{product.category_name || 'Sin categoría'}</TableCell>
-                    <TableCell>${(parseFloat(product.sale_price as string) || parseFloat(product.cost_price as string) || 0).toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Badge variant={stockStatus.color as any}>
-                        {stockStatus.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={product.is_active ? 'success' : 'secondary'}>
-                        {product.is_active ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(product)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteProduct(product.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Product Dialog */}
-      <Dialog open={state.isDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isDialogOpen: open }))}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {state.selectedProduct ? 'Editar Producto' : 'Nuevo Producto'}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Nombre</label>
-                <Input
-                  value={state.formData.name || ''}
-                  onChange={(e) => setState(prev => ({ 
-                    ...prev, 
-                    formData: { ...prev.formData, name: e.target.value }
-                  }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">SKU</label>
-                <Input
-                  value={state.formData.sku || ''}
-                  onChange={(e) => setState(prev => ({ 
-                    ...prev, 
-                    formData: { ...prev.formData, sku: e.target.value }
-                  }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Descripción</label>
-                <Input
-                  value={state.formData.description || ''}
-                  onChange={(e) => setState(prev => ({ 
-                    ...prev, 
-                    formData: { ...prev.formData, description: e.target.value }
-                  }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Unidad</label>
-                <Input
-                  value={state.formData.unit || ''}
-                  onChange={(e) => setState(prev => ({ 
-                    ...prev, 
-                    formData: { ...prev.formData, unit: e.target.value }
-                  }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Precio Unitario</label>
-                <Input
-                  type="number"
-                  value={state.formData.unit_price || 0}
-                  onChange={(e) => setState(prev => ({ 
-                    ...prev, 
-                    formData: { ...prev.formData, unit_price: parseFloat(e.target.value) }
-                  }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Precio Costo</label>
-                <Input
-                  type="number"
-                  value={state.formData.cost_price || 0}
-                  onChange={(e) => setState(prev => ({ 
-                    ...prev, 
-                    formData: { ...prev.formData, cost_price: parseFloat(e.target.value) }
-                  }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Stock Mínimo</label>
-                <Input
-                  type="number"
-                  value={state.formData.min_stock || 0}
-                  onChange={(e) => setState(prev => ({ 
-                    ...prev, 
-                    formData: { ...prev.formData, min_stock: parseInt(e.target.value) }
-                  }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Stock Máximo</label>
-                <Input
-                  type="number"
-                  value={state.formData.max_stock || 0}
-                  onChange={(e) => setState(prev => ({ 
-                    ...prev, 
-                    formData: { ...prev.formData, max_stock: parseInt(e.target.value) }
-                  }))}
-                />
-              </div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-6">
-            <Button 
-              variant="outline" 
-              onClick={() => setState(prev => ({ ...prev, isDialogOpen: false }))}
-            >
-              Cancelar
-            </Button>
-            <Button onClick={state.selectedProduct ? handleUpdateProduct : handleCreateProduct}>
-              {state.selectedProduct ? 'Actualizar' : 'Crear'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* CSV Upload Dialog */}
-      <Dialog open={state.isUploadDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isUploadDialogOpen: open }))}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Subir Productos desde CSV/Excel</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="text-sm text-gray-600">
-              <p>Sube un archivo CSV o Excel con los siguientes campos:</p>
-              <ul className="mt-2 list-disc list-inside space-y-1">
-                <li><strong>nombre</strong> o <strong>name</strong> - Nombre del producto (requerido)</li>
-                <li><strong>sku</strong> o <strong>codigo</strong> - Código del producto (requerido)</li>
-                <li><strong>descripcion</strong> o <strong>description</strong> - Descripción del producto</li>
-                <li><strong>precio</strong> o <strong>price</strong> - Precio de venta</li>
-                <li><strong>costo</strong> o <strong>cost</strong> - Precio de costo</li>
-                <li><strong>stock_minimo</strong> o <strong>min_stock</strong> - Stock mínimo</li>
-                <li><strong>stock_maximo</strong> o <strong>max_stock</strong> - Stock máximo</li>
-                <li><strong>unidad</strong> o <strong>unit</strong> - Unidad de medida</li>
-              </ul>
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        {/* ENCABEZADO CON ACCIONES DESTACADAS */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8">
+          <div className="flex items-center justify-between p-6">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-2">Gestión de Productos</h1>
+              <p className="text-slate-600">
+                <span className="font-semibold text-slate-900">{state.products.length}</span> productos registrados
+                {state.notification && (
+                  <span className="ml-3 text-sm text-emerald-600 font-medium">
+                    ✓ {state.notification}
+                  </span>
+                )}
+              </p>
             </div>
             
-            <CSVUploader
-              onDataLoaded={handleCSVUpload}
-              maxFileSize={10}
-              downloadTemplate={true}
-              templateColumns={[
-                { key: 'nombre', label: 'Nombre', type: 'string', required: true },
-                { key: 'sku', label: 'SKU', type: 'string', required: true },
-                { key: 'descripcion', label: 'Descripción', type: 'string' },
-                { key: 'precio', label: 'Precio', type: 'number' },
-                { key: 'costo', label: 'Costo', type: 'number' },
-                { key: 'stock_minimo', label: 'Stock Mínimo', type: 'number' },
-                { key: 'stock_maximo', label: 'Stock Máximo', type: 'number' },
-                { key: 'unidad', label: 'Unidad', type: 'string' }
-              ]}
-            />
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                onClick={handleRefresh}
+                disabled={state.loading}
+                className="flex items-center gap-2 px-4 py-2 border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} />
+                Actualizar
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                onClick={() => setState(prev => ({ ...prev, isUploadDialogOpen: true }))}
+                className="flex items-center gap-2 px-4 py-2 border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                <FolderOpen className="h-4 w-4" />
+                Subir CSV
+              </Button>
+              
+              <Button 
+                onClick={openCreateDialog} 
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 font-semibold shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                Nuevo Producto
+              </Button>
+            </div>
           </div>
-          <div className="flex justify-end gap-2 mt-6">
-            <Button 
-              variant="outline" 
-              onClick={() => setState(prev => ({ ...prev, isUploadDialogOpen: false }))}
-            >
-              Cancelar
-            </Button>
+        </div>
+
+        {/* MÉTRICAS EN GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card className="bg-white border border-slate-200 hover:shadow-lg transition-all duration-200">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-3 bg-indigo-100 rounded-xl">
+                      <Package className="h-6 w-6 text-indigo-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Total Productos</p>
+                      <p className="text-3xl font-bold text-slate-900">{state.products.length}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-500">productos únicos registrados</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white border border-slate-200 hover:shadow-lg transition-all duration-200">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-3 bg-red-100 rounded-xl">
+                      <AlertTriangle className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Stock Crítico</p>
+                      <p className="text-3xl font-bold text-red-600">
+                        {state.products.filter(p => getStockStatus(p).severity === 'critical' || getStockStatus(p).severity === 'warning').length}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-500">productos requieren atención</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-50 border border-slate-200 hover:shadow-lg transition-all duration-200">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-3 bg-emerald-100 rounded-xl">
+                      <TrendingUp className="h-6 w-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Productos Activos</p>
+                      <p className="text-3xl font-bold text-emerald-600">
+                        {state.products.filter(p => p.is_active).length}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-500">disponibles para venta</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-50 border border-slate-200 hover:shadow-lg transition-all duration-200">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-3 bg-purple-100 rounded-xl">
+                      <DollarSign className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Precio Promedio</p>
+                      <p className="text-3xl font-bold text-purple-600">
+                        S/ {(state.products.reduce((sum, p) => {
+                          const price = parseFloat(p.sale_price as string) || parseFloat(p.cost_price as string) || 0;
+                          return sum + price;
+                        }, 0) / state.products.length || 0).toFixed(0)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-500">valor unitario promedio</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* SECCIÓN DE FILTROS PROFESIONAL */}
+        <div className="space-y-4 mb-8">
+          {/* Barra principal de búsqueda y acciones */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="flex flex-col lg:flex-row gap-4">
+              {/* Búsqueda */}
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar productos..."
+                    value={state.searchTerm}
+                    onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
+                  />
+                  {state.searchTerm && (
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, searchTerm: '' }))}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <X className="h-4 w-4 text-gray-500" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Acciones rápidas */}
+              <div className="flex gap-2">
+                {/* Filtros avanzados */}
+                <button
+                  onClick={() => setState(prev => ({ ...prev, showAdvancedFilters: !prev.showAdvancedFilters }))}
+                  className={`
+                    flex items-center gap-2 px-4 py-3 rounded-xl border transition-all text-sm font-medium
+                    ${state.showAdvancedFilters 
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}
+                  `}
+                >
+                  <Settings className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filtros</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="ml-1 px-2 py-0.5 bg-indigo-600 text-white text-xs rounded-full">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Exportar */}
+                <button 
+                  onClick={handleExportData}
+                  className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Exportar</span>
+                </button>
+
+                {/* Actualizar */}
+                <button
+                  onClick={handleRefresh}
+                  disabled={state.loading}
+                  className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">{state.loading ? 'Cargando' : 'Actualizar'}</span>
+                </button>
+              </div>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+
+          {/* Panel de filtros avanzados */}
+          {state.showAdvancedFilters && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-in slide-in-from-top-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Categorías */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Categorías</h3>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setState(prev => ({ ...prev, selectedCategory: 'all' }))}
+                      className={`
+                        w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all
+                        ${state.selectedCategory === 'all' 
+                          ? 'bg-indigo-50 text-indigo-700 font-medium' 
+                          : 'hover:bg-gray-50 text-gray-700'}
+                      `}
+                    >
+                      <span>Todas las categorías</span>
+                      <span className={`
+                        px-2 py-0.5 rounded-full text-xs
+                        ${state.selectedCategory === 'all' ? 'bg-indigo-200' : 'bg-gray-100'}
+                      `}>
+                        {state.products.length}
+                      </span>
+                    </button>
+                    {state.categories.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setState(prev => ({ ...prev, selectedCategory: cat.id.toString() }))}
+                        className={`
+                          w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all
+                          ${state.selectedCategory === cat.id.toString() 
+                            ? 'bg-indigo-50 text-indigo-700 font-medium' 
+                            : 'hover:bg-gray-50 text-gray-700'}
+                        `}
+                      >
+                        <span>{cat.name}</span>
+                        <span className={`
+                          px-2 py-0.5 rounded-full text-xs
+                          ${state.selectedCategory === cat.id.toString() ? 'bg-indigo-200' : 'bg-gray-100'}
+                        `}>
+                          {state.products.filter(p => p.category === cat.id).length}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Columnas visibles */}
+                <div className="md:col-span-2">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Columnas visibles</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {columnConfig.map(col => (
+                      <button
+                        key={col.key}
+                        onClick={() => toggleColumn(col.key as keyof typeof state.visibleColumns)}
+                        className={`
+                          flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all
+                          ${state.visibleColumns[col.key as keyof typeof state.visibleColumns] 
+                            ? 'bg-gray-50 text-gray-900 border border-gray-200' 
+                            : 'bg-gray-100 text-gray-400 border border-transparent'}
+                        `}
+                      >
+                        <span className="text-base">{col.icon}</span>
+                        <span className="flex-1 text-left">{col.label}</span>
+                        {state.visibleColumns[col.key as keyof typeof state.visibleColumns] && (
+                          <Check className="h-4 w-4 text-indigo-600" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Limpiar filtros */}
+              {activeFiltersCount > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <button
+                    onClick={() => {
+                      setState(prev => ({ 
+                        ...prev, 
+                        searchTerm: '',
+                        selectedCategory: 'all'
+                      }));
+                    }}
+                    className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+                  >
+                    Limpiar todos los filtros
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Resumen de resultados */}
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-4">
+              <span className="text-gray-600">
+                Mostrando <span className="font-semibold text-gray-900">{sortedProducts.length} productos</span>
+              </span>
+              
+              {/* Chips de filtros activos */}
+              {activeFiltersCount > 0 && (
+                <div className="flex items-center gap-2">
+                  {state.searchTerm && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs">
+                      Búsqueda: "{state.searchTerm}"
+                      <button
+                        onClick={() => setState(prev => ({ ...prev, searchTerm: '' }))}
+                        className="ml-1 hover:text-gray-900"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                  
+                  {state.selectedCategory !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs">
+                      {state.categories.find(c => c.id.toString() === state.selectedCategory)?.name}
+                      <button
+                        onClick={() => setState(prev => ({ ...prev, selectedCategory: 'all' }))}
+                        className="ml-1 hover:text-gray-900"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Acciones masivas */}
+            {state.selectedProducts.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600 mr-2">
+                  {state.selectedProducts.length} seleccionados
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleBulkStatusChange}
+                  className="text-xs"
+                >
+                  <Edit className="h-3 w-3 mr-1" />
+                  Cambiar Estado
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleBulkDelete}
+                  className="text-xs text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Eliminar
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ALERTAS DE ERROR */}
+        {state.error && (
+          <Alert variant="destructive" className="border-red-200 bg-red-50 mb-6">
+            <AlertTriangle className="h-5 w-5" />
+            <AlertDescription className="text-red-800 font-medium">{state.error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* TABLA DE PRODUCTOS */}
+        <Card className="bg-white border border-slate-200 shadow-sm">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-b-2 border-slate-200 bg-slate-50">
+                    <TableHead className="w-12 pl-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={state.selectedProducts.length === sortedProducts.length && sortedProducts.length > 0}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                    </TableHead>
+                    
+                    <TableHead className="text-slate-700 font-bold text-sm py-4 min-w-[350px]">
+                      Producto
+                    </TableHead>
+                    
+                    {state.visibleColumns.sku && (
+                      <TableHead className="text-slate-700 font-bold text-sm py-4 min-w-[120px]">SKU</TableHead>
+                    )}
+                    
+                    {state.visibleColumns.category && (
+                      <TableHead className="text-slate-700 font-bold text-sm py-4 min-w-[140px]">Categoría</TableHead>
+                    )}
+                    
+                    {state.visibleColumns.price && (
+                      <TableHead className="text-slate-700 font-bold text-sm py-4 text-right min-w-[120px]">Precio</TableHead>
+                    )}
+                    
+                    {state.visibleColumns.stock && (
+                      <TableHead className="text-slate-700 font-bold text-sm py-4 min-w-[180px]">Stock & Estado</TableHead>
+                    )}
+                    
+                    {state.visibleColumns.actions && (
+                      <TableHead className="text-slate-700 font-bold text-sm py-4 w-32 pr-6">Acciones</TableHead>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                
+                <TableBody>
+                  {sortedProducts.map((product, index) => {
+                    const stockStatus = getStockStatus(product);
+                    const isSelected = state.selectedProducts.includes(product.id);
+                    const isEven = index % 2 === 0;
+                    
+                    return (
+                      <TableRow 
+                        key={product.id} 
+                        className={`
+                          border-b border-slate-100 hover:bg-indigo-25 transition-colors duration-150
+                          ${isSelected ? 'bg-indigo-50 border-indigo-200' : (isEven ? 'bg-white' : 'bg-slate-25')}
+                        `}
+                      >
+                        <TableCell className="pl-6 py-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleSelectProduct(product.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                        </TableCell>
+                        
+                        <TableCell className="py-3">
+                          <div className="max-w-[320px]">
+                            <div className="font-semibold text-slate-900 text-base leading-tight mb-1">
+                              {product.name}
+                            </div>
+                            {product.description && (
+                              <div className="text-sm text-slate-500 leading-relaxed">
+                                {truncateDescription(product.description, 90)}
+                                {product.description.length > 90 && (
+                                  <button 
+                                    className="text-indigo-600 hover:text-indigo-800 ml-1 text-sm underline"
+                                    title={product.description}
+                                  >
+                                    ver más
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        
+                        {state.visibleColumns.sku && (
+                          <TableCell className="py-3">
+                            <span className="font-mono text-sm bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md border">
+                              {product.sku}
+                            </span>
+                          </TableCell>
+                        )}
+                        
+                        {state.visibleColumns.category && (
+                          <TableCell className="py-3">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                              {product.category_name || 'Sin categoría'}
+                            </span>
+                          </TableCell>
+                        )}
+                        
+                        {state.visibleColumns.price && (
+                          <TableCell className="py-3 text-right">
+                            <div className="font-bold text-slate-900 text-lg">
+                              S/ {(parseFloat(product.sale_price as string) || parseFloat(product.cost_price as string) || 0).toFixed(2)}
+                            </div>
+                            <div className="text-xs text-slate-500 font-medium">por unidad</div>
+                          </TableCell>
+                        )}
+                        
+                        {state.visibleColumns.stock && (
+                          <TableCell className="py-3">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-3">
+                                <span 
+                                  className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold border ${
+                                    stockStatus.severity === 'critical' ? 'bg-red-100 text-red-800 border-red-200' :
+                                    stockStatus.severity === 'warning' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                                    stockStatus.severity === 'info' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                                    'bg-green-100 text-green-800 border-green-200'
+                                  }`}
+                                >
+                                  {stockStatus.status}
+                                </span>
+                                <span className="text-sm text-slate-600 font-mono font-semibold">
+                                  {(product.current_stock || 0).toFixed(1)}
+                                </span>
+                              </div>
+                              
+                              <span 
+                                className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                                  product.is_active 
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                                    : 'bg-gray-100 text-gray-800 border-gray-200'
+                                }`}
+                              >
+                                {product.is_active ? 'ACTIVO' : 'INACTIVO'}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
+                        
+                        {state.visibleColumns.actions && (
+                          <TableCell className="py-3 pr-6">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => openEditDialog(product)}
+                                className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-150"
+                                title="Editar producto"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(product.id)}
+                                className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-150"
+                                title="Eliminar producto"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              
+              {sortedProducts.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-24 text-center">
+                  <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
+                    <Package className="h-10 w-10 text-slate-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-slate-600 mb-3">No se encontraron productos</h3>
+                  <p className="text-slate-500 text-base max-w-md">
+                    {state.searchTerm ? 'Intenta ajustar los filtros de búsqueda' : 'Comienza creando tu primer producto'}
+                  </p>
+                  {!state.searchTerm && (
+                    <Button onClick={openCreateDialog} className="mt-4 bg-indigo-600 hover:bg-indigo-700">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Crear Producto
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Navegación rápida flotante */}
+        <div className="fixed bottom-6 right-6 flex flex-col gap-3">
+          <button 
+            onClick={() => navigate('/inventory')}
+            className="p-4 bg-cyan-500 hover:bg-cyan-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+            title="Ir a Inventario"
+          >
+            <BarChart3 className="h-5 w-5" />
+          </button>
+          <button 
+            onClick={() => navigate('/categories')}
+            className="p-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+            title="Ir a Categorías"
+          >
+            <Package className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Product Dialog */}
+        <Dialog open={state.isDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isDialogOpen: open, error: null }))}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="pb-6">
+              <DialogHeader>
+                <DialogTitle>
+                  {state.selectedProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}
+                </DialogTitle>
+              </DialogHeader>
+            </div>
+            
+            {state.error && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="font-medium">{state.error}</AlertDescription>
+              </Alert>
+            )}
+            
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Nombre del Producto *
+                  </label>
+                  <Input
+                    value={state.formData.name || ''}
+                    onChange={(e) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, name: e.target.value },
+                      error: null
+                    }))}
+                    placeholder="Ingresa el nombre del producto"
+                    className={`h-12 ${!state.formData.name?.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-300 focus:border-indigo-400'}`}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    SKU / Código *
+                  </label>
+                  <Input
+                    value={state.formData.sku || ''}
+                    onChange={(e) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, sku: e.target.value },
+                      error: null
+                    }))}
+                    placeholder="Código único del producto"
+                    className={`h-12 ${!state.formData.sku?.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-300 focus:border-indigo-400'}`}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Descripción
+                  </label>
+                  <textarea
+                    value={state.formData.description || ''}
+                    onChange={(e) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, description: e.target.value }
+                    }))}
+                    placeholder="Descripción detallada del producto"
+                    rows={4}
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:border-indigo-400 focus:ring-indigo-400 resize-none"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Unidad de Medida
+                  </label>
+                  <Input
+                    value={state.formData.unit || ''}
+                    onChange={(e) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, unit: e.target.value }
+                    }))}
+                    placeholder="ej: unidad, kg, litro, caja"
+                    className="h-12 border-slate-300 focus:border-indigo-400"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Precio de Venta
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 font-medium">S/</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={state.formData.unit_price || ''}
+                      onChange={(e) => setState(prev => ({ 
+                        ...prev, 
+                        formData: { ...prev.formData, unit_price: parseFloat(e.target.value) || 0 }
+                      }))}
+                      placeholder="0.00"
+                      className="h-12 pl-12 border-slate-300 focus:border-indigo-400"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Precio de Costo
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 font-medium">S/</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={state.formData.cost_price || ''}
+                      onChange={(e) => setState(prev => ({ 
+                        ...prev, 
+                        formData: { ...prev.formData, cost_price: parseFloat(e.target.value) || 0 }
+                      }))}
+                      placeholder="0.00"
+                      className="h-12 pl-12 border-slate-300 focus:border-indigo-400"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Stock Mínimo
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={state.formData.min_stock || ''}
+                      onChange={(e) => setState(prev => ({ 
+                        ...prev, 
+                        formData: { ...prev.formData, min_stock: parseInt(e.target.value) || 0 }
+                      }))}
+                      placeholder="0"
+                      className="h-12 border-slate-300 focus:border-indigo-400"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Stock Máximo
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={state.formData.max_stock || ''}
+                      onChange={(e) => setState(prev => ({ 
+                        ...prev, 
+                        formData: { ...prev.formData, max_stock: parseInt(e.target.value) || 0 }
+                      }))}
+                      placeholder="0"
+                      className="h-12 border-slate-300 focus:border-indigo-400"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="is_active"
+                    checked={state.formData.is_active !== false}
+                    onChange={(e) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, is_active: e.target.checked }
+                    }))}
+                    className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                  />
+                  <label htmlFor="is_active" className="text-sm font-semibold text-slate-700">
+                    Producto activo (disponible para venta)
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-200">
+              <Button 
+                variant="outline" 
+                onClick={() => setState(prev => ({ ...prev, isDialogOpen: false, error: null }))}
+                className="px-6 py-2.5 border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={state.selectedProduct ? handleUpdateProduct : handleCreateProduct}
+                disabled={state.loading}
+                className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold min-w-[120px]"
+              >
+                {state.loading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  state.selectedProduct ? 'Actualizar' : 'Crear Producto'
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* CSV Upload Dialog */}
+        <Dialog open={state.isUploadDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isUploadDialogOpen: open }))}>
+          <DialogContent className="max-w-3xl">
+            <div className="pb-6">
+              <DialogHeader>
+                <DialogTitle>
+                  Importar Productos desde CSV/Excel
+                </DialogTitle>
+              </DialogHeader>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+                <h3 className="font-semibold text-blue-900 mb-3">Formato requerido del archivo:</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <ul className="space-y-2">
+                    <li className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                      <strong>nombre</strong> o <strong>name</strong> (requerido)
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                      <strong>sku</strong> o <strong>codigo</strong> (requerido)
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                      <strong>descripcion</strong> o <strong>description</strong>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                      <strong>precio</strong> o <strong>price</strong>
+                    </li>
+                  </ul>
+                  <ul className="space-y-2">
+                    <li className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                      <strong>costo</strong> o <strong>cost</strong>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                      <strong>stock_minimo</strong> o <strong>min_stock</strong>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                      <strong>stock_maximo</strong> o <strong>max_stock</strong>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                      <strong>unidad</strong> o <strong>unit</strong>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              
+              <CSVUploader
+                onDataLoaded={handleCSVUpload}
+                maxFileSize={10}
+                downloadTemplate={true}
+                templateColumns={[
+                  { key: 'nombre', label: 'Nombre', type: 'string', required: true },
+                  { key: 'sku', label: 'SKU', type: 'string', required: true },
+                  { key: 'descripcion', label: 'Descripción', type: 'string' },
+                  { key: 'precio', label: 'Precio', type: 'number' },
+                  { key: 'costo', label: 'Costo', type: 'number' },
+                  { key: 'stock_minimo', label: 'Stock Mínimo', type: 'number' },
+                  { key: 'stock_maximo', label: 'Stock Máximo', type: 'number' },
+                  { key: 'unidad', label: 'Unidad', type: 'string' }
+                ]}
+              />
+            </div>
+            
+            <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-200">
+              <Button 
+                variant="outline" 
+                onClick={() => setState(prev => ({ ...prev, isUploadDialogOpen: false }))}
+                className="px-6 py-2.5 border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                Cerrar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 };

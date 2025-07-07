@@ -890,7 +890,7 @@ class Opportunity(CustomFieldMixin, models.Model):
     @property
     def weighted_amount(self):
         """Monto ponderado por probabilidad"""
-        return self.amount * (self.probability / 100)
+        return self.amount * (Decimal(self.probability) / Decimal(100))
 
 
 class OpportunityProduct(models.Model):

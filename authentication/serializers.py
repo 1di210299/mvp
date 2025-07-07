@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import authenticate
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import Company, User
 
 
@@ -164,3 +165,56 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("La contraseña actual es incorrecta")
         return value
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Serializer personalizado para JWT que permite login con email"""
+    username_field = 'email'
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'] = serializers.EmailField()
+        self.fields['password'] = serializers.CharField()
+        # Eliminar el campo username por defecto
+        if 'username' in self.fields:
+            del self.fields['username']
+    
+    def validate(self, attrs):
+        email = attrs.get('email')
+        password = attrs.get('password')
+        
+        if email and password:
+            try:
+                user = User.objects.get(email=email)
+                if user.check_password(password):
+                    if not user.is_active:
+                        raise serializers.ValidationError('Esta cuenta está desactivada.')
+                    
+                    # Usar el username para la validación del token
+                    attrs['username'] = user.username
+                    attrs.pop('email')  # Remover email ya que JWT espera username
+                    
+                    refresh = self.get_token(user)
+                    
+                    data = {}
+                    data['refresh'] = str(refresh)
+                    data['access'] = str(refresh.access_token)
+                    
+                    # Agregar información del usuario
+                    data['user'] = {
+                        'id': user.id,
+                        'email': user.email,
+                        'username': user.username,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'role': user.role,
+                        'company': user.company.name if user.company else None,
+                    }
+                    
+                    return data
+                else:
+                    raise serializers.ValidationError('Email o contraseña incorrectos.')
+            except User.DoesNotExist:
+                raise serializers.ValidationError('Email o contraseña incorrectos.')
+        else:
+            raise serializers.ValidationError('Debe proporcionar email y contraseña.')

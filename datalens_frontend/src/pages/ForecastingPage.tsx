@@ -60,7 +60,7 @@ const ForecastingPage: React.FC = () => {
   const fetchForecasts = async () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
-      // Usar API real del forecasting
+      // Usar únicamente API real del forecasting
       const response = await forecastingService.getForecasts();
       const forecastsData = response.results || response || [];
       setState(prev => ({ 
@@ -72,48 +72,10 @@ const ForecastingPage: React.FC = () => {
       console.error('Error fetching forecasts:', err);
       setState(prev => ({ 
         ...prev, 
-        error: 'Error al conectar con el sistema de pronósticos. Usando datos simulados.',
-        loading: false 
+        error: 'Error al conectar con el sistema de pronósticos. Verifique la conexión con el servidor.',
+        loading: false,
+        forecasts: [] // Sin datos mock de fallback
       }));
-      
-      // Fallback a datos simulados solo si falla la API
-      const mockForecasts: ForecastData[] = [
-        {
-          product: {
-            id: 1,
-            name: 'Laptop Dell Inspiron',
-            sku: 'LDI-001',
-            category: 1,
-            category_name: 'Electrónicos',
-            unit_price: 1200,
-            cost_price: 1000,
-            min_stock: 5,
-            max_stock: 50,
-            reorder_point: 10,
-            unit: 'pcs',
-            is_active: true,
-            track_batches: false,
-            has_expiration: false,
-            created_at: '2024-01-01T00:00:00Z'
-          },
-          warehouse: {
-            id: 1,
-            name: 'Almacén Principal',
-            address: 'Av. Industrial 123',
-            manager: 'Carlos López',
-            phone: '+51 999 123 456',
-            is_active: true
-          },
-          predicted_demand: 25,
-          confidence_interval: {
-            lower: 20,
-            upper: 30
-          },
-          period: 'Próxima semana',
-          created_at: '2024-07-02T10:00:00Z'
-        }
-      ];
-      setState(prev => ({ ...prev, forecasts: mockForecasts }));
     }
   };
 
@@ -234,7 +196,14 @@ const ForecastingPage: React.FC = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div 
+        className="grid gap-6"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '1.5rem'
+        }}
+      >
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
