@@ -628,7 +628,7 @@ export const Phone: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -644,7 +644,7 @@ export const MapPin: React.FC<IconProps> = ({ className = '', size = 20, color }
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -661,7 +661,7 @@ export const Download: React.FC<IconProps> = ({ className = '', size = 20, color
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -967,7 +967,7 @@ export const Users: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"

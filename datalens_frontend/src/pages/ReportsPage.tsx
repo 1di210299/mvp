@@ -59,6 +59,7 @@ const ReportsPage: React.FC = () => {
     selectedPeriod: 'all',
     isGenerating: false
   });
+  const [templates, setTemplates] = useState<any[]>([]);
 
   const fetchReports = async () => {
     try {
@@ -122,21 +123,55 @@ const ReportsPage: React.FC = () => {
     }
   };
 
+  const fetchTemplates = async () => {
+    try {
+      const response = await reportService.getReportTemplates();
+      const templatesData = response.results || response || [];
+      setTemplates(templatesData);
+    } catch (err) {
+      console.error('Error fetching templates:', err);
+    }
+  };
+
   const generateNewReport = async (type: string) => {
     try {
       setState(prev => ({ ...prev, isGenerating: true, error: null }));
       
-      // Configurar datos para el reporte según el tipo
+      // Find the appropriate template for the report type
+      const typeMapping: Record<string, string> = {
+        'inventory': 'inventory_summary',
+        'sales': 'stock_movement', 
+        'financial': 'cost_analysis',
+        'movement': 'stock_movement',
+        'forecast': 'forecast_accuracy'
+      };
+      
+      const reportType = typeMapping[type];
+      const template = templates.find(t => t.report_type === reportType);
+      
+      if (!template) {
+        setState(prev => ({ 
+          ...prev, 
+          error: `No se encontró plantilla para el tipo de reporte: ${type}. Verifique que existan plantillas configuradas.`,
+          isGenerating: false 
+        }));
+        return;
+      }
+      
+      // Configure data for the report according to backend API requirements
       const reportData = {
-        report_type: type,
-        title: `Reporte ${getReportTypeName(type)} - ${new Date().toLocaleDateString()}`,
+        template_id: template.id, // Use the actual template ID from the database
+        date_from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 30 days
+        date_to: new Date().toISOString().split('T')[0], // Today
+        format: 'pdf', // Optional: pdf, excel, csv, json
         filters: { 
           period: 'current',
           generated_at: new Date().toISOString()
-        }
+        },
+        send_email: false // Optional: whether to send by email
       };
       
-      // Usar API real para generar reporte
+      // Use API real para generar reporte
       await reportService.generateReport(reportData);
       
       // Recargar lista de reportes
@@ -147,7 +182,7 @@ const ReportsPage: React.FC = () => {
       console.error('Error generating report:', err);
       setState(prev => ({ 
         ...prev, 
-        error: 'Error al generar reporte. Verifique la conexión.',
+        error: 'Error al generar reporte. Verifique que existan plantillas de reportes configuradas.',
         isGenerating: false 
       }));
     }
@@ -250,6 +285,7 @@ const ReportsPage: React.FC = () => {
 
   useEffect(() => {
     fetchReports();
+    fetchTemplates();
   }, []);
 
   if (state.loading) {

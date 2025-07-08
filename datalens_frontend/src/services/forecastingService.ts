@@ -10,7 +10,7 @@ interface ForecastingService {
 }
 
 class ForecastingServiceImpl implements ForecastingService {
-  private baseUrl = 'http://localhost:8080/api/forecasting';
+  private baseUrl = 'http://localhost:8081/api/forecasting';
   
   private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('access_token');

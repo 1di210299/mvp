@@ -613,11 +613,11 @@ class ForecastService:
                 else:
                     priority = 'low'
                 
-                # Calcula costo estimado (simplificado)
-                estimated_cost = recommended_quantity * float(product.unit_cost or 0)
+                # Calcula costo estimado (usando cost_price del modelo Product)
+                estimated_cost = recommended_quantity * float(product.cost_price or 0)
                 
-                # Calcula ventas potenciales perdidas
-                potential_lost_sales = max(0, projected_demand - current_stock) * float(product.selling_price or 0)
+                # Calcula ventas potenciales perdidas (usando sale_price del modelo Product)
+                potential_lost_sales = max(0, projected_demand - current_stock) * float(product.sale_price or 0)
                 
                 # Crea la recomendación
                 recommendation = ReorderRecommendation.objects.create(

@@ -23,7 +23,7 @@ interface NotificationLog {
 }
 
 class AlertService {
-  private baseUrl = 'http://localhost:8080/api/alerts';
+  private baseUrl = 'http://localhost:8081/api/alerts';
   
   private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('access_token');

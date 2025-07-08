@@ -36,8 +36,34 @@ import {
 import { ForecastData, Product, Warehouse } from '../types';
 import { forecastingService } from '../services/api';
 
+// Tipo actualizado para coincidir con el backend
+interface ForecastDataBackend {
+  id: number;
+  model: number;
+  model_name: string;
+  product: number;
+  product_name: string;
+  product_sku: string;
+  location: number | null;
+  location_name: string | null;
+  forecast_date: string;
+  forecast_type: string;
+  forecast_type_display: string;
+  predicted_demand: number;
+  lower_bound: number;
+  upper_bound: number;
+  confidence_level: number;
+  seasonality_factor: number | null;
+  trend_factor: number | null;
+  external_factors: Record<string, any>;
+  forecast_range: number;
+  uncertainty_percentage: number;
+  created_at: string;
+  updated_at: string;
+}
+
 interface ForecastingPageState {
-  forecasts: ForecastData[];
+  forecasts: ForecastDataBackend[];
   loading: boolean;
   error: string | null;
   selectedPeriod: string;
@@ -60,19 +86,29 @@ const ForecastingPage: React.FC = () => {
   const fetchForecasts = async () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
+      console.log('Fetching forecasts from backend...');
+      
       // Usar únicamente API real del forecasting
       const response = await forecastingService.getForecasts();
+      console.log('Forecasts response:', response);
+      
       const forecastsData = response.results || response || [];
+      console.log('Processed forecasts data:', forecastsData);
+      console.log('Number of forecasts:', forecastsData.length);
+      
       setState(prev => ({ 
         ...prev, 
         forecasts: forecastsData,
         loading: false 
       }));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching forecasts:', err);
+      console.error('Error response:', err.response?.data);
+      console.error('Error status:', err.response?.status);
+      
       setState(prev => ({ 
         ...prev, 
-        error: 'Error al conectar con el sistema de pronósticos. Verifique la conexión con el servidor.',
+        error: `Error al conectar con el sistema de pronósticos: ${err.message}`,
         loading: false,
         forecasts: [] // Sin datos mock de fallback
       }));
@@ -101,25 +137,42 @@ const ForecastingPage: React.FC = () => {
   };
 
   const filteredForecasts = state.forecasts.filter(forecast => {
-    const matchesProduct = state.selectedProduct === 'all' || forecast.product.id.toString() === state.selectedProduct;
-    const matchesWarehouse = state.selectedWarehouse === 'all' || forecast.warehouse.id.toString() === state.selectedWarehouse;
+    const matchesProduct = state.selectedProduct === 'all' || forecast.product.toString() === state.selectedProduct;
+    const matchesWarehouse = state.selectedWarehouse === 'all' || (forecast.location && forecast.location.toString() === state.selectedWarehouse);
     return matchesProduct && matchesWarehouse;
   });
 
   const getForecastAccuracy = (predicted: number, lower: number, upper: number) => {
-    const range = upper - lower;
-    const confidence = Math.max(0, Math.min(100, 100 - (range / predicted) * 50));
+    // Convertir a números si vienen como strings
+    const numPredicted = typeof predicted === 'string' ? parseFloat(predicted) : Number(predicted);
+    const numLower = typeof lower === 'string' ? parseFloat(lower) : Number(lower);
+    const numUpper = typeof upper === 'string' ? parseFloat(upper) : Number(upper);
+    
+    if (!numPredicted || numPredicted === 0 || isNaN(numPredicted) || isNaN(numLower) || isNaN(numUpper)) return 0;
+    
+    const range = numUpper - numLower;
+    const confidence = Math.max(0, Math.min(100, 100 - (range / numPredicted) * 50));
     return Math.round(confidence);
   };
 
-  const getRecommendation = (forecast: ForecastData) => {
+  const getRecommendation = (forecast: ForecastDataBackend) => {
     const currentStock = Math.floor(Math.random() * 50) + 10; // Mock current stock
-    const predicted = forecast.predicted_demand;
+    const predicted = typeof forecast.predicted_demand === 'string' ? 
+      parseFloat(forecast.predicted_demand) : 
+      Number(forecast.predicted_demand);
+    
+    if (isNaN(predicted) || predicted === 0) {
+      return {
+        type: 'unknown',
+        message: 'Datos insuficientes',
+        variant: 'secondary' as const
+      };
+    }
     
     if (currentStock < predicted) {
       return {
         type: 'reorder',
-        message: `Reabastecer ${predicted - currentStock} unidades`,
+        message: `Reabastecer ${Math.round(predicted - currentStock)} unidades`,
         variant: 'warning' as const
       };
     } else if (currentStock > predicted * 2) {
@@ -138,10 +191,24 @@ const ForecastingPage: React.FC = () => {
   };
 
   const getForecastStats = () => {
-    const totalPredicted = filteredForecasts.reduce((sum, f) => sum + f.predicted_demand, 0);
+    if (filteredForecasts.length === 0) {
+      return {
+        totalPredicted: 0,
+        avgConfidence: 0,
+        reorderNeeded: 0
+      };
+    }
+
+    const totalPredicted = filteredForecasts.reduce((sum, f) => {
+      const demand = f.predicted_demand;
+      const numericDemand = typeof demand === 'string' ? parseFloat(demand) : Number(demand);
+      const validDemand = isNaN(numericDemand) ? 0 : numericDemand;
+      return sum + validDemand;
+    }, 0);
+    
     const avgConfidence = filteredForecasts.reduce((sum, f) => {
-      return sum + getForecastAccuracy(f.predicted_demand, f.confidence_interval.lower, f.confidence_interval.upper);
-    }, 0) / (filteredForecasts.length || 1);
+      return sum + getForecastAccuracy(f.predicted_demand, f.lower_bound, f.upper_bound);
+    }, 0) / filteredForecasts.length;
     
     const reorderNeeded = filteredForecasts.filter(f => getRecommendation(f).type === 'reorder').length;
     
@@ -151,6 +218,20 @@ const ForecastingPage: React.FC = () => {
       reorderNeeded
     };
   };
+
+  // Obtener productos únicos para el filtro
+  const uniqueProducts = Array.from(
+    new Map(state.forecasts.map(f => [f.product, { id: f.product, name: f.product_name, sku: f.product_sku }])).values()
+  );
+
+  // Obtener locations únicos para el filtro
+  const uniqueLocations = Array.from(
+    new Map(
+      state.forecasts
+        .filter(f => f.location)
+        .map(f => [f.location!, { id: f.location!, name: f.location_name! }])
+    ).values()
+  );
 
   useEffect(() => {
     fetchForecasts();
@@ -283,9 +364,9 @@ const ForecastingPage: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los productos</SelectItem>
-                {state.forecasts.map(f => (
-                  <SelectItem key={f.product.id} value={f.product.id.toString()}>
-                    {f.product.name}
+                {uniqueProducts.map(product => (
+                  <SelectItem key={product.id} value={product.id.toString()}>
+                    {product.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -295,11 +376,15 @@ const ForecastingPage: React.FC = () => {
               onValueChange={(value) => setState(prev => ({ ...prev, selectedWarehouse: value }))}
             >
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filtrar por almacén" />
+                <SelectValue placeholder="Filtrar por ubicación" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los almacenes</SelectItem>
-                <SelectItem value="1">Almacén Principal</SelectItem>
+                <SelectItem value="all">Todas las ubicaciones</SelectItem>
+                {uniqueLocations.map(location => (
+                  <SelectItem key={location.id} value={location.id.toString()}>
+                    {location.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button variant="outline" className="flex items-center gap-2">
@@ -337,7 +422,7 @@ const ForecastingPage: React.FC = () => {
             <Alert variant="warning">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                <strong>Alerta:</strong> 3 productos necesitan reabastecimiento urgente basado en las predicciones.
+                <strong>Alerta:</strong> {stats.reorderNeeded} productos necesitan reabastecimiento urgente basado en las predicciones.
               </AlertDescription>
             </Alert>
             <Alert variant="success">
@@ -360,7 +445,7 @@ const ForecastingPage: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Producto</TableHead>
-                <TableHead>Almacén</TableHead>
+                <TableHead>Ubicación</TableHead>
                 <TableHead>Demanda Predicha</TableHead>
                 <TableHead>Intervalo de Confianza</TableHead>
                 <TableHead>Precisión</TableHead>
@@ -372,24 +457,24 @@ const ForecastingPage: React.FC = () => {
               {filteredForecasts.map((forecast) => {
                 const accuracy = getForecastAccuracy(
                   forecast.predicted_demand, 
-                  forecast.confidence_interval.lower, 
-                  forecast.confidence_interval.upper
+                  forecast.lower_bound, 
+                  forecast.upper_bound
                 );
                 const recommendation = getRecommendation(forecast);
                 
                 return (
-                  <TableRow key={`${forecast.product.id}-${forecast.warehouse.id}`}>
+                  <TableRow key={`${forecast.product}-${forecast.location || 'no-location'}-${forecast.id}`}>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{forecast.product.name}</div>
-                        <div className="text-sm text-gray-500">{forecast.product.sku}</div>
+                        <div className="font-medium">{forecast.product_name}</div>
+                        <div className="text-sm text-gray-500">{forecast.product_sku}</div>
                       </div>
                     </TableCell>
-                    <TableCell>{forecast.warehouse.name}</TableCell>
+                    <TableCell>{forecast.location_name || 'Sin ubicación'}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span className="text-lg font-bold text-blue-600">
-                          {forecast.predicted_demand}
+                          {Math.round(forecast.predicted_demand)}
                         </span>
                         <span className="text-sm text-gray-500">unidades</span>
                       </div>
@@ -397,7 +482,7 @@ const ForecastingPage: React.FC = () => {
                     <TableCell>
                       <div className="text-sm">
                         <span className="text-gray-600">
-                          {forecast.confidence_interval.lower} - {forecast.confidence_interval.upper}
+                          {Math.round(forecast.lower_bound)} - {Math.round(forecast.upper_bound)}
                         </span>
                       </div>
                     </TableCell>
@@ -428,10 +513,18 @@ const ForecastingPage: React.FC = () => {
               })}
             </TableBody>
           </Table>
+          
+          {filteredForecasts.length === 0 && !state.loading && (
+            <div className="text-center py-8">
+              <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg">No hay pronósticos disponibles</p>
+              <p className="text-gray-400 text-sm">Genere nuevos pronósticos para ver los datos</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Charts Section */}
+      {/* Charts Section - FUNCIONALES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
@@ -441,13 +534,49 @@ const ForecastingPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
-              <div className="text-center">
-                <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500">Gráfico de tendencias</p>
-                <p className="text-sm text-gray-400">Próximamente disponible</p>
+            {filteredForecasts.length > 0 ? (
+              <div className="h-64">
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600 mb-4">
+                    Demanda predicha por producto (top 5)
+                  </div>
+                  {filteredForecasts
+                    .sort((a, b) => b.predicted_demand - a.predicted_demand)
+                    .slice(0, 5)
+                    .map((forecast, index) => {
+                      const maxDemand = Math.max(...filteredForecasts.map(f => f.predicted_demand));
+                      const percentage = (forecast.predicted_demand / maxDemand) * 100;
+                      
+                      return (
+                        <div key={`${forecast.product}-${forecast.id}`} className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium truncate">
+                              {forecast.product_name}
+                            </span>
+                            <span className="text-blue-600 font-bold">
+                              {Math.round(forecast.predicted_demand)}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div
+                              className="bg-blue-500 h-3 rounded-full transition-all duration-300"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
+                <div className="text-center">
+                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-500">No hay datos de tendencias</p>
+                  <p className="text-sm text-gray-400">Genere pronósticos para ver gráficos</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -459,13 +588,68 @@ const ForecastingPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
-              <div className="text-center">
-                <Target className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500">Métricas de precisión</p>
-                <p className="text-sm text-gray-400">Próximamente disponible</p>
+            {filteredForecasts.length > 0 ? (
+              <div className="h-64">
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600 mb-4">
+                    Distribución de precisión de predicciones
+                  </div>
+                  {(() => {
+                    const accuracyRanges = [
+                      { range: '90-100%', min: 90, max: 100, color: 'bg-green-500' },
+                      { range: '80-89%', min: 80, max: 89, color: 'bg-blue-500' },
+                      { range: '70-79%', min: 70, max: 79, color: 'bg-yellow-500' },
+                      { range: '60-69%', min: 60, max: 69, color: 'bg-orange-500' },
+                      { range: '<60%', min: 0, max: 59, color: 'bg-red-500' }
+                    ];
+
+                    const totalForecasts = filteredForecasts.length;
+                    
+                    return accuracyRanges.map(range => {
+                      const count = filteredForecasts.filter(f => {
+                        const accuracy = getForecastAccuracy(f.predicted_demand, f.lower_bound, f.upper_bound);
+                        return accuracy >= range.min && accuracy <= range.max;
+                      }).length;
+                      
+                      const percentage = totalForecasts > 0 ? (count / totalForecasts) * 100 : 0;
+                      
+                      return (
+                        <div key={range.range} className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium">{range.range}</span>
+                            <span className="text-gray-600">
+                              {count} ({Math.round(percentage)}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div
+                              className={`${range.color} h-3 rounded-full transition-all duration-300`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                  <div className="pt-4 border-t">
+                    <div className="text-center">
+                      <span className="text-2xl font-bold text-green-600">
+                        {stats.avgConfidence}%
+                      </span>
+                      <p className="text-sm text-gray-500">Precisión promedio</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center bg-gray-50 rounded">
+                <div className="text-center">
+                  <Target className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-500">No hay datos de precisión</p>
+                  <p className="text-sm text-gray-400">Genere pronósticos para ver métricas</p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

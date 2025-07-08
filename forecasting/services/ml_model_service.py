@@ -516,3 +516,130 @@ class MLModelService:
                 hyperparameters=hyperparameters,
                 model_name=model_name
             )
+    
+    def train_models_for_company(self,
+                                company: Company,
+                                product_ids: Optional[List[int]] = None,
+                                algorithm: str = 'prophet',
+                                retrain_existing: bool = False) -> List[Dict[str, Any]]:
+        """
+        Entrena modelos para una empresa específica
+        
+        Args:
+            company: Empresa para la cual entrenar modelos
+            product_ids: Lista de IDs de productos específicos (opcional)
+            algorithm: Algoritmo a usar
+            retrain_existing: Si re-entrenar modelos existentes
+            
+        Returns:
+            Lista de resultados de entrenamiento
+        """
+        try:
+            # Determina productos a procesar
+            if product_ids:
+                products = Product.objects.filter(id__in=product_ids, company=company)
+            else:
+                products = Product.objects.filter(company=company, is_active=True)
+            
+            results = []
+            
+            for product in products:
+                try:
+                    # Verifica si ya existe un modelo para este producto
+                    existing_model = ForecastModel.objects.filter(
+                        company=company,
+                        model_type=algorithm,
+                        products=product
+                    ).first()
+                    
+                    if existing_model and not retrain_existing:
+                        results.append({
+                            'product_id': product.id,
+                            'product_name': product.name,
+                            'status': 'skipped',
+                            'message': 'Modelo ya existe'
+                        })
+                        continue
+                    
+                    if existing_model and retrain_existing:
+                        # Re-entrena el modelo existente
+                        model = self.retrain_model(existing_model.id)
+                        results.append({
+                            'product_id': product.id,
+                            'product_name': product.name,
+                            'model_id': model.id,
+                            'status': 'retrained',
+                            'algorithm': algorithm
+                        })
+                    else:
+                        # Crea nuevo modelo
+                        model = self.create_and_train_model(
+                            company=company,
+                            name=f"{algorithm.title()} Model for {product.name}",
+                            description=f"Modelo de pronóstico {algorithm} para {product.name}",
+                            model_type=algorithm,
+                            products=[product]
+                        )
+                        results.append({
+                            'product_id': product.id,
+                            'product_name': product.name,
+                            'model_id': model.id,
+                            'status': 'created',
+                            'algorithm': algorithm
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Error entrenando modelo para producto {product.id}: {str(e)}")
+                    results.append({
+                        'product_id': product.id,
+                        'product_name': product.name,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error entrenando modelos para empresa {company.id}: {str(e)}")
+            raise
+
+    def train_model_for_product(self,
+                              product: Product,
+                              algorithm: str = 'prophet',
+                              retrain_existing: bool = False) -> Optional[ForecastModel]:
+        """
+        Entrena un modelo para un producto específico
+        
+        Args:
+            product: Producto para el cual entrenar el modelo
+            algorithm: Algoritmo a usar
+            retrain_existing: Si re-entrenar modelo existente
+            
+        Returns:
+            Modelo entrenado o None si hubo error
+        """
+        try:
+            # Verifica si ya existe un modelo
+            existing_model = ForecastModel.objects.filter(
+                company=product.company,
+                model_type=algorithm,
+                products=product
+            ).first()
+            
+            if existing_model and not retrain_existing:
+                return existing_model
+            
+            if existing_model and retrain_existing:
+                return self.retrain_model(existing_model.id)
+            else:
+                return self.create_and_train_model(
+                    company=product.company,
+                    name=f"{algorithm.title()} Model for {product.name}",
+                    description=f"Modelo de pronóstico {algorithm} para {product.name}",
+                    model_type=algorithm,
+                    products=[product]
+                )
+                
+        except Exception as e:
+            logger.error(f"Error entrenando modelo para producto {product.id}: {str(e)}")
+            return None
