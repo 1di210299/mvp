@@ -27,10 +27,14 @@ const LoginPage: React.FC = () => {
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
+      console.log('Attempting login with:', { email: state.email });
+      
       const response = await authService.login({
         email: state.email,
         password: state.password
       });
+
+      console.log('Login successful:', response);
 
       // Store tokens in localStorage
       localStorage.setItem('access_token', response.tokens.access);
@@ -40,11 +44,13 @@ const LoginPage: React.FC = () => {
       localStorage.setItem('user_info', JSON.stringify(response.user));
 
       // Redirect to dashboard
+      console.log('Redirecting to dashboard...');
       navigate('/dashboard');
     } catch (error: any) {
+      console.error('Login error:', error);
       setState(prev => ({ 
         ...prev, 
-        error: error.response?.data?.message || 'Error de autenticación. Verifica tus credenciales.',
+        error: error.response?.data?.message || error.message || 'Error de autenticación. Verifica tus credenciales.',
         loading: false 
       }));
     }
@@ -52,6 +58,15 @@ const LoginPage: React.FC = () => {
 
   const handleInputChange = (field: keyof LoginState, value: string) => {
     setState(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Función para llenar credenciales de prueba
+  const fillTestCredentials = (email: string, password: string) => {
+    setState(prev => ({ 
+      ...prev, 
+      email: email,
+      password: password
+    }));
   };
 
   return (
@@ -145,12 +160,37 @@ const LoginPage: React.FC = () => {
             <div className="mt-6 border-t pt-6">
               <div className="text-sm text-gray-600">
                 <p className="font-medium mb-2">Credenciales de prueba:</p>
-                <div className="bg-gray-50 p-3 rounded-md space-y-1">
-                  <p><strong>Superadmin:</strong> juan@gmail.com</p>
-                  <p><strong>Admin:</strong> rolando.morante@distribuidorasanmartín.com.pe</p>
-                  <p><strong>Manager:</strong> modesta.alberdi@distribuidorasanmartín.com.pe</p>
+                <div className="bg-gray-50 p-3 rounded-md space-y-2">
+                  <button 
+                    type="button"
+                    onClick={() => fillTestCredentials('superadmin@datalens.com', 'admin123')}
+                    className="block w-full text-left hover:bg-gray-100 p-1 rounded cursor-pointer"
+                  >
+                    <strong>Nuevo Superadmin:</strong> superadmin@datalens.com / admin123
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => fillTestCredentials('admin@test.com', 'admin123')}
+                    className="block w-full text-left hover:bg-gray-100 p-1 rounded cursor-pointer"
+                  >
+                    <strong>Superadmin:</strong> admin@test.com / admin123
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => fillTestCredentials('rolando.morante@distribuidorasanmartín.com.pe', 'password123')}
+                    className="block w-full text-left hover:bg-gray-100 p-1 rounded cursor-pointer"
+                  >
+                    <strong>Admin:</strong> rolando.morante@distribuidorasanmartín.com.pe
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => fillTestCredentials('modesta.alberdi@distribuidorasanmartín.com.pe', 'password123')}
+                    className="block w-full text-left hover:bg-gray-100 p-1 rounded cursor-pointer"
+                  >
+                    <strong>Manager:</strong> modesta.alberdi@distribuidorasanmartín.com.pe
+                  </button>
                   <p className="text-xs text-gray-500 mt-2">
-                    Nota: Las contraseñas pueden ser configuradas en el sistema
+                    Haz clic en las credenciales para auto-completar los campos
                   </p>
                 </div>
               </div>

@@ -1,14 +1,30 @@
 # Configuración Celery para DataLens
 import os
 from celery import Celery
+from django.conf import settings
 
 # Configurar Django settings module para celery
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'datalens_backend.settings')
 
 app = Celery('datalens_backend')
 
-# Usar configuración de Django para Celery
+# Usar configuración de Django para Celery con configuración explícita
 app.config_from_object('django.conf:settings', namespace='CELERY')
+
+# Configuración adicional para asegurar compatibilidad
+app.conf.update(
+    broker_connection_retry_on_startup=True,
+    broker_connection_retry=True,
+    broker_connection_max_retries=10,
+    result_backend_transport_options={
+        'retry_policy': {
+            'timeout': 5.0
+        }
+    },
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    worker_disable_rate_limits=True,
+)
 
 # Autodescubrir tareas en todas las aplicaciones Django
 app.autodiscover_tasks()

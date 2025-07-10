@@ -211,6 +211,18 @@ export interface DashboardData {
   alert_trends: Record<string, number>;
 }
 
+export interface NotificationLog {
+  id: number;
+  alert: AlertData;
+  channel: 'email' | 'sms' | 'push' | 'webhook';
+  recipient: string;
+  status: 'pending' | 'sent' | 'failed' | 'delivered';
+  sent_at?: string;
+  delivered_at?: string;
+  error_message?: string;
+  created_at: string;
+}
+
 // Tipos para forecasting
 export interface ForecastData {
   product: Product;

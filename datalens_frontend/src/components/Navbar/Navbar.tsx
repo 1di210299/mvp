@@ -24,6 +24,7 @@ import {
   Bell,
   Search
 } from '../ui/icons';
+import { ThemeToggle } from '../theme/ThemeToggle';
 import './Navbar.css';
 
 interface NavbarProps {
@@ -227,6 +228,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
         {/* Right Section */}
         <div className="navbar-actions">
+          {/* Theme Toggle */}
+          <ThemeToggle />
+          
           {/* Search Button */}
           <button className="action-button">
             <Search size={18} />

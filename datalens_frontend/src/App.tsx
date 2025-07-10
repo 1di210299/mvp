@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './components/Login/Login';
+import LoginPage from './pages/LoginPage'; // Cambiado para usar LoginPage
 import Dashboard from './components/Dashboard/Dashboard';
 import Navbar from './components/Navbar/Navbar';
+import MarketingPage from './pages/MarketingPage';
 import { User } from './types';
 import { authService } from './services/api';
+import { ThemeProvider } from './contexts/ThemeContext';
 import './styles/global.css';
 
 // Import all pages
@@ -36,7 +38,7 @@ const App: React.FC = () => {
     const token = localStorage.getItem('access_token');
     if (token) {
       try {
-        // Get user profile from API instead of using mock data
+        // Get user profile from API
         const userData = await authService.getProfile();
         setUser(userData);
         setIsAuthenticated(true);
@@ -45,16 +47,11 @@ const App: React.FC = () => {
         // If token is invalid, clear it and show login
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user_info');
         setIsAuthenticated(false);
       }
     }
     setLoading(false);
-  };
-
-  const handleLogin = (token: string) => {
-    localStorage.setItem('access_token', token);
-    setIsAuthenticated(true);
-    checkAuth(); // This will fetch the real user data
   };
 
   const handleLogout = async () => {
@@ -67,51 +64,156 @@ const App: React.FC = () => {
       setIsAuthenticated(false);
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user_info');
     }
   };
 
   if (loading) {
     return (
-      <div className="app-loading">
-        <div className="loading-spinner"></div>
-        <p>Cargando aplicación...</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando aplicación...</p>
+        </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
-  }
-
   return (
-    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <ThemeProvider>
       <div className="app">
-        <Navbar user={user} onLogout={handleLogout} />
-        
-        <main className="app-main">
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/products" element={<ProductsPage />} />
-            <Route path="/categories" element={<CategoriesPage />} />
-            <Route path="/suppliers" element={<SuppliersPage />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/transactions" element={<TransactionsPage />} />
-            <Route path="/alerts" element={<AlertsPage />} />
-            <Route path="/forecasting" element={<ForecastingPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            {/* Public routes */}
+            <Route path="/marketing" element={<MarketingPage />} />
+            <Route path="/login" element={<LoginPage />} />
             
-            {/* CRM Routes */}
-            <Route path="/customers" element={<CustomersPage />} />
-            <Route path="/leads" element={<LeadsPage />} />
-            <Route path="/opportunities" element={<OpportunitiesPage />} />
-            
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {/* Protected routes */}
+            {isAuthenticated ? (
+              <>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <Dashboard />
+                    </main>
+                  </>
+                } />
+                
+                {/* ...existing protected routes... */}
+                <Route path="/products" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <ProductsPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/categories" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <CategoriesPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/suppliers" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <SuppliersPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/inventory" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <InventoryPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/transactions" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <TransactionsPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/alerts" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <AlertsPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/forecasting" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <ForecastingPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/reports" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <ReportsPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/settings" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <SettingsPage />
+                    </main>
+                  </>
+                } />
+                
+                {/* CRM Routes */}
+                <Route path="/customers" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <CustomersPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/leads" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <LeadsPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/opportunities" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <OpportunitiesPage />
+                    </main>
+                  </>
+                } />
+                
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </>
+            ) : (
+              <>
+                {/* Redirect to login if not authenticated */}
+                <Route path="/" element={<Navigate to="/login" replace />} />
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </>
+            )}
           </Routes>
-        </main>
+        </Router>
       </div>
-    </Router>
+    </ThemeProvider>
   );
 };
 

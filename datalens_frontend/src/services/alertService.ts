@@ -1,30 +1,54 @@
-import { AlertData, DashboardData } from '../types';
+import axios, { AxiosInstance } from 'axios';
+import { DashboardData, NotificationLog } from '../types';
 
-interface AlertRule {
-  id: number;
-  name: string;
-  alert_type: string;
-  condition: string;
-  threshold: number;
-  severity: string;
-  is_active: boolean;
-  product?: number;
-  location?: number;
-  created_at: string;
+interface AlertServiceConfig {
+  baseUrl: string;
+  timeout: number;
 }
 
-interface NotificationLog {
+interface AlertRule {
+  id?: number;
+  name: string;
+  description: string;
+  alert_type: string;
+  product_id?: number;
+  threshold_value: number;
+  comparison_operator: string;
+  is_active: boolean;
+  email_recipients?: string[];
+  sms_recipients?: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface AlertData {
   id: number;
-  alert: number;
-  notification_type: string;
-  recipient: string;
+  title: string;
+  message: string;
+  alert_type: string;
+  severity: string;
   status: string;
-  sent_at: string;
+  is_read: boolean;
+  is_resolved: boolean;
+  product_data?: any;
+  created_at: string;
+  updated_at: string;
 }
 
 class AlertService {
-  private baseUrl = 'http://localhost:8081/api/alerts';
-  
+  private api: AxiosInstance;
+  private baseUrl = 'http://localhost:8080/api/alerts';
+
+  constructor(config: AlertServiceConfig) {
+    this.api = axios.create({
+      baseURL: config.baseUrl,
+      timeout: config.timeout,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
   private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('access_token');
     return {
@@ -35,18 +59,11 @@ class AlertService {
 
   async getAlertsDashboard(): Promise<DashboardData> {
     try {
-      const response = await fetch(`${this.baseUrl}/dashboard/`, {
+      const response = await this.api.get('/dashboard/', {
         headers: this.getAuthHeaders(),
       });
       
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Token de autenticación expirado');
-        }
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-      
-      return await response.json();
+      return response.data;
     } catch (error) {
       console.error('Error en getAlertsDashboard:', error);
       // Devolver datos de fallback en caso de error
@@ -86,15 +103,11 @@ class AlertService {
         params.append('location', filters.location);
       }
       
-      const response = await fetch(`${this.baseUrl}/alerts/?${params}`, {
+      const response = await this.api.get(`/alerts/?${params}`, {
         headers: this.getAuthHeaders(),
       });
       
-      if (!response.ok) {
-        throw new Error('Error al cargar alertas');
-      }
-      
-      return await response.json();
+      return response.data;
     } catch (error) {
       console.error('Error en getAlerts:', error);
       return { results: [] };
@@ -102,143 +115,146 @@ class AlertService {
   }
 
   async acknowledgeAlert(alertId: number, note?: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/alerts/${alertId}/acknowledge/`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ note: note || '' }),
-    });
-    
-    if (!response.ok) {
+    try {
+      await this.api.post(`/alerts/${alertId}/acknowledge/`, {
+        note: note || '',
+      }, {
+        headers: this.getAuthHeaders(),
+      });
+    } catch (error) {
+      console.error('Error al reconocer la alerta:', error);
       throw new Error('Error al reconocer la alerta');
     }
   }
 
   async resolveAlert(alertId: number, note?: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/alerts/${alertId}/resolve/`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ note: note || '' }),
-    });
-    
-    if (!response.ok) {
+    try {
+      await this.api.post(`/alerts/${alertId}/resolve/`, {
+        note: note || '',
+      }, {
+        headers: this.getAuthHeaders(),
+      });
+    } catch (error) {
+      console.error('Error al resolver la alerta:', error);
       throw new Error('Error al resolver la alerta');
     }
   }
 
   async dismissAlert(alertId: number, note?: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/alerts/${alertId}/dismiss/`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ note: note || '' }),
-    });
-    
-    if (!response.ok) {
+    try {
+      await this.api.post(`/alerts/${alertId}/dismiss/`, {
+        note: note || '',
+      }, {
+        headers: this.getAuthHeaders(),
+      });
+    } catch (error) {
+      console.error('Error al descartar la alerta:', error);
       throw new Error('Error al descartar la alerta');
     }
   }
 
   async checkAlerts(): Promise<{ message: string; task_id: string }> {
-    const response = await fetch(`${this.baseUrl}/check-alerts/`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-    });
-    
-    if (!response.ok) {
+    try {
+      const response = await this.api.post('/check-alerts/', {}, {
+        headers: this.getAuthHeaders(),
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error al verificar alertas:', error);
       throw new Error('Error al verificar alertas');
     }
-    
-    return response.json();
   }
 
   async getAlertRules(): Promise<{ results: AlertRule[] }> {
-    const response = await fetch(`${this.baseUrl}/rules/`, {
-      headers: this.getAuthHeaders(),
-    });
-    
-    if (!response.ok) {
+    try {
+      const response = await this.api.get('/rules/', {
+        headers: this.getAuthHeaders(),
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error al cargar reglas de alerta:', error);
       throw new Error('Error al cargar reglas de alerta');
     }
-    
-    return response.json();
   }
 
   async createAlertRule(rule: Partial<AlertRule>): Promise<AlertRule> {
-    const response = await fetch(`${this.baseUrl}/rules/`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(rule),
-    });
-    
-    if (!response.ok) {
+    try {
+      const response = await this.api.post('/rules/', rule, {
+        headers: this.getAuthHeaders(),
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error al crear regla de alerta:', error);
       throw new Error('Error al crear regla de alerta');
     }
-    
-    return response.json();
   }
 
   async updateAlertRule(ruleId: number, rule: Partial<AlertRule>): Promise<AlertRule> {
-    const response = await fetch(`${this.baseUrl}/rules/${ruleId}/`, {
-      method: 'PUT',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(rule),
-    });
-    
-    if (!response.ok) {
+    try {
+      const response = await this.api.put(`/rules/${ruleId}/`, rule, {
+        headers: this.getAuthHeaders(),
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error al actualizar regla de alerta:', error);
       throw new Error('Error al actualizar regla de alerta');
     }
-    
-    return response.json();
   }
 
   async deleteAlertRule(ruleId: number): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/rules/${ruleId}/`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders(),
-    });
-    
-    if (!response.ok) {
+    try {
+      await this.api.delete(`/rules/${ruleId}/`, {
+        headers: this.getAuthHeaders(),
+      });
+    } catch (error) {
+      console.error('Error al eliminar regla de alerta:', error);
       throw new Error('Error al eliminar regla de alerta');
     }
   }
 
   async testAlertRule(ruleId: number): Promise<{ message: string; task_id: string }> {
-    const response = await fetch(`${this.baseUrl}/test-rule/${ruleId}/`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-    });
-    
-    if (!response.ok) {
+    try {
+      const response = await this.api.post(`/test-rule/${ruleId}/`, {}, {
+        headers: this.getAuthHeaders(),
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error al probar regla de alerta:', error);
       throw new Error('Error al probar regla de alerta');
     }
-    
-    return response.json();
   }
 
   async toggleAlertRule(ruleId: number): Promise<{ message: string; is_active: boolean }> {
-    const response = await fetch(`${this.baseUrl}/rules/${ruleId}/toggle/`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-    });
-    
-    if (!response.ok) {
+    try {
+      const response = await this.api.post(`/rules/${ruleId}/toggle/`, {}, {
+        headers: this.getAuthHeaders(),
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error al cambiar estado de regla:', error);
       throw new Error('Error al cambiar estado de regla');
     }
-    
-    return response.json();
   }
 
   async getNotificationLogs(): Promise<{ results: NotificationLog[] }> {
-    const response = await fetch(`${this.baseUrl}/notifications/`, {
-      headers: this.getAuthHeaders(),
-    });
-    
-    if (!response.ok) {
+    try {
+      const response = await this.api.get('/notifications/', {
+        headers: this.getAuthHeaders(),
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error al cargar logs de notificaciones:', error);
       throw new Error('Error al cargar logs de notificaciones');
     }
-    
-    return response.json();
   }
 }
 
-export const alertService = new AlertService();
+export const alertService = new AlertService({ baseUrl: 'http://localhost:8080/api/alerts', timeout: 10000 });
 export type { AlertData, DashboardData, AlertRule, NotificationLog };

@@ -27,9 +27,11 @@ import {
   Key,
   AlertTriangle,
   Check,
-  Save
+  Save,
+  Monitor
 } from '../components/ui/icons';
 import { settingsService } from '../services/api';
+import { ThemeToggle } from '../components/theme/ThemeToggle';
 
 interface SettingsPageState {
   loading: boolean;
@@ -239,6 +241,7 @@ const SettingsPage: React.FC = () => {
 
   const tabConfig = [
     { id: 'profile', label: 'Perfil', icon: User },
+    { id: 'appearance', label: 'Apariencia', icon: Monitor },
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'security', label: 'Seguridad', icon: Shield },
     { id: 'system', label: 'Sistema', icon: Database },
@@ -395,6 +398,59 @@ const SettingsPage: React.FC = () => {
                         <SelectItem value="Europe/Madrid">Madrid (UTC+1)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Appearance Settings */}
+          {state.activeTab === 'appearance' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Monitor className="h-5 w-5" />
+                  Configuración de Apariencia
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <ThemeToggle variant="dropdown" />
+                  </div>
+                  
+                  <div className="border-t pt-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                      Configuraciones adicionales
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">Animaciones reducidas</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            Reduce las animaciones para mejorar el rendimiento
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-gray-600"
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">Efectos de cristal</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            Habilita efectos de glassmorphism en la interfaz
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          defaultChecked
+                          className="h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-gray-600"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>

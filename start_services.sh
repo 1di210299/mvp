@@ -5,6 +5,9 @@
 
 echo "🚀 Iniciando servicios de DataLens..."
 
+# Activar entorno virtual
+source .venv/bin/activate
+
 # Crear directorios de logs si no existen
 mkdir -p logs/celery
 
@@ -34,13 +37,12 @@ start_redis() {
 start_celery_worker() {
     echo "👷 Iniciando Celery Worker..."
     if ! pgrep -f "celery.*worker" > /dev/null; then
-        celery -A datalens_backend worker \
+        nohup python -m celery -A datalens_backend worker \
             --loglevel=info \
             --concurrency=4 \
             --logfile=logs/celery/worker.log \
-            --pidfile=logs/celery/worker.pid \
-            --detach
-        sleep 2
+            --pidfile=logs/celery/worker.pid > /dev/null 2>&1 &
+        sleep 3
         if pgrep -f "celery.*worker" > /dev/null; then
             echo "✅ Celery Worker iniciado correctamente"
         else
@@ -55,12 +57,11 @@ start_celery_worker() {
 start_celery_beat() {
     echo "⏰ Iniciando Celery Beat..."
     if ! pgrep -f "celery.*beat" > /dev/null; then
-        celery -A datalens_backend beat \
+        nohup python -m celery -A datalens_backend beat \
             --loglevel=info \
             --logfile=logs/celery/beat.log \
-            --pidfile=logs/celery/beat.pid \
-            --detach
-        sleep 2
+            --pidfile=logs/celery/beat.pid > /dev/null 2>&1 &
+        sleep 3
         if pgrep -f "celery.*beat" > /dev/null; then
             echo "✅ Celery Beat iniciado correctamente"
         else
@@ -75,7 +76,7 @@ start_celery_beat() {
 start_django() {
     echo "🌐 Iniciando servidor Django..."
     if ! check_port 8081; then
-        python manage.py runserver 0.0.0.0:8081 > logs/django.log 2>&1 &
+        nohup python manage.py runserver 0.0.0.0:8081 > logs/django.log 2>&1 &
         sleep 3
         if check_port 8081; then
             echo "✅ Servidor Django iniciado en puerto 8081"

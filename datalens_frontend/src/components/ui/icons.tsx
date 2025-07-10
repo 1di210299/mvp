@@ -628,7 +628,7 @@ export const Phone: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -644,7 +644,7 @@ export const MapPin: React.FC<IconProps> = ({ className = '', size = 20, color }
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -661,7 +661,7 @@ export const Download: React.FC<IconProps> = ({ className = '', size = 20, color
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -679,7 +679,7 @@ export const Building2: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -700,7 +700,7 @@ export const ArrowUp: React.FC<IconProps> = ({ className = '', size = 20, color 
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #10b981)'}
     strokeWidth="2"
@@ -717,7 +717,7 @@ export const ArrowDown: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #ef4444)'}
     strokeWidth="2"
@@ -734,7 +734,7 @@ export const ArrowRight: React.FC<IconProps> = ({ className = '', size = 20, col
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -751,7 +751,7 @@ export const Filter: React.FC<IconProps> = ({ className = '', size = 20, color }
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -767,7 +767,7 @@ export const RotateCcw: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -784,7 +784,7 @@ export const Building: React.FC<IconProps> = ({ className = '', size = 20, color
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -810,7 +810,7 @@ export const Briefcase: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -827,7 +827,7 @@ export const Check: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #10b981)'}
     strokeWidth="2"
@@ -843,7 +843,7 @@ export const Home: React.FC<IconProps> = ({ className = '', size = 20, color }) 
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -878,7 +878,7 @@ export const LogOut: React.FC<IconProps> = ({ className = '', size = 20, color }
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -889,24 +889,6 @@ export const LogOut: React.FC<IconProps> = ({ className = '', size = 20, color }
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
     <polyline points="16,17 21,12 16,7" />
     <line x1="21" y1="12" x2="9" y2="12" />
-  </svg>
-);
-
-export const Menu: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color || 'var(--icon-stroke, #374151)'}
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={`icon-svg menu-icon ${className}`}
-  >
-    <line x1="3" y1="6" x2="21" y2="6" />
-    <line x1="3" y1="12" x2="21" y2="12" />
-    <line x1="3" y1="18" x2="21" y2="18" />
   </svg>
 );
 
@@ -932,7 +914,7 @@ export const Star: React.FC<IconProps> = ({ className = '', size = 20, color }) 
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #f59e0b)'}
     strokeWidth="2"
@@ -948,7 +930,7 @@ export const Truck: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -967,7 +949,7 @@ export const Users: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -986,7 +968,7 @@ export const Warehouse: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -1008,7 +990,7 @@ export const UserCheck: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -1026,7 +1008,7 @@ export const ChevronDown: React.FC<IconProps> = ({ className = '', size = 20, co
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -1035,5 +1017,63 @@ export const ChevronDown: React.FC<IconProps> = ({ className = '', size = 20, co
     className={`icon-svg chevron-down-icon ${className}`}
   >
     <polyline points="6,9 12,15 18,9" />
+  </svg>
+);
+
+export const Sun: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #f59e0b)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg sun-icon ${className}`}
+  >
+    <circle cx="12" cy="12" r="5" />
+    <line x1="12" y1="1" x2="12" y2="3" />
+    <line x1="12" y1="21" x2="12" y2="23" />
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+    <line x1="1" y1="12" x2="3" y2="12" />
+    <line x1="21" y1="12" x2="23" y2="12" />
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+  </svg>
+);
+
+export const Moon: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #6366f1)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg moon-icon ${className}`}
+  >
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+  </svg>
+);
+
+export const Monitor: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #374151)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg monitor-icon ${className}`}
+  >
+    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
   </svg>
 );

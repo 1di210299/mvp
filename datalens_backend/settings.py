@@ -12,9 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Environment variables
 env = environ.Env(
-    DEBUG=(bool, True),
+    DEBUG=(bool, True),  # Development default
     SECRET_KEY=(str, 'django-insecure-change-in-production'),
-    ALLOWED_HOSTS=(list, ['localhost', '127.0.0.1']),
+    ALLOWED_HOSTS=(list, ['localhost', '127.0.0.1', '0.0.0.0']),
     DATABASE_URL=(str, f'sqlite:///{BASE_DIR}/db.sqlite3'),
     PORT=(int, 8080),
     HOST=(str, '0.0.0.0'),
@@ -29,7 +29,19 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 
+# ALLOWED_HOSTS configuration
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
+
+# Production settings
+if not DEBUG:
+    # In production, allow all hosts (Railway/Render will provide domain)
+    ALLOWED_HOSTS.extend(['*'])
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 # Application definition
 DJANGO_APPS = [
@@ -90,10 +102,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'datalens_backend.wsgi.application'
 
-# Database
-DATABASES = {
-    'default': env.db()
-}
+# Database - Updated for production
+if DEBUG:
+    DATABASES = {
+        'default': env.db()
+    }
+else:
+    # Production database (PostgreSQL from Railway/Render)
+    try:
+        import dj_database_url
+        DATABASES = {
+            'default': dj_database_url.config(
+                default=env('DATABASE_URL'),
+                conn_max_age=600,
+                conn_health_checks=True,
+            )
+        }
+    except ImportError:
+        # Fallback to environment database if dj_database_url not available
+        DATABASES = {
+            'default': env.db()
+        }
 
 # Django REST Framework
 REST_FRAMEWORK = {
@@ -135,16 +164,25 @@ SPECTACULAR_SETTINGS = {
     'COMPONENT_SPLIT_REQUEST': True,
 }
 
-# CORS settings
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-    "http://0.0.0.0:8080",
-    "http://localhost:8081",
-    "http://127.0.0.1:8081",
-]
+# CORS settings - Updated for production
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://0.0.0.0:8080",
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+    ]
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    # Production CORS - Add your deployed frontend URLs
+    CORS_ALLOWED_ORIGINS = [
+        "https://your-app.github.io",
+        "https://your-app.netlify.app",
+        "https://your-app.vercel.app",
+    ]
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -194,12 +232,16 @@ TIME_ZONE = 'America/Lima'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
+# Static files - Updated for production
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
-]
+] if (BASE_DIR / 'static').exists() else []
+
+if not DEBUG:
+    # Production static files serving
+    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 # Media files
 MEDIA_URL = '/media/'
@@ -215,13 +257,46 @@ AUTH_USER_MODEL = 'authentication.User'
 SERVER_PORT = env('PORT')
 SERVER_HOST = env('HOST')
 
-# Celery Configuration (Redis)
-CELERY_BROKER_URL = env('REDIS_URL', default='redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = env('REDIS_URL', default='redis://localhost:6379/0')
+# Celery Configuration (Redis) - Configuración mejorada
+REDIS_URL = env('REDIS_URL', default='redis://localhost:6379/0')
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+
+# In production, disable Celery if Redis not available
+if not DEBUG:
+    try:
+        import redis
+        r = redis.from_url(REDIS_URL)
+        r.ping()
+    except:
+        # Disable Celery in production if Redis not available
+        CELERY_TASK_ALWAYS_EAGER = True
+        CELERY_TASK_EAGER_PROPAGATES = True
+
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+# Configuración adicional para mejorar conectividad
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_RETRY = True
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    'retry_policy': {
+        'timeout': 5.0
+    }
+}
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    'retry_policy': {
+        'timeout': 5.0
+    }
+}
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_DISABLE_RATE_LIMITS = True
+CELERY_TASK_ALWAYS_EAGER = False
+CELERY_TASK_EAGER_PROPAGATES = False
 
 # Email configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -335,18 +410,4 @@ OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
 
 # Configuración de campos personalizados
 CUSTOM_FIELDS_CONFIG = {
-    'max_fields_per_model': 50,  # Máximo número de campos personalizados por modelo
-    'max_choice_options': 100,   # Máximo número de opciones para campos tipo choice
-    'enable_ai_suggestions': True,  # Habilitar sugerencias de IA para nuevos campos
-    'auto_validation': True,     # Validación automática de campos
-}
-
-# Configuración de análisis con IA
-AI_ANALYTICS_CONFIG = {
-    'enabled': True,
-    'model': 'gpt-4',
-    'max_tokens': 2000,
-    'temperature': 0.3,
-    'cache_insights_hours': 6,  # Cachear insights por 6 horas
-    'batch_analysis_size': 100,  # Tamaño de lote para análisis masivo
-}
+    'max_fields_per_model': 50,}  # Máximo número de campos personalizados por modelo

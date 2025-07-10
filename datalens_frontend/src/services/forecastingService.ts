@@ -1,4 +1,10 @@
 import { ForecastData, Product, Warehouse } from '../types';
+import axios, { AxiosInstance } from 'axios';
+
+interface ForecastingServiceConfig {
+  baseUrl: string;
+  timeout: number;
+}
 
 interface ForecastingService {
   getForecasts(): Promise<{ results: ForecastData[] }>;
@@ -10,8 +16,19 @@ interface ForecastingService {
 }
 
 class ForecastingServiceImpl implements ForecastingService {
-  private baseUrl = 'http://localhost:8081/api/forecasting';
+  private api: AxiosInstance;
+  private baseUrl = 'http://localhost:8080/api/forecasting';
   
+  constructor(config?: ForecastingServiceConfig) {
+    this.api = axios.create({
+      baseURL: config?.baseUrl || this.baseUrl,
+      timeout: config?.timeout || 10000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
   private getAuthHeaders(): Record<string, string> {
     const token = localStorage.getItem('access_token');
     return {
