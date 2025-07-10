@@ -22,7 +22,8 @@ import {
   UserCheck,
   ChevronDown,
   Bell,
-  Search
+  Search,
+  Upload  // Agregamos el icono para importación
 } from '../ui/icons';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import './Navbar.css';
@@ -85,6 +86,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
     { path: '/alerts', label: 'Alertas', icon: AlertTriangle, description: 'Notificaciones de stock' },
     { path: '/forecasting', label: 'Pronósticos', icon: TrendingUp, description: 'Predicciones AI' },
     { path: '/reports', label: 'Reportes', icon: FileText, description: 'Informes y análisis' },
+    { path: '/data-import', label: 'Importar Datos', icon: Upload, description: 'Importar desde Excel/CSV' }, // Corregida la ruta
   ];
 
   const crmItems = [

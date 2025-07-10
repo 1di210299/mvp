@@ -1,165 +1,115 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from alerts.models import AlertRule, Alert
-from alerts.tasks import check_all_alerts, check_alert_rule
+from datetime import timedelta
+from alerts.models import Alert, AlertRule
+from inventory.models import Product, InventoryItem
 from authentication.models import Company
+from datalens_backend.utils import get_default_company
 
 
 class Command(BaseCommand):
-    help = 'Gestiona el sistema de alertas'
+    help = 'Gestiona alertas automáticas del sistema'
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--check-all',
+            '--check-stock',
             action='store_true',
-            help='Verificar todas las reglas de alerta activas',
+            help='Verificar niveles de stock y generar alertas',
         )
         parser.add_argument(
-            '--check-rule',
-            type=int,
-            help='Verificar una regla específica por ID',
-        )
-        parser.add_argument(
-            '--list-rules',
+            '--check-expiration',
             action='store_true',
-            help='Listar todas las reglas de alerta',
+            help='Verificar productos próximos a vencer',
         )
         parser.add_argument(
-            '--list-alerts',
+            '--cleanup',
             action='store_true',
-            help='Listar alertas recientes',
-        )
-        parser.add_argument(
-            '--company-id',
-            type=int,
-            help='ID de la empresa (opcional)',
-        )
-        parser.add_argument(
-            '--create-sample-rule',
-            action='store_true',
-            help='Crear una regla de ejemplo',
+            help='Limpiar alertas antiguas resueltas',
         )
 
     def handle(self, *args, **options):
-        if options['check_all']:
-            self.check_all_alerts()
-        elif options['check_rule']:
-            self.check_single_rule(options['check_rule'])
-        elif options['list_rules']:
-            self.list_alert_rules(options.get('company_id'))
-        elif options['list_alerts']:
-            self.list_recent_alerts(options.get('company_id'))
-        elif options['create_sample_rule']:
-            self.create_sample_rule(options.get('company_id'))
-        else:
-            self.stdout.write(self.style.ERROR('Debe especificar una acción'))
+        if options['check_stock']:
+            self.check_stock_levels()
+        
+        if options['check_expiration']:
+            self.check_product_expiration()
+            
+        if options['cleanup']:
+            self.cleanup_old_alerts()
 
-    def check_all_alerts(self):
-        self.stdout.write('Iniciando verificación de todas las reglas de alerta...')
-        task = check_all_alerts.delay()
-        self.stdout.write(
-            self.style.SUCCESS(f'Tarea iniciada con ID: {task.id}')
+    def check_stock_levels(self):
+        """Verifica niveles de stock y genera alertas"""
+        company = get_default_company()
+        if not company:
+            self.stdout.write('No se encontró empresa para verificar stock')
+            return
+
+        low_stock_items = InventoryItem.objects.filter(
+            company=company,
+            quantity__lte=F('product__minimum_stock'),
+            product__is_active=True
+        ).select_related('product')
+
+        for item in low_stock_items:
+            alert, created = Alert.objects.get_or_create(
+                company=company,
+                product=item.product,
+                alert_type='low_stock',
+                defaults={
+                    'title': 'Stock Bajo',
+                    'description': f'El producto {item.product.name} tiene un stock bajo.',
+                    'severity': 'medium',
+                    'status': 'active',
+                    'created_at': timezone.now(),
+                    'updated_at': timezone.now(),
+                }
+            )
+
+            if created:
+                self.stdout.write(f'¡Alerta creada! {alert.description}')
+            else:
+                self.stdout.write(f'La alerta ya existe: {alert.description}')
+
+    def check_product_expiration(self):
+        """Verifica productos próximos a vencer y genera alertas"""
+        company = get_default_company()
+        if not company:
+            self.stdout.write('No se encontró empresa para verificar expiración de productos')
+            return
+
+        soon_to_expire_products = Product.objects.filter(
+            company=company,
+            expiration_date__lte=timezone.now() + timedelta(days=7),
+            is_active=True
         )
 
-    def check_single_rule(self, rule_id):
-        try:
-            rule = AlertRule.objects.get(id=rule_id)
-            self.stdout.write(f'Verificando regla: {rule.name}')
-            task = check_alert_rule.delay(rule_id)
-            self.stdout.write(
-                self.style.SUCCESS(f'Tarea iniciada con ID: {task.id}')
-            )
-        except AlertRule.DoesNotExist:
-            self.stdout.write(
-                self.style.ERROR(f'Regla con ID {rule_id} no encontrada')
-            )
-
-    def list_alert_rules(self, company_id=None):
-        queryset = AlertRule.objects.all()
-        if company_id:
-            queryset = queryset.filter(company_id=company_id)
-        
-        self.stdout.write('\n=== Reglas de Alerta ===')
-        for rule in queryset:
-            status = '✅' if rule.is_active else '❌'
-            self.stdout.write(
-                f'{status} [{rule.id}] {rule.name} - {rule.get_alert_type_display()}'
-            )
-            self.stdout.write(f'   Empresa: {rule.company.name}')
-            self.stdout.write(f'   Frecuencia: {rule.get_frequency_display()}')
-            if rule.threshold_value:
-                self.stdout.write(f'   Umbral: {rule.threshold_value}')
-            if rule.threshold_percentage:
-                self.stdout.write(f'   Porcentaje: {rule.threshold_percentage}%')
-            self.stdout.write('')
-
-    def list_recent_alerts(self, company_id=None):
-        queryset = Alert.objects.all()
-        if company_id:
-            queryset = queryset.filter(company_id=company_id)
-        
-        recent_alerts = queryset.order_by('-created_at')[:20]
-        
-        self.stdout.write('\n=== Alertas Recientes ===')
-        for alert in recent_alerts:
-            status_icon = {
-                'active': '🔴',
-                'acknowledged': '🟡',
-                'resolved': '✅',
-                'dismissed': '❌'
-            }.get(alert.status, '❓')
-            
-            severity_icon = {
-                'low': '🟢',
-                'medium': '🟡',
-                'high': '🟠',
-                'critical': '🔴'
-            }.get(alert.severity, '❓')
-            
-            self.stdout.write(
-                f'{status_icon} {severity_icon} [{alert.id}] {alert.title}'
-            )
-            self.stdout.write(f'   Estado: {alert.get_status_display()}')
-            self.stdout.write(f'   Severidad: {alert.get_severity_display()}')
-            self.stdout.write(f'   Fecha: {alert.created_at}')
-            if alert.product:
-                self.stdout.write(f'   Producto: {alert.product.name}')
-            if alert.location:
-                self.stdout.write(f'   Ubicación: {alert.location.name}')
-            self.stdout.write('')
-
-    def create_sample_rule(self, company_id=None):
-        try:
-            if company_id:
-                company = Company.objects.get(id=company_id)
-            else:
-                company = Company.objects.first()
-                if not company:
-                    self.stdout.write(
-                        self.style.ERROR('No hay empresas disponibles')
-                    )
-                    return
-            
-            # Crear regla de stock bajo
-            rule = AlertRule.objects.create(
+        for product in soon_to_expire_products:
+            alert, created = Alert.objects.get_or_create(
                 company=company,
-                name='Stock Bajo - Ejemplo',
-                description='Regla de ejemplo para alertas de stock bajo',
-                alert_type='low_stock',
-                threshold_value=10,
-                send_email=True,
-                send_notification=True,
-                frequency='immediate',
-                is_active=True
+                product=product,
+                alert_type='expiration',
+                defaults={
+                    'title': 'Producto Próximo a Vencer',
+                    'description': f'El producto {product.name} está próximo a vencer.',
+                    'severity': 'high',
+                    'status': 'active',
+                    'created_at': timezone.now(),
+                    'updated_at': timezone.now(),
+                }
             )
-            
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f'Regla de ejemplo creada: {rule.name} (ID: {rule.id})'
-                )
-            )
-            
-        except Company.DoesNotExist:
-            self.stdout.write(
-                self.style.ERROR(f'Empresa con ID {company_id} no encontrada')
-            )
+
+            if created:
+                self.stdout.write(f'¡Alerta de expiración creada! {alert.description}')
+            else:
+                self.stdout.write(f'La alerta de expiración ya existe: {alert.description}')
+
+    def cleanup_old_alerts(self):
+        """Elimina alertas antiguas que han sido resueltas"""
+        threshold_date = timezone.now() - timedelta(days=30)
+        old_alerts = Alert.objects.filter(
+            updated_at__lt=threshold_date,
+            status='resolved'
+        )
+
+        deleted_count, _ = old_alerts.delete()
+        self.stdout.write(f'Se eliminaron {deleted_count} alertas antiguas')

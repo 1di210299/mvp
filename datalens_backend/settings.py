@@ -67,6 +67,7 @@ LOCAL_APPS = [
     'forecasting',
     'alerts',
     'reports',
+    'data_import',  # Nueva app para importación de datos
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

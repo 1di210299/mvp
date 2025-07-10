@@ -24,6 +24,7 @@ urlpatterns = [
     path('api/forecasting/', include('forecasting.urls')),
     path('api/alerts/', include('alerts.urls')),
     path('api/reports/', include('reports.urls')),
+    path('api/data-import/', include('data_import.urls')),  # Nueva app para importación de datos
     
     # Dashboard
     path('api/dashboard/stats/', dashboard_stats, name='dashboard_stats'),

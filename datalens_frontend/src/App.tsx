@@ -19,6 +19,7 @@ import ForecastingPage from './pages/ForecastingPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import InventoryPage from './pages/InventoryPage';
+import DataImportPage from './pages/DataImportPage';  // Nueva página de importación
 
 // Import CRM pages
 import CustomersPage from './pages/CustomersPage';
@@ -171,6 +172,14 @@ const App: React.FC = () => {
                     <Navbar user={user} onLogout={handleLogout} />
                     <main className="app-main">
                       <SettingsPage />
+                    </main>
+                  </>
+                } />
+                <Route path="/data-import" element={
+                  <>
+                    <Navbar user={user} onLogout={handleLogout} />
+                    <main className="app-main">
+                      <DataImportPage />
                     </main>
                   </>
                 } />

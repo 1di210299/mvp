@@ -6,6 +6,7 @@ from decimal import Decimal
 from inventory.models import Product, InventoryItem, Transaction
 from authentication.models import Company
 from django.db import models
+from datalens_backend.utils import get_default_company
 
 
 def dashboard_stats(request):
@@ -13,14 +14,8 @@ def dashboard_stats(request):
     Vista mejorada para obtener estadísticas completas del dashboard
     """
     try:
-        # Buscar empresa con datos, no solo la primera
-        company = Company.objects.annotate(
-            product_count=models.Count('products')
-        ).filter(product_count__gt=0).first()
-        
-        if not company:
-            # Si no hay empresa con productos, usar la primera disponible
-            company = Company.objects.first()
+        # Usar empresa con productos peruanos reales
+        company = get_default_company()
         
         if not company:
             return JsonResponse({

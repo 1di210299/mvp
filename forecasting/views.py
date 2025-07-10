@@ -22,6 +22,7 @@ from .tasks import (
 )
 from inventory.models import Product
 from authentication.models import Company
+from datalens_backend.utils import get_default_company
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +32,8 @@ class ForecastModelViewSet(viewsets.ModelViewSet):
     serializer_class = ForecastModelSerializer
     
     def get_queryset(self):
-        # Usar la primera empresa disponible (temporal - sin autenticación)
-        company = Company.objects.first()
+        # Usar empresa con productos peruanos reales
+        company = get_default_company()
         if not company:
             return ForecastModel.objects.none()
             
@@ -57,7 +58,7 @@ class ForecastModelViewSet(viewsets.ModelViewSet):
         """Entrena modelos de ML"""
         serializer = TrainModelRequestSerializer(data=request.data)
         if serializer.is_valid():
-            company = Company.objects.first()
+            company = get_default_company()
             if not company:
                 return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -87,7 +88,7 @@ class ForecastModelViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def comparison(self, request):
         """Compara modelos de diferentes algoritmos"""
-        company = Company.objects.first()
+        company = get_default_company()
         if not company:
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -120,9 +121,10 @@ class ForecastModelViewSet(viewsets.ModelViewSet):
 class DemandForecastViewSet(viewsets.ModelViewSet):
     """ViewSet para pronósticos de demanda"""
     serializer_class = DemandForecastSerializer
+    pagination_class = None  # Desactivar paginación para mostrar todos los productos
     
     def get_queryset(self):
-        company = Company.objects.first()
+        company = get_default_company()
         if not company:
             return DemandForecast.objects.none()
             
@@ -141,7 +143,9 @@ class DemandForecastViewSet(viewsets.ModelViewSet):
             future_date = datetime.now().date() + timedelta(days=int(days_ahead))
             queryset = queryset.filter(forecast_date__lte=future_date)
             
-        return queryset.order_by('-created_at', 'forecast_date')
+        # Ordenamiento que prioriza productos peruanos principales
+        # Primero por nombre del producto para agrupar, luego por fecha
+        return queryset.order_by('product__name', 'forecast_date')
 
 
 class ReorderRecommendationViewSet(viewsets.ModelViewSet):
@@ -149,7 +153,7 @@ class ReorderRecommendationViewSet(viewsets.ModelViewSet):
     serializer_class = ReorderRecommendationSerializer
     
     def get_queryset(self):
-        company = Company.objects.first()
+        company = get_default_company()
         if not company:
             return ReorderRecommendation.objects.none()
             
@@ -176,7 +180,7 @@ class PredictDemandView(APIView):
     def post(self, request):
         serializer = PredictDemandRequestSerializer(data=request.data)
         if serializer.is_valid():
-            company = Company.objects.first()
+            company = get_default_company()
             if not company:
                 return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -235,7 +239,7 @@ class TrainModelView(APIView):
     def post(self, request):
         serializer = TrainModelRequestSerializer(data=request.data)
         if serializer.is_valid():
-            company = Company.objects.first()
+            company = get_default_company()
             if not company:
                 return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -293,7 +297,7 @@ class ModelAccuracyView(APIView):
     """Vista para obtener métricas de precisión de un modelo"""
     
     def get(self, request, model_id):
-        company = Company.objects.first()
+        company = get_default_company()
         if not company:
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -339,7 +343,7 @@ class ProductForecastView(APIView):
     """Vista para obtener pronósticos completos de un producto"""
     
     def get(self, request, product_id):
-        company = Company.objects.first()
+        company = get_default_company()
         if not company:
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -390,7 +394,7 @@ class GenerateRecommendationsView(APIView):
     """Vista para generar recomendaciones de reorden"""
     
     def post(self, request):
-        company = Company.objects.first()
+        company = get_default_company()
         if not company:
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
             

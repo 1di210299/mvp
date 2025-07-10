@@ -1077,3 +1077,39 @@ export const Monitor: React.FC<IconProps> = ({ className = '', size = 20, color 
     <line x1="12" y1="17" x2="12" y2="21" />
   </svg>
 );
+
+export const Menu: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #374151)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg menu-icon ${className}`}
+  >
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="3" y1="18" x2="21" y2="18" />
+  </svg>
+);
+
+export const Upload: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #374151)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg upload-icon ${className}`}
+  >
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17,8 12,3 7,8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+);

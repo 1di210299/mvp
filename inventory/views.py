@@ -9,6 +9,7 @@ from django.db import transaction
 from django.utils import timezone
 from datetime import datetime, timedelta
 from drf_spectacular.utils import extend_schema
+from datalens_backend.utils import get_default_company, get_company_for_user
 from .models import (
     Category, Supplier, Location, Product, InventoryItem, Transaction,
     Customer, Lead, Opportunity, OpportunityProduct, Contact, Activity
@@ -34,10 +35,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return Category.objects.all()  # Devolver todas las categorías para desarrollo
     
     def perform_create(self, serializer):
-        # serializer.save(company=self.request.user.company)  # Temporalmente desactivado
-        # Por ahora guardar con la primera empresa disponible
-        from authentication.models import Company
-        company = Company.objects.first()
+        # TEMPORAL: Por ahora guardar con la empresa de productos peruanos reales
+        company = get_default_company()
         if company:
             serializer.save(company=company)
 
@@ -160,8 +159,8 @@ class TransactionViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # TEMPORAL: Sin asignación automática de empresa y usuario para desarrollo
-        from authentication.models import Company, User
-        company = Company.objects.first()
+        company = get_default_company()
+        from authentication.models import User
         user = User.objects.first()
         if company and user:
             serializer.save(company=company, user=user)

@@ -51,6 +51,7 @@ import {
 } from '../components/ui/icons';
 import { inventoryService } from '../services/api';
 import { Product, Category, ApiResponse } from '../types';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ProductsPageState {
   products: Product[];
@@ -80,6 +81,8 @@ interface ProductsPageState {
 
 const ProductsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { actualTheme } = useTheme();
+  const isDarkMode = actualTheme === 'dark';
   const [state, setState] = useState<ProductsPageState>({
     products: [],
     categories: [],
@@ -466,26 +469,26 @@ const ProductsPage: React.FC = () => {
 
   if (state.loading && state.products.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] bg-slate-50">
+      <div className={`flex items-center justify-center min-h-[400px] ${isDarkMode ? 'bg-gray-900' : 'bg-slate-50'}`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-slate-600 font-medium">Cargando productos...</p>
+          <p className={`font-medium ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>Cargando productos...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-slate-50'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
         {/* ENCABEZADO CON ACCIONES DESTACADAS */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-8">
+        <div className={`rounded-xl shadow-sm border mb-8 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
           <div className="flex items-center justify-between p-6">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">Gestión de Productos</h1>
-              <p className="text-slate-600">
-                <span className="font-semibold text-slate-900">{state.products.length}</span> productos registrados
+              <h1 className={`text-3xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>Gestión de Productos</h1>
+              <p className={isDarkMode ? 'text-gray-300' : 'text-slate-600'}>
+                <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{state.products.length}</span> productos registrados
                 {state.notification && (
                   <span className="ml-3 text-sm text-emerald-600 font-medium">
                     ✓ {state.notification}
@@ -499,7 +502,7 @@ const ProductsPage: React.FC = () => {
                 variant="outline" 
                 onClick={handleRefresh}
                 disabled={state.loading}
-                className="flex items-center gap-2 px-4 py-2 border-slate-300 text-slate-700 hover:bg-slate-50"
+                className={`flex items-center gap-2 px-4 py-2 border ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
               >
                 <RefreshCw className={`h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} />
                 Actualizar
@@ -508,7 +511,7 @@ const ProductsPage: React.FC = () => {
               <Button 
                 variant="outline" 
                 onClick={() => setState(prev => ({ ...prev, isUploadDialogOpen: true }))}
-                className="flex items-center gap-2 px-4 py-2 border-slate-300 text-slate-700 hover:bg-slate-50"
+                className={`flex items-center gap-2 px-4 py-2 border ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
               >
                 <FolderOpen className="h-4 w-4" />
                 Subir CSV
@@ -527,7 +530,7 @@ const ProductsPage: React.FC = () => {
 
         {/* MÉTRICAS EN GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card className="bg-white border border-slate-200 hover:shadow-lg transition-all duration-200">
+          <Card className={`border hover:shadow-lg transition-all duration-200 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -536,17 +539,17 @@ const ProductsPage: React.FC = () => {
                       <Package className="h-6 w-6 text-indigo-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Total Productos</p>
-                      <p className="text-3xl font-bold text-slate-900">{state.products.length}</p>
+                      <p className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>Total Productos</p>
+                      <p className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{state.products.length}</p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500">productos únicos registrados</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>productos únicos registrados</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-white border border-slate-200 hover:shadow-lg transition-all duration-200">
+          <Card className={`border hover:shadow-lg transition-all duration-200 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -555,19 +558,19 @@ const ProductsPage: React.FC = () => {
                       <AlertTriangle className="h-6 w-6 text-red-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Stock Crítico</p>
+                      <p className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>Stock Crítico</p>
                       <p className="text-3xl font-bold text-red-600">
                         {state.products.filter(p => getStockStatus(p).severity === 'critical' || getStockStatus(p).severity === 'warning').length}
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500">productos requieren atención</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>productos requieren atención</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-50 border border-slate-200 hover:shadow-lg transition-all duration-200">
+          <Card className={`border hover:shadow-lg transition-all duration-200 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-slate-50 border-slate-200'}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -576,19 +579,19 @@ const ProductsPage: React.FC = () => {
                       <TrendingUp className="h-6 w-6 text-emerald-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Productos Activos</p>
+                      <p className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>Productos Activos</p>
                       <p className="text-3xl font-bold text-emerald-600">
                         {state.products.filter(p => p.is_active).length}
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500">disponibles para venta</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>disponibles para venta</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-slate-50 border border-slate-200 hover:shadow-lg transition-all duration-200">
+          <Card className={`border hover:shadow-lg transition-all duration-200 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-slate-50 border-slate-200'}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -597,7 +600,7 @@ const ProductsPage: React.FC = () => {
                       <DollarSign className="h-6 w-6 text-purple-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-600 uppercase tracking-wider">Precio Promedio</p>
+                      <p className={`text-sm font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-slate-600'}`}>Precio Promedio</p>
                       <p className="text-3xl font-bold text-purple-600">
                         S/ {(state.products.reduce((sum, p) => {
                           const price = parseFloat(p.sale_price as string) || parseFloat(p.cost_price as string) || 0;
@@ -606,7 +609,7 @@ const ProductsPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500">valor unitario promedio</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>valor unitario promedio</p>
                 </div>
               </div>
             </CardContent>
@@ -616,25 +619,31 @@ const ProductsPage: React.FC = () => {
         {/* SECCIÓN DE FILTROS PROFESIONAL */}
         <div className="space-y-4 mb-8">
           {/* Barra principal de búsqueda y acciones */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className={`rounded-xl shadow-sm border p-4 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
             <div className="flex flex-col lg:flex-row gap-4">
               {/* Búsqueda */}
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                  <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-400'}`} />
                   <input
                     type="text"
                     placeholder="Buscar productos..."
                     value={state.searchTerm}
                     onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm"
+                    className={`w-full pl-12 pr-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-sm ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:bg-gray-600' 
+                        : 'bg-gray-50 border-gray-200 focus:bg-white'
+                    }`}
                   />
                   {state.searchTerm && (
                     <button
                       onClick={() => setState(prev => ({ ...prev, searchTerm: '' }))}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded-lg transition-colors ${
+                        isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-100'
+                      }`}
                     >
-                      <X className="h-4 w-4 text-gray-500" />
+                      <X className={`h-4 w-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                     </button>
                   )}
                 </div>
@@ -649,7 +658,9 @@ const ProductsPage: React.FC = () => {
                     flex items-center gap-2 px-4 py-3 rounded-xl border transition-all text-sm font-medium
                     ${state.showAdvancedFilters 
                       ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
-                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}
+                      : isDarkMode 
+                        ? 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}
                   `}
                 >
                   <Settings className="h-4 w-4" />
@@ -664,7 +675,11 @@ const ProductsPage: React.FC = () => {
                 {/* Exportar */}
                 <button 
                   onClick={handleExportData}
-                  className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium"
+                  className={`flex items-center gap-2 px-4 py-3 border rounded-xl transition-colors text-sm font-medium ${
+                    isDarkMode 
+                      ? 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
                 >
                   <Download className="h-4 w-4" />
                   <span className="hidden sm:inline">Exportar</span>
@@ -685,11 +700,11 @@ const ProductsPage: React.FC = () => {
 
           {/* Panel de filtros avanzados */}
           {state.showAdvancedFilters && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 animate-in slide-in-from-top-2">
+            <div className={`rounded-xl shadow-sm border p-6 animate-in slide-in-from-top-2 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Categorías */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Categorías</h3>
+                  <h3 className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Categorías</h3>
                   <div className="space-y-2">
                     <button
                       onClick={() => setState(prev => ({ ...prev, selectedCategory: 'all' }))}
@@ -697,13 +712,15 @@ const ProductsPage: React.FC = () => {
                         w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all
                         ${state.selectedCategory === 'all' 
                           ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                          : 'hover:bg-gray-50 text-gray-700'}
+                          : isDarkMode 
+                            ? 'hover:bg-gray-700 text-gray-300'
+                            : 'hover:bg-gray-50 text-gray-700'}
                       `}
                     >
                       <span>Todas las categorías</span>
                       <span className={`
                         px-2 py-0.5 rounded-full text-xs
-                        ${state.selectedCategory === 'all' ? 'bg-indigo-200' : 'bg-gray-100'}
+                        ${state.selectedCategory === 'all' ? 'bg-indigo-200' : isDarkMode ? 'bg-gray-600' : 'bg-gray-100'}
                       `}>
                         {state.products.length}
                       </span>
@@ -716,13 +733,15 @@ const ProductsPage: React.FC = () => {
                           w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all
                           ${state.selectedCategory === cat.id.toString() 
                             ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                            : 'hover:bg-gray-50 text-gray-700'}
+                            : isDarkMode 
+                              ? 'hover:bg-gray-700 text-gray-300'
+                              : 'hover:bg-gray-50 text-gray-700'}
                         `}
                       >
                         <span>{cat.name}</span>
                         <span className={`
                           px-2 py-0.5 rounded-full text-xs
-                          ${state.selectedCategory === cat.id.toString() ? 'bg-indigo-200' : 'bg-gray-100'}
+                          ${state.selectedCategory === cat.id.toString() ? 'bg-indigo-200' : isDarkMode ? 'bg-gray-600' : 'bg-gray-100'}
                         `}>
                           {state.products.filter(p => p.category === cat.id).length}
                         </span>
@@ -733,7 +752,7 @@ const ProductsPage: React.FC = () => {
 
                 {/* Columnas visibles */}
                 <div className="md:col-span-2">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Columnas visibles</h3>
+                  <h3 className={`text-sm font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Columnas visibles</h3>
                   <div className="grid grid-cols-2 gap-2">
                     {columnConfig.map(col => (
                       <button
@@ -742,8 +761,12 @@ const ProductsPage: React.FC = () => {
                         className={`
                           flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all
                           ${state.visibleColumns[col.key as keyof typeof state.visibleColumns] 
-                            ? 'bg-gray-50 text-gray-900 border border-gray-200' 
-                            : 'bg-gray-100 text-gray-400 border border-transparent'}
+                            ? isDarkMode 
+                              ? 'bg-gray-700 text-white border border-gray-600' 
+                              : 'bg-gray-50 text-gray-900 border border-gray-200'
+                            : isDarkMode 
+                              ? 'bg-gray-800 text-gray-400 border border-transparent'
+                              : 'bg-gray-100 text-gray-400 border border-transparent'}
                         `}
                       >
                         <span className="text-base">{col.icon}</span>
@@ -768,7 +791,7 @@ const ProductsPage: React.FC = () => {
                         selectedCategory: 'all'
                       }));
                     }}
-                    className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+                    className={`text-sm font-medium ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
                   >
                     Limpiar todos los filtros
                   </button>
@@ -780,19 +803,19 @@ const ProductsPage: React.FC = () => {
           {/* Resumen de resultados */}
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-4">
-              <span className="text-gray-600">
-                Mostrando <span className="font-semibold text-gray-900">{sortedProducts.length} productos</span>
+              <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                Mostrando <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{sortedProducts.length} productos</span>
               </span>
               
               {/* Chips de filtros activos */}
               {activeFiltersCount > 0 && (
                 <div className="flex items-center gap-2">
                   {state.searchTerm && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
                       Búsqueda: "{state.searchTerm}"
                       <button
                         onClick={() => setState(prev => ({ ...prev, searchTerm: '' }))}
-                        className="ml-1 hover:text-gray-900"
+                        className={`ml-1 ${isDarkMode ? 'hover:text-white' : 'hover:text-gray-900'}`}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -800,11 +823,11 @@ const ProductsPage: React.FC = () => {
                   )}
                   
                   {state.selectedCategory !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
                       {state.categories.find(c => c.id.toString() === state.selectedCategory)?.name}
                       <button
                         onClick={() => setState(prev => ({ ...prev, selectedCategory: 'all' }))}
-                        className="ml-1 hover:text-gray-900"
+                        className={`ml-1 ${isDarkMode ? 'hover:text-white' : 'hover:text-gray-900'}`}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -817,7 +840,7 @@ const ProductsPage: React.FC = () => {
             {/* Acciones masivas */}
             {state.selectedProducts.length > 0 && (
               <div className="flex items-center gap-2">
-                <span className="text-gray-600 mr-2">
+                <span className={`mr-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                   {state.selectedProducts.length} seleccionados
                 </span>
                 <Button 
@@ -852,12 +875,12 @@ const ProductsPage: React.FC = () => {
         )}
 
         {/* TABLA DE PRODUCTOS */}
-        <Card className="bg-white border border-slate-200 shadow-sm">
+        <Card className={`border shadow-sm ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-b-2 border-slate-200 bg-slate-50">
+                  <TableRow className={`border-b-2 ${isDarkMode ? 'border-gray-600 bg-gray-700' : 'border-slate-200 bg-slate-50'}`}>
                     <TableHead className="w-12 pl-6 py-4">
                       <input
                         type="checkbox"
@@ -867,28 +890,28 @@ const ProductsPage: React.FC = () => {
                       />
                     </TableHead>
                     
-                    <TableHead className="text-slate-700 font-bold text-sm py-4 min-w-[350px]">
+                    <TableHead className={`font-bold text-sm py-4 min-w-[350px] ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                       Producto
                     </TableHead>
                     
                     {state.visibleColumns.sku && (
-                      <TableHead className="text-slate-700 font-bold text-sm py-4 min-w-[120px]">SKU</TableHead>
+                      <TableHead className={`font-bold text-sm py-4 min-w-[120px] ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>SKU</TableHead>
                     )}
                     
                     {state.visibleColumns.category && (
-                      <TableHead className="text-slate-700 font-bold text-sm py-4 min-w-[140px]">Categoría</TableHead>
+                      <TableHead className={`font-bold text-sm py-4 min-w-[140px] ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>Categoría</TableHead>
                     )}
                     
                     {state.visibleColumns.price && (
-                      <TableHead className="text-slate-700 font-bold text-sm py-4 text-right min-w-[120px]">Precio</TableHead>
+                      <TableHead className={`font-bold text-sm py-4 text-right min-w-[120px] ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>Precio</TableHead>
                     )}
                     
                     {state.visibleColumns.stock && (
-                      <TableHead className="text-slate-700 font-bold text-sm py-4 min-w-[180px]">Stock & Estado</TableHead>
+                      <TableHead className={`font-bold text-sm py-4 min-w-[180px] ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>Stock & Estado</TableHead>
                     )}
                     
                     {state.visibleColumns.actions && (
-                      <TableHead className="text-slate-700 font-bold text-sm py-4 w-32 pr-6">Acciones</TableHead>
+                      <TableHead className={`font-bold text-sm py-4 w-32 pr-6 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>Acciones</TableHead>
                     )}
                   </TableRow>
                 </TableHeader>
@@ -903,8 +926,13 @@ const ProductsPage: React.FC = () => {
                       <TableRow 
                         key={product.id} 
                         className={`
-                          border-b border-slate-100 hover:bg-indigo-25 transition-colors duration-150
-                          ${isSelected ? 'bg-indigo-50 border-indigo-200' : (isEven ? 'bg-white' : 'bg-slate-25')}
+                          border-b transition-colors duration-150
+                          ${isSelected 
+                            ? 'bg-indigo-50 border-indigo-200' 
+                            : isDarkMode 
+                              ? (isEven ? 'bg-gray-800 border-gray-700 hover:bg-gray-750' : 'bg-gray-750 border-gray-700 hover:bg-gray-700')
+                              : (isEven ? 'bg-white border-slate-100 hover:bg-indigo-25' : 'bg-slate-25 border-slate-100 hover:bg-indigo-25')
+                          }
                         `}
                       >
                         <TableCell className="pl-6 py-3">
@@ -918,11 +946,11 @@ const ProductsPage: React.FC = () => {
                         
                         <TableCell className="py-3">
                           <div className="max-w-[320px]">
-                            <div className="font-semibold text-slate-900 text-base leading-tight mb-1">
+                            <div className={`font-semibold text-base leading-tight mb-1 ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                               {product.name}
                             </div>
                             {product.description && (
-                              <div className="text-sm text-slate-500 leading-relaxed">
+                              <div className={`text-sm leading-relaxed ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
                                 {truncateDescription(product.description, 90)}
                                 {product.description.length > 90 && (
                                   <button 
@@ -939,7 +967,7 @@ const ProductsPage: React.FC = () => {
                         
                         {state.visibleColumns.sku && (
                           <TableCell className="py-3">
-                            <span className="font-mono text-sm bg-slate-100 text-slate-700 px-3 py-1.5 rounded-md border">
+                            <span className={`font-mono text-sm px-3 py-1.5 rounded-md border ${isDarkMode ? 'bg-gray-700 text-gray-300 border-gray-600' : 'bg-slate-100 text-slate-700 border-slate-300'}`}>
                               {product.sku}
                             </span>
                           </TableCell>
@@ -955,10 +983,10 @@ const ProductsPage: React.FC = () => {
                         
                         {state.visibleColumns.price && (
                           <TableCell className="py-3 text-right">
-                            <div className="font-bold text-slate-900 text-lg">
+                            <div className={`font-bold text-lg ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
                               S/ {(parseFloat(product.sale_price as string) || parseFloat(product.cost_price as string) || 0).toFixed(2)}
                             </div>
-                            <div className="text-xs text-slate-500 font-medium">por unidad</div>
+                            <div className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>por unidad</div>
                           </TableCell>
                         )}
                         
@@ -976,7 +1004,7 @@ const ProductsPage: React.FC = () => {
                                 >
                                   {stockStatus.status}
                                 </span>
-                                <span className="text-sm text-slate-600 font-mono font-semibold">
+                                <span className={`text-sm font-mono font-semibold ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
                                   {(product.current_stock || 0).toFixed(1)}
                                 </span>
                               </div>
@@ -999,14 +1027,14 @@ const ProductsPage: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => openEditDialog(product)}
-                                className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-150"
+                                className={`p-2.5 rounded-lg transition-all duration-150 ${isDarkMode ? 'text-gray-400 hover:text-indigo-400 hover:bg-gray-700' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
                                 title="Editar producto"
                               >
                                 <Edit className="h-4 w-4" />
                               </button>
                               <button
                                 onClick={() => handleDeleteProduct(product.id)}
-                                className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-150"
+                                className={`p-2.5 rounded-lg transition-all duration-150 ${isDarkMode ? 'text-gray-400 hover:text-red-400 hover:bg-gray-700' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
                                 title="Eliminar producto"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1022,11 +1050,11 @@ const ProductsPage: React.FC = () => {
               
               {sortedProducts.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-24 text-center">
-                  <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
-                    <Package className="h-10 w-10 text-slate-400" />
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 ${isDarkMode ? 'bg-gray-700' : 'bg-slate-100'}`}>
+                    <Package className={`h-10 w-10 ${isDarkMode ? 'text-gray-400' : 'text-slate-400'}`} />
                   </div>
-                  <h3 className="text-xl font-semibold text-slate-600 mb-3">No se encontraron productos</h3>
-                  <p className="text-slate-500 text-base max-w-md">
+                  <h3 className={`text-xl font-semibold mb-3 ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>No se encontraron productos</h3>
+                  <p className={`text-base max-w-md ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
                     {state.searchTerm ? 'Intenta ajustar los filtros de búsqueda' : 'Comienza creando tu primer producto'}
                   </p>
                   {!state.searchTerm && (
@@ -1061,11 +1089,13 @@ const ProductsPage: React.FC = () => {
 
         {/* Product Dialog */}
         <Dialog open={state.isDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isDialogOpen: open, error: null }))}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className={`max-w-4xl max-h-[90vh] overflow-y-auto ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`}>
             <div className="pb-6">
               <DialogHeader>
                 <DialogTitle>
-                  {state.selectedProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}
+                  <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>
+                    {state.selectedProduct ? 'Editar Producto' : 'Crear Nuevo Producto'}
+                  </span>
                 </DialogTitle>
               </DialogHeader>
             </div>
@@ -1080,7 +1110,7 @@ const ProductsPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                     Nombre del Producto *
                   </label>
                   <Input
@@ -1091,12 +1121,12 @@ const ProductsPage: React.FC = () => {
                       error: null
                     }))}
                     placeholder="Ingresa el nombre del producto"
-                    className={`h-12 ${!state.formData.name?.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-300 focus:border-indigo-400'}`}
+                    className={`h-12 ${!state.formData.name?.trim() ? 'border-red-300 focus:border-red-400' : isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                     SKU / Código *
                   </label>
                   <Input
@@ -1107,12 +1137,12 @@ const ProductsPage: React.FC = () => {
                       error: null
                     }))}
                     placeholder="Código único del producto"
-                    className={`h-12 ${!state.formData.sku?.trim() ? 'border-red-300 focus:border-red-400' : 'border-slate-300 focus:border-indigo-400'}`}
+                    className={`h-12 ${!state.formData.sku?.trim() ? 'border-red-300 focus:border-red-400' : isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                     Descripción
                   </label>
                   <textarea
@@ -1123,12 +1153,12 @@ const ProductsPage: React.FC = () => {
                     }))}
                     placeholder="Descripción detallada del producto"
                     rows={4}
-                    className="w-full p-3 border border-slate-300 rounded-lg focus:border-indigo-400 focus:ring-indigo-400 resize-none"
+                    className={`w-full p-3 border rounded-lg focus:ring-indigo-400 resize-none ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white placeholder-gray-400' : 'border-slate-300 focus:border-indigo-400'}`}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                     Unidad de Medida
                   </label>
                   <Input
@@ -1138,18 +1168,18 @@ const ProductsPage: React.FC = () => {
                       formData: { ...prev.formData, unit: e.target.value }
                     }))}
                     placeholder="ej: unidad, kg, litro, caja"
-                    className="h-12 border-slate-300 focus:border-indigo-400"
+                    className={`h-12 ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
                   />
                 </div>
               </div>
               
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                     Precio de Venta
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 font-medium">S/</span>
+                    <span className={`absolute left-3 top-1/2 transform -translate-y-1/2 font-medium ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>S/</span>
                     <Input
                       type="number"
                       step="0.01"
@@ -1160,17 +1190,17 @@ const ProductsPage: React.FC = () => {
                         formData: { ...prev.formData, unit_price: parseFloat(e.target.value) || 0 }
                       }))}
                       placeholder="0.00"
-                      className="h-12 pl-12 border-slate-300 focus:border-indigo-400"
+                      className={`h-12 pl-12 ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
                     />
                   </div>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                     Precio de Costo
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500 font-medium">S/</span>
+                    <span className={`absolute left-3 top-1/2 transform -translate-y-1/2 font-medium ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>S/</span>
                     <Input
                       type="number"
                       step="0.01"
@@ -1181,14 +1211,14 @@ const ProductsPage: React.FC = () => {
                         formData: { ...prev.formData, cost_price: parseFloat(e.target.value) || 0 }
                       }))}
                       placeholder="0.00"
-                      className="h-12 pl-12 border-slate-300 focus:border-indigo-400"
+                      className={`h-12 pl-12 ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
                     />
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                       Stock Mínimo
                     </label>
                     <Input
@@ -1200,12 +1230,12 @@ const ProductsPage: React.FC = () => {
                         formData: { ...prev.formData, min_stock: parseInt(e.target.value) || 0 }
                       }))}
                       placeholder="0"
-                      className="h-12 border-slate-300 focus:border-indigo-400"
+                      className={`h-12 ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                       Stock Máximo
                     </label>
                     <Input
@@ -1217,12 +1247,12 @@ const ProductsPage: React.FC = () => {
                         formData: { ...prev.formData, max_stock: parseInt(e.target.value) || 0 }
                       }))}
                       placeholder="0"
-                      className="h-12 border-slate-300 focus:border-indigo-400"
+                      className={`h-12 ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
                     />
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg">
+                <div className={`flex items-center gap-3 p-4 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-slate-50'}`}>
                   <input
                     type="checkbox"
                     id="is_active"
@@ -1233,18 +1263,18 @@ const ProductsPage: React.FC = () => {
                     }))}
                     className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
                   />
-                  <label htmlFor="is_active" className="text-sm font-semibold text-slate-700">
+                  <label htmlFor="is_active" className={`text-sm font-semibold ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
                     Producto activo (disponible para venta)
                   </label>
                 </div>
               </div>
             </div>
             
-            <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-200">
+            <div className={`flex justify-end gap-4 mt-8 pt-6 border-t ${isDarkMode ? 'border-gray-600' : 'border-slate-200'}`}>
               <Button 
                 variant="outline" 
                 onClick={() => setState(prev => ({ ...prev, isDialogOpen: false, error: null }))}
-                className="px-6 py-2.5 border-slate-300 text-slate-700 hover:bg-slate-50"
+                className={`px-6 py-2.5 ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
               >
                 Cancelar
               </Button>
@@ -1265,18 +1295,20 @@ const ProductsPage: React.FC = () => {
 
         {/* CSV Upload Dialog */}
         <Dialog open={state.isUploadDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isUploadDialogOpen: open }))}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className={`max-w-3xl ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`}>
             <div className="pb-6">
               <DialogHeader>
                 <DialogTitle>
-                  Importar Productos desde CSV/Excel
+                  <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>
+                    Importar Productos desde CSV/Excel
+                  </span>
                 </DialogTitle>
               </DialogHeader>
             </div>
             
             <div className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                <h3 className="font-semibold text-blue-900 mb-3">Formato requerido del archivo:</h3>
+              <div className={`border rounded-xl p-6 ${isDarkMode ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'}`}>
+                <h3 className={`font-semibold mb-3 ${isDarkMode ? 'text-blue-300' : 'text-blue-900'}`}>Formato requerido del archivo:</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <ul className="space-y-2">
                     <li className="flex items-center gap-2">
@@ -1334,11 +1366,11 @@ const ProductsPage: React.FC = () => {
               />
             </div>
             
-            <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-200">
+            <div className={`flex justify-end gap-4 mt-8 pt-6 border-t ${isDarkMode ? 'border-gray-600' : 'border-slate-200'}`}>
               <Button 
                 variant="outline" 
                 onClick={() => setState(prev => ({ ...prev, isUploadDialogOpen: false }))}
-                className="px-6 py-2.5 border-slate-300 text-slate-700 hover:bg-slate-50"
+                className={`px-6 py-2.5 ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
               >
                 Cerrar
               </Button>

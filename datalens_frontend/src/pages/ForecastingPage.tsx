@@ -83,6 +83,10 @@ const ForecastingPage: React.FC = () => {
     isGenerating: false
   });
 
+  // Estado para recomendaciones que incluyen stock actual
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+
   const fetchForecasts = async () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
@@ -115,6 +119,26 @@ const ForecastingPage: React.FC = () => {
     }
   };
 
+  const fetchRecommendations = async () => {
+    try {
+      setLoadingRecommendations(true);
+      console.log('Fetching recommendations from backend...');
+      
+      const response = await forecastingService.getReorderRecommendations();
+      console.log('Recommendations response:', response);
+      
+      const recommendationsData = response.results || response || [];
+      console.log('Processed recommendations data:', recommendationsData);
+      
+      setRecommendations(recommendationsData);
+    } catch (err: any) {
+      console.error('Error fetching recommendations:', err);
+      setRecommendations([]);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
+
   const generateNewForecasts = async () => {
     try {
       setState(prev => ({ ...prev, isGenerating: true, error: null }));
@@ -142,6 +166,43 @@ const ForecastingPage: React.FC = () => {
     return matchesProduct && matchesWarehouse;
   });
 
+  // Agrupar pronósticos por producto para evitar repeticiones
+  const groupedForecasts = React.useMemo(() => {
+    const grouped = new Map();
+    
+    filteredForecasts.forEach(forecast => {
+      const productKey = forecast.product;
+      
+      if (!grouped.has(productKey)) {
+        grouped.set(productKey, {
+          ...forecast,
+          // Agregar información de agrupación
+          forecasts_count: 1,
+          total_predicted_demand: forecast.predicted_demand
+        });
+      } else {
+        // Si ya existe, usar el pronóstico más reciente
+        const existing = grouped.get(productKey);
+        const currentDate = new Date(forecast.created_at);
+        const existingDate = new Date(existing.created_at);
+        
+        if (currentDate > existingDate) {
+          grouped.set(productKey, {
+            ...forecast,
+            forecasts_count: existing.forecasts_count + 1,
+            total_predicted_demand: existing.total_predicted_demand + forecast.predicted_demand
+          });
+        } else {
+          // Mantener el existente pero actualizar contadores
+          existing.forecasts_count += 1;
+          existing.total_predicted_demand += forecast.predicted_demand;
+        }
+      }
+    });
+    
+    return Array.from(grouped.values());
+  }, [filteredForecasts]);
+
   const getForecastAccuracy = (predicted: number, lower: number, upper: number) => {
     // Convertir a números si vienen como strings
     const numPredicted = typeof predicted === 'string' ? parseFloat(predicted) : Number(predicted);
@@ -156,7 +217,40 @@ const ForecastingPage: React.FC = () => {
   };
 
   const getRecommendation = (forecast: ForecastDataBackend) => {
-    const currentStock = Math.floor(Math.random() * 50) + 10; // Mock current stock
+    // Buscar recomendación correspondiente en las recomendaciones reales
+    const relatedRecommendation = recommendations.find(rec => 
+      rec.product === forecast.product || rec.product_name === forecast.product_name
+    );
+    
+    if (relatedRecommendation) {
+      // Usar datos reales de la recomendación
+      const currentStock = relatedRecommendation.current_stock || 0;
+      const predictedDemand = typeof forecast.predicted_demand === 'string' ? 
+        parseFloat(forecast.predicted_demand) : 
+        Number(forecast.predicted_demand);
+      
+      if (currentStock <= relatedRecommendation.recommended_quantity * 0.3) {
+        return {
+          type: 'urgent',
+          message: 'Reabastecimiento urgente',
+          variant: 'destructive' as const
+        };
+      } else if (currentStock <= relatedRecommendation.recommended_quantity * 0.6) {
+        return {
+          type: 'warning',
+          message: 'Stock bajo - reordenar pronto',
+          variant: 'warning' as const
+        };
+      } else {
+        return {
+          type: 'ok',
+          message: 'Stock suficiente',
+          variant: 'success' as const
+        };
+      }
+    }
+    
+    // Fallback si no hay recomendación específica
     const predicted = typeof forecast.predicted_demand === 'string' ? 
       parseFloat(forecast.predicted_demand) : 
       Number(forecast.predicted_demand);
@@ -169,29 +263,15 @@ const ForecastingPage: React.FC = () => {
       };
     }
     
-    if (currentStock < predicted) {
-      return {
-        type: 'reorder',
-        message: `Reabastecer ${Math.round(predicted - currentStock)} unidades`,
-        variant: 'warning' as const
-      };
-    } else if (currentStock > predicted * 2) {
-      return {
-        type: 'excess',
-        message: 'Posible exceso de inventario',
-        variant: 'secondary' as const
-      };
-    } else {
-      return {
-        type: 'optimal',
-        message: 'Nivel de stock óptimo',
-        variant: 'success' as const
-      };
-    }
+    return {
+      type: 'info',
+      message: 'Revisar recomendaciones',
+      variant: 'outline' as const
+    };
   };
 
   const getForecastStats = () => {
-    if (filteredForecasts.length === 0) {
+    if (groupedForecasts.length === 0) {
       return {
         totalPredicted: 0,
         avgConfidence: 0,
@@ -199,18 +279,18 @@ const ForecastingPage: React.FC = () => {
       };
     }
 
-    const totalPredicted = filteredForecasts.reduce((sum, f) => {
+    const totalPredicted = groupedForecasts.reduce((sum, f) => {
       const demand = f.predicted_demand;
       const numericDemand = typeof demand === 'string' ? parseFloat(demand) : Number(demand);
       const validDemand = isNaN(numericDemand) ? 0 : numericDemand;
       return sum + validDemand;
     }, 0);
     
-    const avgConfidence = filteredForecasts.reduce((sum, f) => {
+    const avgConfidence = groupedForecasts.reduce((sum, f) => {
       return sum + getForecastAccuracy(f.predicted_demand, f.lower_bound, f.upper_bound);
-    }, 0) / filteredForecasts.length;
+    }, 0) / groupedForecasts.length;
     
-    const reorderNeeded = filteredForecasts.filter(f => getRecommendation(f).type === 'reorder').length;
+    const reorderNeeded = groupedForecasts.filter(f => getRecommendation(f).type === 'reorder').length;
     
     return {
       totalPredicted: Math.round(totalPredicted),
@@ -219,9 +299,9 @@ const ForecastingPage: React.FC = () => {
     };
   };
 
-  // Obtener productos únicos para el filtro
+  // Obtener productos únicos para el filtro (ahora basado en productos agrupados)
   const uniqueProducts = Array.from(
-    new Map(state.forecasts.map(f => [f.product, { id: f.product, name: f.product_name, sku: f.product_sku }])).values()
+    new Map(groupedForecasts.map(f => [f.product, { id: f.product, name: f.product_name, sku: f.product_sku }])).values()
   );
 
   // Obtener locations únicos para el filtro
@@ -235,6 +315,10 @@ const ForecastingPage: React.FC = () => {
 
   useEffect(() => {
     fetchForecasts();
+  }, []);
+
+  useEffect(() => {
+    fetchRecommendations();
   }, []);
 
   if (state.loading) {
@@ -454,7 +538,7 @@ const ForecastingPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredForecasts.map((forecast) => {
+              {groupedForecasts.map((forecast) => {
                 const accuracy = getForecastAccuracy(
                   forecast.predicted_demand, 
                   forecast.lower_bound, 
