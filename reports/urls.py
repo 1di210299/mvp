@@ -13,10 +13,16 @@ urlpatterns = [
     # Custom endpoints
     path('generate/', views.GenerateReportView.as_view(), name='generate_report'),
     path('reports/<int:report_id>/download/', views.DownloadReportView.as_view(), name='download_report'),
+    path('mock-download/', views.MockDownloadReportView.as_view(), name='mock_download_report'),
     path('dashboard/', views.ReportsDashboardView.as_view(), name='reports_dashboard'),
     path('kpis/calculate/', views.CalculateKPIsView.as_view(), name='calculate_kpis'),
     path('export/', views.ExportDataView.as_view(), name='export_data'),
+    path('download-mock/', views.MockDownloadReportView.as_view(), name='mock-download'),
+    path('analytics/', views.AnalyticsDashboardView.as_view(), name='analytics-dashboard'),
     
+    # Agregar endpoint mock para desarrollo
+    path('reports/<int:pk>/download/', views.MockDownloadReportView.as_view(), name='mock_download_report_pk'),
+
     # ViewSets
     path('', include(router.urls)),
 ]

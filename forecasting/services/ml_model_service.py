@@ -8,7 +8,8 @@ from typing import Dict, List, Optional, Tuple, Any, Union
 import logging
 import os
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+import math
 
 from django.conf import settings
 from django.utils import timezone
@@ -307,7 +308,7 @@ class MLModelService:
             Diccionario con métricas por algoritmo
         """
         if algorithms is None:
-            algorithms = ['prophet', 'arima', 'ensemble']
+            algorithms = ['prophet', 'arima', 'ensemble', 'linear_regression', 'random_forest', 'lstm']
         
         try:
             # Crea modelo temporal para obtener datos
@@ -485,7 +486,7 @@ class MLModelService:
         return self.trainer.auto_train_best_model(
             data=training_data,
             target_column='quantity',
-            algorithms_to_try=['prophet', 'arima', 'ensemble'],
+            algorithms_to_try=['prophet', 'arima', 'ensemble', 'linear_regression', 'random_forest', 'lstm'],
             optimization_metric='mae',
             optimize_hyperparameters=optimize_hyperparameters,
             model_name=model_name
@@ -643,3 +644,52 @@ class MLModelService:
         except Exception as e:
             logger.error(f"Error entrenando modelo para producto {product.id}: {str(e)}")
             return None
+    
+    def _update_model_metrics(self, ml_model, results):
+        """Actualiza las métricas del modelo con validación completa"""
+        try:
+            # Validar y asignar MAE
+            mae = results.get('mae')
+            if mae is not None and not (math.isinf(mae) or math.isnan(mae)):
+                ml_model.mae = round(Decimal(str(mae)), 2)
+            else:
+                ml_model.mae = None
+                logger.warning(f"MAE inválido para modelo {ml_model.id}: {mae}")
+            
+            # Validar y asignar MAPE
+            mape = results.get('mape')
+            if mape is not None and not (math.isinf(mape) or math.isnan(mape)):
+                try:
+                    ml_model.mape = round(Decimal(str(mape)), 2)
+                except (InvalidOperation, ValueError):
+                    ml_model.mape = None
+                    logger.warning(f"MAPE no convertible para modelo {ml_model.id}: {mape}")
+            else:
+                ml_model.mape = None
+                if mape is not None:
+                    logger.warning(f"MAPE infinito para modelo {ml_model.id}")
+                
+            ml_model.last_trained = timezone.now()
+            ml_model.status = 'trained'
+            
+            # Validar antes de guardar
+            self._validate_model_before_save(ml_model)
+            ml_model.save()
+            
+            logger.info(f"Modelo {ml_model.id} actualizado: MAE={ml_model.mae}, MAPE={ml_model.mape}")
+            
+        except Exception as e:
+            logger.error(f"Error actualizando métricas del modelo {ml_model.id}: {str(e)}")
+            # Guardar estado mínimo
+            ml_model.last_trained = timezone.now()
+            ml_model.status = 'error'
+            ml_model.save()
+            raise
+    
+    def _validate_model_before_save(self, ml_model):
+        """Valida el modelo antes de guardarlo"""
+        if ml_model.mae is not None and ml_model.mae < 0:
+            raise ValueError(f"MAE no puede ser negativo: {ml_model.mae}")
+            
+        if ml_model.mape is not None and ml_model.mape < 0:
+            raise ValueError(f"MAPE no puede ser negativo: {ml_model.mape}")

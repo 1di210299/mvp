@@ -72,14 +72,61 @@ coverage.xml
 celerybeat-schedule
 celerybeat.pid
 
-# ML Models
+# ML Models y archivos pesados
 *.pkl
+*.joblib
 *.h5
+*.hdf5
 *.model
+*.weights
+*.pt
+*.pth
+*.onnx
+*.pb
+*.tflite
+*.mlmodel
+*.bin
 mlruns/
+models/ml_models/*.joblib
+models/ml_models/*.pkl
+models/ml_models/*.h5
+models/ml_models/*.model
+models/ml_models/*.weights
+models/ml_models/*.pb
+
+# TensorFlow y Keras
+*.ckpt
+*.ckpt.*
+checkpoint
+saved_model/
+*.savedmodel
+
+# Datos grandes y temporales
+*.csv.gz
+*.parquet
+*.feather
+*.arrow
+data/raw/
+data/processed/
+data/temp/
+*.dump
+*.sql.gz
+
+# Plots y visualizaciones grandes
+media/ml_plots/*.png
+media/ml_plots/*.jpg
+media/ml_plots/*.pdf
+media/ml_plots/*.svg
+
+# MLflow y experimentación
+mlruns/
+.mlflow/
+experiments/outputs/
+experiments/logs/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.ipynb
 
 # Virtual environments
 .env
@@ -98,3 +145,12 @@ yarn-error.log*
 
 # Docker
 .dockerignore
+
+# Redis dump
+dump.rdb
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup

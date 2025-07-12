@@ -37,7 +37,8 @@ import {
   Package,
   TrendingUp,
   AlertTriangle,
-  Calendar
+  Calendar,
+  ArrowRight
 } from '../components/ui/icons';
 import { Transaction } from '../types';
 import { inventoryService } from '../services/api';
@@ -55,6 +56,13 @@ interface TransactionsPageState {
   filterDateTo: string;
   isDialogOpen: boolean;
   formData: Partial<Transaction>;
+  // Nuevos campos para paginación
+  currentPage: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
 }
 
 const TransactionsPage: React.FC = () => {
@@ -70,16 +78,40 @@ const TransactionsPage: React.FC = () => {
     filterDateFrom: '',
     filterDateTo: '',
     isDialogOpen: false,
-    formData: {}
+    formData: {},
+    // Inicializar paginación
+    currentPage: 1,
+    pageSize: 20,
+    totalCount: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false
   });
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (page: number = 1, pageSize: number = 20) => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
-      const response = await inventoryService.getTransactions();
+      
+      // Llamar al API con parámetros de paginación
+      const response = await fetch(`http://localhost:8080/api/inventory/transactions/?page=${page}&page_size=${pageSize}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) throw new Error('Error al cargar transacciones');
+      
+      const data = await response.json();
+      
       setState(prev => ({ 
         ...prev, 
-        transactions: response.results || response,
+        transactions: data.results || [],
+        totalCount: data.count || 0,
+        currentPage: data.pagination?.page || page,
+        totalPages: data.pagination?.total_pages || 0,
+        hasNext: data.pagination?.has_next || false,
+        hasPrevious: data.pagination?.has_previous || false,
         loading: false 
       }));
     } catch (err) {
@@ -90,6 +122,23 @@ const TransactionsPage: React.FC = () => {
         loading: false 
       }));
     }
+  };
+
+  // Funciones de navegación de páginas
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= state.totalPages) {
+      fetchTransactions(page, state.pageSize);
+    }
+  };
+
+  const goToFirstPage = () => goToPage(1);
+  const goToLastPage = () => goToPage(state.totalPages);
+  const goToNextPage = () => goToPage(state.currentPage + 1);
+  const goToPreviousPage = () => goToPage(state.currentPage - 1);
+
+  const changePageSize = (newPageSize: number) => {
+    setState(prev => ({ ...prev, pageSize: newPageSize }));
+    fetchTransactions(1, newPageSize);
   };
 
   const fetchProducts = async () => {
@@ -247,7 +296,7 @@ const TransactionsPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Actualizar con datos reales */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
@@ -255,7 +304,7 @@ const TransactionsPage: React.FC = () => {
               <ArrowUpDown className="h-8 w-8 text-blue-600" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Transacciones</p>
-                <p className="text-2xl font-bold text-gray-900">{totalTransactions}</p>
+                <p className="text-2xl font-bold text-gray-900">{state.totalCount}</p>
               </div>
             </div>
           </CardContent>
@@ -267,7 +316,9 @@ const TransactionsPage: React.FC = () => {
               <ArrowUp className="h-8 w-8 text-green-600" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Entradas</p>
-                <p className="text-2xl font-bold text-gray-900">{inTransactions}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {state.transactions.filter(t => ['PURCHASE', 'purchase', 'adjustment'].includes(t.transaction_type) && Number(t.quantity) > 0).length}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -279,7 +330,9 @@ const TransactionsPage: React.FC = () => {
               <ArrowDown className="h-8 w-8 text-red-600" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Salidas</p>
-                <p className="text-2xl font-bold text-gray-900">{outTransactions}</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {state.transactions.filter(t => ['SALE', 'sale'].includes(t.transaction_type) || Number(t.quantity) < 0).length}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -290,8 +343,8 @@ const TransactionsPage: React.FC = () => {
             <div className="flex items-center">
               <Calendar className="h-8 w-8 text-orange-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Hoy</p>
-                <p className="text-2xl font-bold text-gray-900">{todayTransactions}</p>
+                <p className="text-sm font-medium text-gray-600">En esta página</p>
+                <p className="text-2xl font-bold text-gray-900">{state.transactions.length}</p>
               </div>
             </div>
           </CardContent>
@@ -368,8 +421,27 @@ const TransactionsPage: React.FC = () => {
 
       {/* Transactions Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Lista de Transacciones ({filteredTransactions.length})</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>
+            Lista de Transacciones 
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              (Mostrando {((state.currentPage - 1) * state.pageSize) + 1}-{Math.min(state.currentPage * state.pageSize, state.totalCount)} de {state.totalCount})
+            </span>
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Mostrar:</span>
+            <Select value={state.pageSize.toString()} onValueChange={(value) => changePageSize(parseInt(value))}>
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -386,10 +458,10 @@ const TransactionsPage: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTransactions.map((transaction) => (
+              {state.transactions.map((transaction: any) => (
                 <TableRow key={transaction.id}>
                   <TableCell>
-                    {new Date(transaction.created_at).toLocaleDateString('es-ES', {
+                    {new Date(transaction.transaction_date || transaction.created_at).toLocaleDateString('es-ES', {
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',
@@ -398,39 +470,35 @@ const TransactionsPage: React.FC = () => {
                     })}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getTypeColor(transaction.transaction_type)}>
-                      {getTypeName(transaction.transaction_type)}
+                    <Badge variant={
+                      ['purchase', 'PURCHASE'].includes(transaction.transaction_type) ? 'secondary' :
+                      ['sale', 'SALE'].includes(transaction.transaction_type) ? 'destructive' :
+                      'outline'
+                    }>
+                      {transaction.transaction_type.toUpperCase()}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {typeof transaction.product === 'number' 
-                      ? (state.products.find(p => p.id === transaction.product)?.name || `Producto ${transaction.product}`)
-                      : transaction.product?.name || 'Producto desconocido'
-                    }
+                    {transaction.product_name || 'Producto desconocido'}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      {['IN', 'PURCHASE', 'RETURN'].includes(transaction.transaction_type) ? (
+                      {Number(transaction.quantity) > 0 ? (
                         <ArrowUp className="h-3 w-3 text-green-600" />
                       ) : (
                         <ArrowDown className="h-3 w-3 text-red-600" />
                       )}
-                      {transaction.quantity}
+                      {Math.abs(Number(transaction.quantity))}
                     </div>
                   </TableCell>
                   <TableCell>
-                    {transaction.unit_cost ? `S/ ${(typeof transaction.unit_cost === 'string' ? parseFloat(transaction.unit_cost) : transaction.unit_cost).toFixed(2)}` : '-'}
+                    {transaction.unit_cost ? `S/ ${parseFloat(transaction.unit_cost.toString()).toFixed(2)}` : '-'}
                   </TableCell>
                   <TableCell className="font-semibold">
-                    {transaction.unit_cost ? `S/ ${(transaction.quantity * (typeof transaction.unit_cost === 'string' ? parseFloat(transaction.unit_cost) : transaction.unit_cost)).toFixed(2)}` : '-'}
+                    {transaction.unit_cost ? `S/ ${(Math.abs(Number(transaction.quantity)) * parseFloat(transaction.unit_cost.toString())).toFixed(2)}` : '-'}
                   </TableCell>
                   <TableCell>
-                    {transaction.location 
-                      ? (state.locations.find(l => l.id === transaction.location)?.name || 'No especificada')
-                      : (typeof transaction.warehouse === 'number' 
-                          ? `Almacén ${transaction.warehouse}`
-                          : transaction.warehouse?.name || 'No especificada')
-                    }
+                    {transaction.location_name || 'No especificada'}
                   </TableCell>
                   <TableCell className="max-w-[200px] truncate">
                     {transaction.notes || '-'}
@@ -439,6 +507,75 @@ const TransactionsPage: React.FC = () => {
               ))}
             </TableBody>
           </Table>
+
+          {/* Componente de Paginación con iconos disponibles */}
+          <div className="flex items-center justify-between px-2 py-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>
+                Página {state.currentPage} de {state.totalPages}
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToFirstPage}
+                disabled={!state.hasPrevious}
+                className="h-8 px-2"
+              >
+                Primera
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPreviousPage}
+                disabled={!state.hasPrevious}
+                className="h-8 px-2"
+              >
+                Anterior
+              </Button>
+
+              {/* Números de página */}
+              {Array.from({ length: Math.min(5, state.totalPages) }, (_, i) => {
+                const pageStart = Math.max(1, state.currentPage - 2);
+                const pageNum = pageStart + i;
+                if (pageNum > state.totalPages) return null;
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={pageNum === state.currentPage ? "primary" : "outline"}
+                    size="sm"
+                    onClick={() => goToPage(pageNum)}
+                    className="h-8 w-8 p-0"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToNextPage}
+                disabled={!state.hasNext}
+                className="h-8 w-8 p-0"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToLastPage}
+                disabled={!state.hasNext}
+                className="h-8 px-2"
+              >
+                Última
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

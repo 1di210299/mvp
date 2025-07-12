@@ -95,23 +95,46 @@ export const authService = {
 
 // Servicios de inventario
 export const inventoryService = {
-  // Productos
-  getProducts: async (): Promise<ApiResponse<Product>> => {
-    const response = await api.get('/inventory/products/');
-    return response.data;
+  // Real API endpoints para pronósticos
+  getForecasts: async (): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.get('/forecasting/forecasts/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching forecasts:', error);
+      throw error;
+    }
   },
 
-  getProduct: async (id: number): Promise<Product> => {
-    const response = await api.get(`/inventory/products/${id}/`);
-    return response.data;
+  // Real API para recomendaciones de reorden
+  getReorderRecommendations: async (): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.get('/forecasting/reorder-recommendations/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching reorder recommendations:', error);
+      throw error;
+    }
   },
 
-  createProduct: async (product: Partial<Product>): Promise<Product> => {
+  // Real API para productos
+  getProducts: async (): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.get('/inventory/products/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      throw error;
+    }
+  },
+
+  // CRUD Operations for Products
+  createProduct: async (product: any): Promise<any> => {
     const response = await api.post('/inventory/products/', product);
     return response.data;
   },
 
-  updateProduct: async (id: number, product: Partial<Product>): Promise<Product> => {
+  updateProduct: async (id: number, product: any): Promise<any> => {
     const response = await api.put(`/inventory/products/${id}/`, product);
     return response.data;
   },
@@ -120,10 +143,15 @@ export const inventoryService = {
     await api.delete(`/inventory/products/${id}/`);
   },
 
-  // Categorías
+  // Categories
   getCategories: async (): Promise<ApiResponse<any>> => {
-    const response = await api.get('/inventory/categories/');
-    return response.data;
+    try {
+      const response = await api.get('/inventory/categories/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw error;
+    }
   },
 
   createCategory: async (category: any): Promise<any> => {
@@ -140,10 +168,15 @@ export const inventoryService = {
     await api.delete(`/inventory/categories/${id}/`);
   },
 
-  // Proveedores
+  // Suppliers
   getSuppliers: async (): Promise<ApiResponse<any>> => {
-    const response = await api.get('/inventory/suppliers/');
-    return response.data;
+    try {
+      const response = await api.get('/inventory/suppliers/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+      throw error;
+    }
   },
 
   createSupplier: async (supplier: any): Promise<any> => {
@@ -160,16 +193,40 @@ export const inventoryService = {
     await api.delete(`/inventory/suppliers/${id}/`);
   },
 
-  // Ubicaciones
+  // Locations
   getLocations: async (): Promise<ApiResponse<any>> => {
-    const response = await api.get('/inventory/locations/');
+    try {
+      const response = await api.get('/inventory/locations/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      throw error;
+    }
+  },
+
+  createLocation: async (location: any): Promise<any> => {
+    const response = await api.post('/inventory/locations/', location);
     return response.data;
   },
 
-  // Inventario/Items
-  getInventoryItems: async (): Promise<ApiResponse<Inventory>> => {
-    const response = await api.get('/inventory/inventory-items/');
+  updateLocation: async (id: number, location: any): Promise<any> => {
+    const response = await api.put(`/inventory/locations/${id}/`, location);
     return response.data;
+  },
+
+  deleteLocation: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/locations/${id}/`);
+  },
+
+  // Inventory Items
+  getInventoryItems: async (): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.get('/inventory/inventory-items/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching inventory items:', error);
+      throw error;
+    }
   },
 
   createInventoryItem: async (item: any): Promise<any> => {
@@ -182,31 +239,91 @@ export const inventoryService = {
     return response.data;
   },
 
-  // Stock endpoints
-  getProductStock: async (productId: number): Promise<any> => {
-    const response = await api.get(`/inventory/products/${productId}/stock/`);
-    return response.data;
+  deleteInventoryItem: async (id: number): Promise<void> => {
+    await api.delete(`/inventory/inventory-items/${id}/`);
   },
 
-  getLowStock: async (): Promise<any> => {
-    const response = await api.get('/inventory/low-stock/');
-    return response.data;
-  },
-
-  getStockMovements: async (): Promise<any> => {
-    const response = await api.get('/inventory/stock-movements/');
-    return response.data;
+  // Real API para transacciones con manejo de errores mejorado
+  getTransactions: async (): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.get('/inventory/transactions/');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching transactions:', error);
+      // Si el endpoint principal falla, devolver estructura vacía
+      if (error.response?.status === 404) {
+        console.warn('Endpoint de transacciones no encontrado, devolviendo datos vacíos');
+        return { results: [], count: 0, next: undefined, previous: undefined };
+      }
+      throw error;
+    }
   },
 
   // Transacciones
-  getTransactions: async (): Promise<ApiResponse<Transaction>> => {
-    const response = await api.get('/inventory/transactions/');
-    return response.data;
-  },
-
   createTransaction: async (transaction: Partial<Transaction>): Promise<Transaction> => {
     const response = await api.post('/inventory/transactions/', transaction);
     return response.data;
+  },
+
+  // Real API para generar pronósticos
+  predictDemand: async (data: {
+    product_ids?: number[];
+    forecast_horizon?: number;
+    include_confidence_intervals?: boolean;
+  }): Promise<any> => {
+    try {
+      const response = await api.post('/forecasting/predict/', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error predicting demand:', error);
+      throw error;
+    }
+  },
+
+  // Real API para generar recomendaciones
+  generateRecommendations: async (data: {
+    product_ids?: number[];
+  }): Promise<any> => {
+    try {
+      const response = await api.post('/forecasting/generate-recommendations/', data);
+      return response.data;
+    } catch (error) {
+      console.error('Error generating recommendations:', error);
+      throw error;
+    }
+  },
+
+  // Real API para obtener pronóstico de producto específico
+  getProductForecast: async (productId: number): Promise<any> => {
+    try {
+      const response = await api.get(`/forecasting/products/${productId}/forecast/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching product forecast:', error);
+      throw error;
+    }
+  },
+
+  // Real API para dashboard de inventario
+  getDashboard: async (): Promise<any> => {
+    try {
+      const response = await api.get('/inventory/dashboard/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching dashboard:', error);
+      throw error;
+    }
+  },
+
+  // Real API para stock de producto
+  getProductStock: async (productId: number): Promise<any> => {
+    try {
+      const response = await api.get(`/inventory/products/${productId}/stock/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching product stock:', error);
+      throw error;
+    }
   },
 
   // Dashboard de inventario
@@ -372,6 +489,49 @@ export const inventoryService = {
   getCRMDashboard: async (): Promise<any> => {
     const response = await api.get('/inventory/crm/dashboard/');
     return response.data;
+  },
+
+  // Reports methods
+  getReports: async (): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.get('/reports/reports/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+      return { results: [], count: 0, next: undefined, previous: undefined };
+    }
+  },
+
+  getReportTemplates: async (): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.get('/reports/templates/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching report templates:', error);
+      return { results: [], count: 0, next: undefined, previous: undefined };
+    }
+  },
+
+  generateReport: async (reportData: any): Promise<any> => {
+    try {
+      const response = await api.post('/reports/generate/', reportData);
+      return response.data;
+    } catch (error) {
+      console.error('Error generating report:', error);
+      throw error;
+    }
+  },
+
+  downloadReport: async (id: number): Promise<Blob> => {
+    try {
+      const response = await api.get(`/reports/reports/${id}/download/`, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      throw error;
+    }
   },
 };
 
@@ -753,7 +913,7 @@ export const extendedForecastingService = {
       });
       return response.data;
     } catch (error) {
-      return { results: [] };
+      return { results: [], count: 0, next: undefined, previous: undefined };
     }
   },
 
@@ -762,7 +922,7 @@ export const extendedForecastingService = {
       const response = await api.get('/forecasting/forecasts/');
       return response.data;
     } catch (error) {
-      return { results: [] };
+      return { results: [], count: 0, next: undefined, previous: undefined };
     }
   }
 };
@@ -776,7 +936,7 @@ export const extendedInventoryService = {
       const response = await api.get('/inventory/transactions/', { params });
       return response.data;
     } catch (error) {
-      return { results: [] };
+      return { results: [], count: 0, next: undefined, previous: undefined };
     }
   },
 
@@ -787,7 +947,7 @@ export const extendedInventoryService = {
       });
       return response.data;
     } catch (error) {
-      return { results: [] };
+      return { results: [], count: 0, next: undefined, previous: undefined };
     }
   },
 

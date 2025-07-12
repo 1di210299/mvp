@@ -573,6 +573,23 @@ export const TrendingUp: React.FC<IconProps> = ({ className = '', size = 20, col
   </svg>
 );
 
+export const TrendingDown: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #ef4444)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg trending-down-icon ${className}`}
+  >
+    <polyline points="23,18 13.5,8.5 8.5,13.5 1,6" />
+    <polyline points="17,18 23,18 23,12" />
+  </svg>
+);
+
 export const FolderOpen: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
   <svg
     width={size}
@@ -644,7 +661,7 @@ export const MapPin: React.FC<IconProps> = ({ className = '', size = 20, color }
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -661,7 +678,7 @@ export const Download: React.FC<IconProps> = ({ className = '', size = 20, color
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -679,7 +696,7 @@ export const Building2: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -700,7 +717,7 @@ export const ArrowUp: React.FC<IconProps> = ({ className = '', size = 20, color 
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #10b981)'}
     strokeWidth="2"
@@ -717,7 +734,7 @@ export const ArrowDown: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #ef4444)'}
     strokeWidth="2"
@@ -734,7 +751,7 @@ export const ArrowRight: React.FC<IconProps> = ({ className = '', size = 20, col
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -751,7 +768,7 @@ export const Filter: React.FC<IconProps> = ({ className = '', size = 20, color }
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -767,7 +784,7 @@ export const RotateCcw: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -784,7 +801,7 @@ export const Building: React.FC<IconProps> = ({ className = '', size = 20, color
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -810,7 +827,7 @@ export const Briefcase: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -827,7 +844,7 @@ export const Check: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #10b981)'}
     strokeWidth="2"
@@ -843,7 +860,7 @@ export const Home: React.FC<IconProps> = ({ className = '', size = 20, color }) 
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -856,29 +873,11 @@ export const Home: React.FC<IconProps> = ({ className = '', size = 20, color }) 
   </svg>
 );
 
-export const Layers: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color || 'var(--icon-stroke, #374151)'}
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={`icon-svg layers-icon ${className}`}
-  >
-    <polygon points="12,2 2,7 12,12 22,7 12,2" />
-    <polyline points="2,17 12,22 22,17" />
-    <polyline points="2,12 12,17 22,12" />
-  </svg>
-);
-
 export const LogOut: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -914,7 +913,7 @@ export const Star: React.FC<IconProps> = ({ className = '', size = 20, color }) 
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #f59e0b)'}
     strokeWidth="2"
@@ -930,7 +929,7 @@ export const Truck: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -968,7 +967,7 @@ export const Warehouse: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -990,7 +989,7 @@ export const UserCheck: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -1008,7 +1007,7 @@ export const ChevronDown: React.FC<IconProps> = ({ className = '', size = 20, co
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -1111,5 +1110,23 @@ export const Upload: React.FC<IconProps> = ({ className = '', size = 20, color }
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
     <polyline points="17,8 12,3 7,8" />
     <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+);
+
+export const Layers: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #374151)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg layers-icon ${className}`}
+  >
+    <polygon points="12,2 2,7 12,12 22,7 12,2" />
+    <polyline points="2,17 12,22 22,17" />
+    <polyline points="2,12 12,17 22,12" />
   </svg>
 );

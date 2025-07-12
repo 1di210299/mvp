@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Alert, AlertDescription } from '../components/ui';
 import { Eye, EyeOff, LogIn } from '../components/ui/icons';
 import { ThemeToggle } from '../components/theme/ThemeToggle';
-import { authService } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LoginState {
   email: string;
@@ -15,6 +15,7 @@ interface LoginState {
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
   const [state, setState] = useState<LoginState>({
     email: '',
     password: '',
@@ -23,6 +24,13 @@ const LoginPage: React.FC = () => {
     showPassword: false
   });
 
+  // Redirigir si ya está autenticado
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setState(prev => ({ ...prev, loading: true, error: null }));
@@ -30,29 +38,24 @@ const LoginPage: React.FC = () => {
     try {
       console.log('Attempting login with:', { email: state.email });
       
-      const response = await authService.login({
-        email: state.email,
-        password: state.password
-      });
+      const success = await login(state.email, state.password);
 
-      console.log('Login successful:', response);
-
-      // Store tokens in localStorage
-      localStorage.setItem('access_token', response.tokens.access);
-      localStorage.setItem('refresh_token', response.tokens.refresh);
-      
-      // Store user info if needed
-      localStorage.setItem('user_info', JSON.stringify(response.user));
-
-      // Redirect to dashboard - usar window.location.href para forzar recarga
-      console.log('Redirecting to dashboard...');
-      window.location.href = '/dashboard';
+      if (success) {
+        console.log('Login successful, redirecting to dashboard...');
+        navigate('/dashboard');
+      } else {
+        setState(prev => ({ 
+          ...prev, 
+          error: 'Credenciales incorrectas. Verifica tu email y contraseña.',
+          loading: false 
+        }));
+      }
       
     } catch (error: any) {
       console.error('Login error:', error);
       setState(prev => ({ 
         ...prev, 
-        error: error.response?.data?.message || error.message || 'Error de autenticación. Verifica tus credenciales.',
+        error: 'Error de conexión. Verifica que el servidor esté ejecutándose en puerto 8080.',
         loading: false 
       }));
     }

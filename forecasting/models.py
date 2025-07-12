@@ -85,10 +85,10 @@ class ForecastModel(models.Model):
         verbose_name="Error Absoluto Medio"
     )
     mape = models.DecimalField(
-        max_digits=8,
-        decimal_places=4,
-        null=True,
-        blank=True,
+        max_digits=10, 
+        decimal_places=2, 
+        null=True,  # Make sure this is True
+        blank=True,  # Make sure this is True
         verbose_name="Error Porcentual Absoluto Medio"
     )
     rmse = models.DecimalField(

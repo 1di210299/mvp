@@ -82,7 +82,8 @@ class ForecastService:
             
             # Determina ubicaciones objetivo
             if locations is None:
-                target_locations = Location.objects.filter(company=forecast_model.company)
+                # FIX: Location no tiene campo company, usar todas las ubicaciones activas
+                target_locations = Location.objects.filter(is_active=True)
             else:
                 target_locations = locations
             
@@ -320,26 +321,44 @@ class ForecastService:
         """
         try:
             company = Company.objects.get(id=company_id)
+            print(f"🏢 Generando recomendaciones para empresa: {company.name}")
             
             # Determina productos a analizar
             if products is None:
                 target_products = Product.objects.filter(company=company)
+                print(f"📦 Productos de la empresa encontrados: {target_products.count()}")
             else:
                 target_products = products
+                print(f"📦 Productos específicos a procesar: {len(target_products)}")
             
-            # Determina ubicaciones
+            # FIX: Location no tiene campo company, usar todas las ubicaciones activas
             if locations is None:
-                target_locations = Location.objects.filter(company=company)
+                target_locations = Location.objects.filter(is_active=True)
+                print(f"📍 Ubicaciones activas encontradas: {target_locations.count()}")
             else:
                 target_locations = locations
+                print(f"📍 Ubicaciones específicas a procesar: {len(target_locations)}")
+            
+            if not target_products.exists():
+                print("❌ No hay productos para procesar")
+                return []
+                
+            if not target_locations.exists():
+                print("❌ No hay ubicaciones para procesar")
+                return []
             
             recommendations = []
             
-            for product in target_products:
-                for location in target_locations:
+            for i, product in enumerate(target_products):
+                print(f"📈 Procesando producto {i+1}/{target_products.count()}: {product.name}")
+                
+                for j, location in enumerate(target_locations):
                     try:
+                        print(f"  📍 Ubicación {j+1}/{target_locations.count()}: {location.name}")
+                        
                         # Obtiene stock actual
                         current_stock = self._get_current_stock(product, location)
+                        print(f"  📊 Stock actual: {current_stock}")
                         
                         # Obtiene pronósticos futuros
                         future_demand = self._get_future_demand(
@@ -347,8 +366,10 @@ class ForecastService:
                             location=location,
                             days_ahead=lead_time_days + safety_stock_days
                         )
+                        print(f"  📈 Demanda futura: {future_demand}")
                         
                         if future_demand <= 0:
+                            print(f"  ⚠️ Sin demanda futura para {product.name} en {location.name}")
                             continue
                         
                         # Calcula recomendación
@@ -363,16 +384,22 @@ class ForecastService:
                         
                         if recommendation:
                             recommendations.append(recommendation)
+                            print(f"  ✅ Recomendación creada para {product.name} en {location.name}")
+                        else:
+                            print(f"  ℹ️ No se requiere reorden para {product.name} en {location.name}")
                             
                     except Exception as e:
+                        print(f"  ❌ Error procesando {product.sku} en {location.name}: {str(e)}")
                         logger.warning(f"Error procesando recomendación para {product.sku} en {location.name}: {str(e)}")
                         continue
             
+            print(f"🎯 Recomendaciones generadas: {len(recommendations)} para empresa {company.name}")
             logger.info(f"Generadas {len(recommendations)} recomendaciones de reorden para empresa {company_id}")
             
             return recommendations
             
         except Exception as e:
+            print(f"❌ Error generando recomendaciones de reorden: {str(e)}")
             logger.error(f"Error generando recomendaciones de reorden: {str(e)}")
             raise
     
@@ -642,3 +669,310 @@ class ForecastService:
         except Exception as e:
             logger.error(f"Error calculando recomendación de reorden: {str(e)}")
             return None
+        
+    def generate_forecasts(self, product, forecast_horizon=30, include_confidence=True):
+        """
+        Genera pronósticos usando el sistema ML robusto implementado
+        """
+        try:
+            from datetime import datetime, timedelta
+            from decimal import Decimal
+            from django.utils import timezone
+            
+            print(f"📈 Generando pronósticos ML para {product.name}")
+            
+            # 1. Obtener o crear modelo ML entrenado para este producto
+            forecast_model = self._get_or_create_model_for_product(product)
+            
+            if not forecast_model:
+                print(f"  ❌ No se pudo obtener modelo para {product.name}")
+                return []
+            
+            print(f"  🤖 Usando modelo: {forecast_model.name} ({forecast_model.model_type})")
+            
+            # 2. Cargar el modelo ML entrenado
+            try:
+                ml_model = self.ml_service.load_trained_model(forecast_model.id)
+                print(f"  ✅ Modelo ML cargado exitosamente")
+            except Exception as e:
+                print(f"  ⚠️ Error cargando modelo, entrenando nuevo: {str(e)}")
+                # Si no se puede cargar, entrenar un nuevo modelo
+                forecast_model = self._retrain_model_for_product(product)
+                if not forecast_model:
+                    print(f"  ❌ No se pudo entrenar modelo para {product.name}")
+                    return []
+                ml_model = self.ml_service.load_trained_model(forecast_model.id)
+            
+            # 3. Generar predicciones usando el modelo ML
+            try:
+                # Obtener datos recientes para contexto
+                training_data = self._get_training_data_for_product(product)
+                print(f"  📊 Datos de entrenamiento: {len(training_data)} observaciones")
+                
+                if training_data.empty:
+                    print(f"  ⚠️ Sin datos históricos, usando predicciones base")
+                    return self._generate_base_forecasts(product, forecast_horizon, include_confidence)
+                
+                # Generar predicciones ML
+                predictions = ml_model.predict(periods=forecast_horizon)
+                print(f"  🎯 Predicciones ML generadas: {len(predictions)} períodos")
+                
+            except Exception as e:
+                print(f"  ❌ Error en predicción ML: {str(e)}")
+                # Fallback a predicciones base
+                return self._generate_base_forecasts(product, forecast_horizon, include_confidence)
+            
+            # 4. Crear registros de DemandForecast
+            forecasts_created = []
+            locations = Location.objects.filter(is_active=True)
+            
+            for location in locations:
+                # Verificar si hay stock en esta ubicación
+                current_stock = self._get_current_stock(product, location)
+                if current_stock == 0:
+                    continue  # Skip ubicaciones sin stock
+                
+                print(f"    📍 Creando pronósticos para {location.name}")
+                
+                for i, (date_idx, row) in enumerate(predictions.iterrows()):
+                    forecast_date = timezone.now().date() + timedelta(days=i+1)
+                    
+                    # Extraer valores de la predicción ML
+                    predicted_demand = max(0, float(row.get('predicted_demand', row.get('yhat', 0))))
+                    
+                    if include_confidence:
+                        lower_bound = max(0, float(row.get('lower_bound', row.get('yhat_lower', predicted_demand * 0.7))))
+                        upper_bound = float(row.get('upper_bound', row.get('yhat_upper', predicted_demand * 1.3)))
+                    else:
+                        lower_bound = predicted_demand * 0.8
+                        upper_bound = predicted_demand * 1.2
+                    
+                    # Ajustar predicción según ubicación específica
+                    location_factor = self._get_location_factor(product, location)
+                    adjusted_demand = predicted_demand * location_factor
+                    adjusted_lower = lower_bound * location_factor
+                    adjusted_upper = upper_bound * location_factor
+                    
+                    # Crear el pronóstico
+                    forecast = DemandForecast.objects.create(
+                        model=forecast_model,
+                        product=product,
+                        location=location,
+                        forecast_date=forecast_date,
+                        predicted_demand=Decimal(str(round(adjusted_demand, 2))),
+                        lower_bound=Decimal(str(round(adjusted_lower, 2))),
+                        upper_bound=Decimal(str(round(adjusted_upper, 2))),
+                        confidence_level=Decimal('85.0'),
+                        forecast_type='ml_prediction',
+                        seasonality_factor=Decimal(str(round(row.get('seasonality', 1.0), 2))),
+                        trend_factor=Decimal(str(round(row.get('trend', 1.0), 2))),
+                        external_factors={
+                            'algorithm': forecast_model.model_type,
+                            'model_metrics': {
+                                'mae': float(forecast_model.mae or 0),
+                                'mape': float(forecast_model.mape or 0),
+                                'rmse': float(forecast_model.rmse or 0)
+                            },
+                            'location_factor': location_factor
+                        }
+                    )
+                    forecasts_created.append(forecast)
+            
+            # Actualizar timestamp de última predicción
+            forecast_model.last_prediction_at = timezone.now()
+            forecast_model.save()
+            
+            print(f"  ✅ {len(forecasts_created)} pronósticos ML creados para {product.name}")
+            return forecasts_created
+            
+        except Exception as e:
+            print(f"  ❌ Error generando pronósticos ML para {product.name}: {str(e)}")
+            logger.error(f"Error generando pronósticos ML para {product.sku}: {str(e)}")
+            # Fallback a predicciones base
+            return self._generate_base_forecasts(product, forecast_horizon, include_confidence)
+    
+    def _get_or_create_model_for_product(self, product):
+        """
+        Obtiene o crea un modelo ML para el producto usando MLModelService
+        """
+        try:
+            # Buscar modelo existente activo
+            existing_model = ForecastModel.objects.filter(
+                company=product.company,
+                status='active',
+                products=product
+            ).first()
+            
+            if existing_model:
+                print(f"    📋 Usando modelo existente: {existing_model.name}")
+                return existing_model
+            
+            # Buscar modelo general de la empresa
+            company_model = ForecastModel.objects.filter(
+                company=product.company,
+                status='active'
+            ).first()
+            
+            if company_model:
+                print(f"    📋 Usando modelo de empresa: {company_model.name}")
+                # Asociar producto al modelo existente
+                company_model.products.add(product)
+                return company_model
+            
+            # Crear nuevo modelo específico para el producto usando MLModelService
+            print(f"    🔧 Creando nuevo modelo ML para {product.name}")
+            return self.ml_service.train_model_for_product(
+                product=product,
+                algorithm='prophet',  # Usar Prophet como default
+                retrain_existing=False
+            )
+            
+        except Exception as e:
+            print(f"    ❌ Error obteniendo/creando modelo: {str(e)}")
+            return None
+    
+    def _retrain_model_for_product(self, product):
+        """
+        Re-entrena un modelo existente para el producto
+        """
+        try:
+            existing_model = ForecastModel.objects.filter(
+                company=product.company,
+                products=product
+            ).first()
+            
+            if existing_model:
+                print(f"    🔄 Re-entrenando modelo existente: {existing_model.name}")
+                return self.ml_service.retrain_model(existing_model.id)
+            else:
+                print(f"    🔧 Creando nuevo modelo (no existe previo)")
+                return self.ml_service.train_model_for_product(
+                    product=product,
+                    algorithm='prophet',
+                    retrain_existing=False
+                )
+                
+        except Exception as e:
+            print(f"    ❌ Error re-entrenando modelo: {str(e)}")
+            return None
+    
+    def _get_training_data_for_product(self, product, days_back=180):
+        """
+        Obtiene datos históricos para entrenar/predecir
+        """
+        try:
+            from django.db import models
+            end_date = timezone.now().date()
+            start_date = end_date - timedelta(days=days_back)
+            
+            # Obtener transacciones agregadas por día
+            transactions = Transaction.objects.filter(
+                product=product,
+                transaction_date__gte=start_date,
+                transaction_type__in=['sale', 'usage']
+            ).extra(
+                select={'date': 'DATE(transaction_date)'}
+            ).values('date').annotate(
+                total_quantity=models.Sum('quantity')
+            ).order_by('date')
+            
+            if not transactions.exists():
+                return pd.DataFrame()
+            
+            # Convertir a DataFrame
+            df = pd.DataFrame(list(transactions))
+            df['date'] = pd.to_datetime(df['date'])
+            df = df.set_index('date')
+            df['quantity'] = df['total_quantity'].abs()  # Asegurar valores positivos
+            
+            # Rellenar fechas faltantes con 0
+            full_date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+            df = df.reindex(full_date_range, fill_value=0)
+            
+            return df[['quantity']]
+            
+        except Exception as e:
+            print(f"    ❌ Error obteniendo datos de entrenamiento: {str(e)}")
+            return pd.DataFrame()
+    
+    def _generate_base_forecasts(self, product, forecast_horizon, include_confidence):
+        """
+        Genera pronósticos base cuando ML no está disponible
+        """
+        try:
+            print(f"    📊 Generando pronósticos base para {product.name}")
+            
+            # Usar datos históricos simples
+            end_date = timezone.now().date()
+            start_date = end_date - timedelta(days=90)
+            
+            avg_daily_demand = Transaction.objects.filter(
+                product=product,
+                transaction_date__range=(start_date, end_date),
+                transaction_type__in=['sale', 'usage']
+            ).aggregate(
+                avg=models.Avg('quantity')
+            )['avg'] or 5.0
+            
+            avg_daily_demand = abs(float(avg_daily_demand))
+            
+            forecasts_created = []
+            locations = Location.objects.filter(is_active=True)
+            
+            # Obtener modelo base o crear uno temporal
+            base_model = ForecastModel.objects.filter(
+                company=product.company,
+                status='active'
+            ).first()
+            
+            for location in locations:
+                current_stock = self._get_current_stock(product, location)
+                if current_stock == 0:
+                    continue
+                
+                for days_ahead in range(1, forecast_horizon + 1):
+                    forecast_date = end_date + timedelta(days=days_ahead)
+                    
+                    # Demanda base con variación estacional
+                    base_demand = avg_daily_demand
+                    
+                    # Factor de día de semana
+                    if forecast_date.weekday() >= 5:  # Fin de semana
+                        base_demand *= 0.7
+                    
+                    # Factor de ubicación
+                    location_factor = self._get_location_factor(product, location)
+                    predicted_demand = base_demand * location_factor
+                    
+                    if include_confidence:
+                        lower_bound = predicted_demand * 0.7
+                        upper_bound = predicted_demand * 1.3
+                    else:
+                        lower_bound = predicted_demand * 0.8
+                        upper_bound = predicted_demand * 1.2
+                    
+                    forecast = DemandForecast.objects.create(
+                        model=base_model,
+                        product=product,
+                        location=location,
+                        forecast_date=forecast_date,
+                        predicted_demand=Decimal(str(round(predicted_demand, 2))),
+                        lower_bound=Decimal(str(round(lower_bound, 2))),
+                        upper_bound=Decimal(str(round(upper_bound, 2))),
+                        confidence_level=Decimal('70.0'),
+                        forecast_type='base_statistical',
+                        seasonality_factor=Decimal('0.7' if forecast_date.weekday() >= 5 else '1.0'),
+                        trend_factor=Decimal('1.0'),
+                        external_factors={
+                            'method': 'historical_average',
+                            'data_points': 90,
+                            'location_factor': location_factor
+                        }
+                    )
+                    forecasts_created.append(forecast)
+            
+            return forecasts_created
+            
+        except Exception as e:
+            print(f"    ❌ Error generando pronósticos base: {str(e)}")
+            return []

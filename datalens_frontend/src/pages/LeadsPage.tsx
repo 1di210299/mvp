@@ -94,69 +94,19 @@ const LeadsPage: React.FC = () => {
   const fetchLeads = async () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
+      
+      // Usar API real del sistema CRM Django
       const response = await inventoryService.getLeads();
       const leadsData = response.results || response || [];
+      
       setState(prev => ({ ...prev, leads: leadsData, loading: false }));
     } catch (err) {
       console.error('Error fetching leads:', err);
-      
-      // Fallback a datos simulados
-      const mockLeads: Lead[] = [
-        {
-          id: 1,
-          name: 'Carlos Mendoza',
-          email: 'carlos.mendoza@empresa.com',
-          phone: '+51 999 456 789',
-          company: 'TechSolutions Perú',
-          position: 'Gerente de Compras',
-          source: 'website',
-          status: 'qualified',
-          score: 85,
-          estimated_value: 15000,
-          notes: 'Interesado en soluciones de inventario',
-          created_at: '2024-01-10T09:00:00Z',
-          last_contact: '2024-01-15T14:30:00Z',
-          next_followup: '2024-01-20T10:00:00Z'
-        },
-        {
-          id: 2,
-          name: 'Ana Rodriguez',
-          email: 'a.rodriguez@startup.pe',
-          phone: '+51 987 321 654',
-          company: 'StartupPE',
-          position: 'CEO',
-          source: 'referral',
-          status: 'contacted',
-          score: 70,
-          estimated_value: 8000,
-          notes: 'Startup en crecimiento, necesita sistema escalable',
-          created_at: '2024-01-12T11:20:00Z',
-          last_contact: '2024-01-16T16:45:00Z',
-          next_followup: '2024-01-22T09:30:00Z'
-        },
-        {
-          id: 3,
-          name: 'Miguel Torres',
-          email: 'mtorres@comercial.com',
-          phone: '+51 555 987 123',
-          company: 'Comercial Lima SAC',
-          position: 'Director Operaciones',
-          source: 'social_media',
-          status: 'new',
-          score: 45,
-          estimated_value: 25000,
-          notes: 'Empresa establecida buscando modernizar procesos',
-          created_at: '2024-01-14T13:15:00Z',
-          last_contact: '2024-01-14T13:15:00Z',
-          next_followup: '2024-01-18T15:00:00Z'
-        }
-      ];
-      
-      setState(prev => ({
-        ...prev,
-        leads: mockLeads,
+      setState(prev => ({ 
+        ...prev, 
+        error: 'Error al conectar con el sistema CRM Django. Verificar servidor.',
         loading: false,
-        error: 'Conectado con datos simulados - API no disponible'
+        leads: [] // NO usar datos mock
       }));
     }
   };
@@ -191,7 +141,7 @@ const LeadsPage: React.FC = () => {
       console.error('Error creating lead:', err);
       setState(prev => ({
         ...prev,
-        error: 'Error al crear lead',
+        error: 'Error al crear lead. Verificar conexión con Django.',
         loading: false
       }));
     }
@@ -213,7 +163,7 @@ const LeadsPage: React.FC = () => {
       console.error('Error updating lead:', err);
       setState(prev => ({
         ...prev,
-        error: 'Error al actualizar lead',
+        error: 'Error al actualizar lead. Verificar conexión con Django.',
         loading: false
       }));
     }
@@ -245,7 +195,7 @@ const LeadsPage: React.FC = () => {
       console.error('Error converting lead:', err);
       setState(prev => ({
         ...prev,
-        error: 'Error al convertir lead a cliente',
+        error: 'Error al convertir lead a cliente. Verificar conexión con Django.',
         loading: false
       }));
     }
@@ -260,11 +210,12 @@ const LeadsPage: React.FC = () => {
       setState(prev => ({ ...prev, loading: true }));
       await inventoryService.deleteLead(id);
       await fetchLeads();
+      setState(prev => ({ ...prev, loading: false }));
     } catch (err) {
       console.error('Error deleting lead:', err);
       setState(prev => ({
         ...prev,
-        error: 'Error al eliminar lead',
+        error: 'Error al eliminar lead. Verificar conexión con Django.',
         loading: false
       }));
     }
@@ -345,7 +296,10 @@ const LeadsPage: React.FC = () => {
   if (state.loading && state.leads.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Conectando con sistema CRM Django...</p>
+        </div>
       </div>
     );
   }
@@ -358,7 +312,7 @@ const LeadsPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Gestión de Leads</h1>
-          <p className="text-gray-600">Administra tus leads y convierte prospectos en clientes</p>
+          <p className="text-gray-600">Administra leads desde el sistema CRM Django</p>
         </div>
         <Dialog open={state.showCreateDialog} onOpenChange={(open) => setState(prev => ({ ...prev, showCreateDialog: open }))}>
           <DialogTrigger asChild>
@@ -605,8 +559,38 @@ const LeadsPage: React.FC = () => {
       {state.error && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{state.error}</AlertDescription>
+          <AlertDescription>
+            {state.error}
+            <br />
+            <small className="text-xs">Verificar que Django esté ejecutándose en puerto 8080</small>
+          </AlertDescription>
         </Alert>
+      )}
+
+      {/* Success message cuando hay datos */}
+      {state.leads.length > 0 && !state.error && (
+        <Alert>
+          <Target className="h-4 w-4" />
+          <AlertDescription>
+            ✅ Conectado exitosamente al sistema CRM Django. 
+            Mostrando {state.leads.length} leads.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Empty state cuando no hay leads */}
+      {state.leads.length === 0 && !state.loading && !state.error && (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Target className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-600 mb-2">Sin leads disponibles</h3>
+            <p className="text-gray-500 mb-4">No se encontraron leads en el sistema CRM Django.</p>
+            <Button onClick={() => setState(prev => ({ ...prev, showCreateDialog: true }))} className="flex items-center gap-2 mx-auto">
+              <Plus className="h-4 w-4" />
+              Crear Primer Lead
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {/* Leads Table */}

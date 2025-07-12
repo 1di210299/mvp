@@ -15,6 +15,9 @@ from .base_forecaster import BaseForecaster
 from .prophet_forecaster import ProphetForecaster
 from .arima_forecaster import ARIMAForecaster
 from .ensemble_forecaster import EnsembleForecaster
+from .linear_regression_forecaster import LinearRegressionForecaster
+from .random_forest_forecaster import RandomForestForecaster
+from .lstm_forecaster import LSTMForecaster
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,10 @@ class ModelTrainer:
         self.available_algorithms = {
             'prophet': ProphetForecaster,
             'arima': ARIMAForecaster,
-            'ensemble': EnsembleForecaster
+            'ensemble': EnsembleForecaster,
+            'linear_regression': LinearRegressionForecaster,
+            'random_forest': RandomForestForecaster,
+            'lstm': LSTMForecaster
         }
         self.training_history = []
         
@@ -339,6 +345,26 @@ class ModelTrainer:
                 'max_p': [3, 5, 7],
                 'max_q': [3, 5, 7],
                 'max_d': [1, 2]
+            }
+        elif algorithm_name == 'linear_regression':
+            return {
+                'fit_intercept': [True, False],
+                'normalize': [True, False]
+            }
+        elif algorithm_name == 'random_forest':
+            return {
+                'n_estimators': [10, 50, 100],
+                'max_depth': [None, 10, 20],
+                'min_samples_split': [2, 5, 10],
+                'min_samples_leaf': [1, 2, 4]
+            }
+        elif algorithm_name == 'lstm':
+            return {
+                'units': [50, 100, 200],
+                'dropout': [0.0, 0.2, 0.5],
+                'recurrent_dropout': [0.0, 0.2, 0.5],
+                'batch_size': [16, 32, 64],
+                'epochs': [10, 50, 100]
             }
         else:
             return {}

@@ -95,81 +95,19 @@ const CustomersPage: React.FC = () => {
   const fetchCustomers = async () => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
+      
+      // Usar API real del sistema de clientes Django
       const response = await inventoryService.getCustomers();
       const customersData = response.results || response || [];
+      
       setState(prev => ({ ...prev, customers: customersData, loading: false }));
     } catch (err) {
       console.error('Error fetching customers:', err);
-      
-      // Fallback a datos simulados
-      const mockCustomers: Customer[] = [
-        {
-          id: 1,
-          name: 'Empresa ABC S.A.C.',
-          company_name: 'Empresa ABC S.A.C.',
-          contact_person: 'Juan Pérez',
-          email: 'contacto@abc.com',
-          phone: '+51 999 123 456',
-          address: 'Av. Larco 123',
-          city: 'Lima',
-          country: 'Perú',
-          customer_type: 'corporate',
-          status: 'active',
-          total_orders: 25,
-          total_spent: 45000,
-          total_sales: 45000,
-          last_order_date: '2024-01-15',
-          last_purchase_date: '2024-01-15',
-          created_at: '2023-06-15T10:00:00Z',
-          notes: 'Cliente corporativo importante'
-        },
-        {
-          id: 2,
-          name: 'María García',
-          company_name: 'María García',
-          contact_person: 'María García',
-          email: 'maria.garcia@email.com',
-          phone: '+51 987 654 321',
-          address: 'Calle Los Olivos 456',
-          city: 'Arequipa',
-          country: 'Perú',
-          customer_type: 'individual',
-          status: 'active',
-          total_orders: 8,
-          total_spent: 12500,
-          total_sales: 12500,
-          last_order_date: '2024-01-10',
-          last_purchase_date: '2024-01-10',
-          created_at: '2023-09-20T14:30:00Z',
-          notes: 'Cliente frecuente'
-        },
-        {
-          id: 3,
-          name: 'Distribuidora XYZ',
-          company_name: 'Distribuidora XYZ',
-          contact_person: 'Carlos Mendoza',
-          email: 'ventas@xyz.com',
-          phone: '+51 555 789 012',
-          address: 'Jr. Comercio 789',
-          city: 'Cusco',
-          country: 'Perú',
-          customer_type: 'distributor',
-          status: 'inactive',
-          total_orders: 12,
-          total_spent: 28000,
-          total_sales: 28000,
-          last_order_date: '2023-11-22',
-          last_purchase_date: '2023-11-22',
-          created_at: '2023-03-10T09:15:00Z',
-          notes: 'Pendiente de reactivación'
-        }
-      ];
-      
-      setState(prev => ({
-        ...prev,
-        customers: mockCustomers,
+      setState(prev => ({ 
+        ...prev, 
+        error: 'Error al conectar con el sistema de clientes Django. Verificar servidor.',
         loading: false,
-        error: 'Conectado con datos simulados - API no disponible'
+        customers: [] // NO usar datos mock
       }));
     }
   };
@@ -203,7 +141,7 @@ const CustomersPage: React.FC = () => {
       console.error('Error creating customer:', err);
       setState(prev => ({
         ...prev,
-        error: 'Error al crear cliente',
+        error: 'Error al crear cliente. Verificar conexión con Django.',
         loading: false
       }));
     }
@@ -225,7 +163,7 @@ const CustomersPage: React.FC = () => {
       console.error('Error updating customer:', err);
       setState(prev => ({
         ...prev,
-        error: 'Error al actualizar cliente',
+        error: 'Error al actualizar cliente. Verificar conexión con Django.',
         loading: false
       }));
     }
@@ -240,11 +178,12 @@ const CustomersPage: React.FC = () => {
       setState(prev => ({ ...prev, loading: true }));
       await inventoryService.deleteCustomer(id);
       await fetchCustomers();
+      setState(prev => ({ ...prev, loading: false }));
     } catch (err) {
       console.error('Error deleting customer:', err);
       setState(prev => ({
         ...prev,
-        error: 'Error al eliminar cliente',
+        error: 'Error al eliminar cliente. Verificar conexión con Django.',
         loading: false
       }));
     }

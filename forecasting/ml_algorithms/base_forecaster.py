@@ -141,30 +141,56 @@ class BaseForecaster(ABC):
         metrics = {}
         
         # Error Absoluto Medio (MAE)
-        metrics['mae'] = mean_absolute_error(y_true, y_pred)
+        mae = mean_absolute_error(y_true, y_pred)
+        metrics['mae'] = mae if not np.isinf(mae) and not np.isnan(mae) else 0.0
         
         # Error Cuadrático Medio (MSE) y Raíz del Error Cuadrático Medio (RMSE)
         mse = mean_squared_error(y_true, y_pred)
+        mse = mse if not np.isinf(mse) and not np.isnan(mse) else 0.0
         metrics['mse'] = mse
-        metrics['rmse'] = np.sqrt(mse)
+        metrics['rmse'] = np.sqrt(mse) if mse >= 0 else 0.0
         
         # Error Porcentual Absoluto Medio (MAPE)
         mask = y_true != 0
-        if mask.any():
-            mape = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
-            metrics['mape'] = mape
+        if mask.any() and np.sum(y_true[mask]) > 0:
+            mape_values = np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])
+            # Filtrar valores infinitos y NaN
+            mape_values = mape_values[np.isfinite(mape_values)]
+            if len(mape_values) > 0:
+                mape = np.mean(mape_values) * 100
+                # Limitar MAPE a un valor máximo razonable
+                metrics['mape'] = min(mape, 1000.0) if not np.isinf(mape) and not np.isnan(mape) else 100.0
+            else:
+                metrics['mape'] = 100.0  # Default para casos sin datos válidos
         else:
-            metrics['mape'] = float('inf')
+            metrics['mape'] = 100.0  # Default cuando no hay valores históricos válidos
         
         # Coeficiente de Determinación (R²)
-        metrics['r2'] = r2_score(y_true, y_pred)
+        try:
+            r2 = r2_score(y_true, y_pred)
+            metrics['r2'] = r2 if not np.isinf(r2) and not np.isnan(r2) else 0.0
+        except:
+            metrics['r2'] = 0.0
         
         # Error Porcentual Medio (MPE) - para detectar sesgo
-        if mask.any():
-            mpe = np.mean((y_true[mask] - y_pred[mask]) / y_true[mask]) * 100
-            metrics['mpe'] = mpe
+        if mask.any() and np.sum(y_true[mask]) > 0:
+            mpe_values = (y_true[mask] - y_pred[mask]) / y_true[mask]
+            mpe_values = mpe_values[np.isfinite(mpe_values)]
+            if len(mpe_values) > 0:
+                mpe = np.mean(mpe_values) * 100
+                metrics['mpe'] = mpe if not np.isinf(mpe) and not np.isnan(mpe) else 0.0
+            else:
+                metrics['mpe'] = 0.0
         else:
-            metrics['mpe'] = 0
+            metrics['mpe'] = 0.0
+        
+        # Asegurar que todas las métricas sean números finitos
+        for key, value in metrics.items():
+            if np.isinf(value) or np.isnan(value):
+                if key == 'mape':
+                    metrics[key] = 100.0  # MAPE por defecto
+                else:
+                    metrics[key] = 0.0
         
         return metrics
     

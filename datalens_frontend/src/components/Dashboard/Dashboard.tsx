@@ -42,12 +42,6 @@ interface ExtendedDashboardStats {
   total_transactions_today: number;
   active_customers: number;
   pipeline_value: number;
-  stock_levels?: Array<{ 
-    warehouse: string; 
-    current_stock: number; 
-    min_stock: number; 
-    max_stock: number; 
-  }>;
 }
 
 interface DashboardAlert {
@@ -102,90 +96,89 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError('');
       
-      // Cargar datos reales únicamente - sin fallbacks mock
+      // Usar servicios de API con autenticación en lugar de fetch directo
       const [statsRes, alertsRes, forecastsRes, transactionsRes] = await Promise.allSettled([
-        fetch('http://localhost:8080/api/dashboard/stats/').then(res => res.json()),
-        alertService.getAlertsDashboard(),
-        forecastingService.getForecasts(),
-        inventoryService.getTransactions()
+        inventoryService.getInventoryDashboard().catch(() => {
+          // Fallback con datos mínimos
+          return {
+            total_products: 0,
+            total_value: 0,
+            low_stock_alerts: 0,
+            total_transactions_today: 0,
+            active_customers: 0,
+            pipeline_value: 0
+          };
+        }),
+        alertService.getAlertsDashboard().catch(() => ({ results: [] })),
+        inventoryService.getForecasts().catch(() => ({ results: [] })),
+        inventoryService.getTransactions().catch(() => ({ results: [] }))
       ]);
 
       // Procesar estadísticas con validación
       const statsData = statsRes.status === 'fulfilled' ? statsRes.value : {};
       const stats: ExtendedDashboardStats = {
         total_products: statsData.total_products || 0,
-        total_value: statsData.total_stock_value || statsData.total_value || 0,
-        low_stock_alerts: statsData.low_stock_products || statsData.low_stock_alerts || 0,
-        total_transactions_today: statsData.recent_transactions || statsData.total_transactions_today || 0,
+        total_value: statsData.total_value || statsData.total_stock_value || 0,
+        low_stock_alerts: statsData.low_stock_alerts || 0,
+        total_transactions_today: statsData.total_transactions_today || statsData.recent_transactions || 0,
         active_customers: statsData.active_customers || 0,
-        pipeline_value: statsData.pipeline_value || 0,
-        stock_levels: statsData.stock_levels || []
+        pipeline_value: statsData.pipeline_value || 0
       };
 
-      // Procesar alertas reales
-      const alertsData = alertsRes.status === 'fulfilled' ? alertsRes.value : { recent_alerts: [] };
-      const alerts: DashboardAlert[] = (alertsData.recent_alerts || []).map((alert: any) => ({
-        id: alert.id || 0,
-        title: alert.title || alert.message || 'Alerta del sistema',
-        message: alert.message || alert.description || 'Revisar sistema',
+      // Procesar alertas
+      const alertsData = alertsRes.status === 'fulfilled' ? alertsRes.value : { results: [] };
+      const alerts: DashboardAlert[] = (alertsData.results || []).map((alert: any) => ({
+        id: alert.id,
+        title: alert.title || alert.message,
+        message: alert.message,
         severity: alert.severity || 'medium',
-        created_at: alert.created_at || new Date().toISOString()
+        created_at: alert.created_at
       }));
 
-      // Procesar pronósticos reales únicamente
+      // Procesar pronósticos con validación robusta
       const forecastsData = forecastsRes.status === 'fulfilled' ? forecastsRes.value : { results: [] };
-      const forecasts: DashboardForecast[] = (forecastsData.results || []).map((forecast: any) => ({
-        product_name: forecast.product?.name || forecast.product_name || 'Producto',
-        predicted_demand: forecast.predicted_demand || 0,
-        confidence: Math.round((forecast.confidence_interval?.upper || forecast.confidence || 85)),
-        period: forecast.period || 'Próximo período'
+      const forecasts: DashboardForecast[] = (forecastsData.results || []).slice(0, 10).map((forecast: any) => ({
+        product_name: forecast.product_name || forecast.product || 'Producto desconocido',
+        predicted_demand: Number(forecast.predicted_demand) || 0,
+        confidence: Number(forecast.confidence_level) || Number(forecast.confidence) || 0,
+        period: forecast.period || forecast.forecast_date || 'Próximo mes'
       }));
 
-      // Procesar transacciones reales únicamente
+      // Procesar transacciones con validación
       const transactionsData = transactionsRes.status === 'fulfilled' ? transactionsRes.value : { results: [] };
-      const transactions: DashboardTransaction[] = (transactionsData.results || []).map((transaction: Transaction) => ({
+      const transactions: DashboardTransaction[] = (transactionsData.results || []).slice(0, 10).map((transaction: any) => ({
         id: transaction.id,
-        product_name: transaction.product?.name || 'Producto',
-        quantity: transaction.quantity,
-        transaction_type: transaction.transaction_type,
+        product_name: transaction.product_name || transaction.product || 'Producto desconocido',
+        quantity: transaction.quantity || 0,
+        transaction_type: transaction.transaction_type || 'unknown',
         created_at: transaction.created_at
       }));
 
-      // Datos para gráficos basados en datos reales
+      // Generar datos de gráficos con validación
       const chartData = {
-        stockLevels: stats.stock_levels || [],
-        salesTrend: generateSalesTrendFromRealData(transactions),
-        categoryDistribution: generateCategoryFromRealData(statsData),
-        alertTrends: generateAlertTrendsFromRealData(alerts)
+        stockLevels: generateStockLevelsChart(statsData),
+        salesTrend: generateSalesTrendChart(transactionsData.results || []),
+        categoryDistribution: generateCategoryChart(statsData),
+        alertTrends: generateAlertTrendsChart(alerts)
       };
 
       setData({
         stats,
-        alerts: alerts.slice(0, 5),
-        forecasts: forecasts.slice(0, 5),
-        transactions: transactions.slice(0, 8),
+        alerts,
+        forecasts,
+        transactions,
         chartData
       });
 
-      // Mostrar advertencias solo si hay problemas de conectividad
-      if (statsRes.status === 'rejected' && alertsRes.status === 'rejected') {
-        setError('Algunos servicios no están disponibles. Verifique la conexión con el servidor.');
-      }
-
-    } catch (err: any) {
-      setError('Error al cargar el dashboard. Verifique la conexión con el servidor.');
-      console.error('Dashboard error:', err);
+    } catch (error) {
+      console.error('Error cargando datos del dashboard:', error);
+      setError('No se pudieron cargar algunos datos. Verifique que el servidor Django esté ejecutándose en puerto 8080.');
       
-      // Datos mínimos en caso de error total
+      // Proporcionar datos mínimos para evitar crashs
       setData({
         stats: {
-          total_products: 0,
-          total_value: 0,
-          low_stock_alerts: 0,
-          total_transactions_today: 0,
-          active_customers: 0,
-          pipeline_value: 0,
-          stock_levels: []
+          total_products: 0, total_value: 0, low_stock_alerts: 0, 
+          total_transactions_today: 0, active_customers: 0, pipeline_value: 0
         },
         alerts: [],
         forecasts: [],
@@ -208,63 +201,60 @@ const Dashboard: React.FC = () => {
     setRefreshing(false);
   };
 
-  // Generar datos de gráficos basados en datos reales
-  const generateSalesTrendFromRealData = (transactions: DashboardTransaction[]) => {
-    const last30Days = Array.from({length: 30}, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (29 - i));
-      return date.toISOString().split('T')[0];
-    });
-
-    return last30Days.map(dateStr => {
-      const dayTransactions = transactions.filter(t => 
-        t.created_at.startsWith(dateStr) && 
-        (t.transaction_type === 'SALE' || t.transaction_type === 'OUT')
-      );
-      
-      const sales = dayTransactions.reduce((sum, t) => sum + t.quantity, 0);
-      
-      return {
-        date: new Date(dateStr).toLocaleDateString('es-PE', { month: 'short', day: 'numeric' }),
-        sales,
-        forecast: Math.round(sales * 1.1) // Estimación simple para línea de pronóstico
-      };
-    });
+  // Funciones auxiliares para generar datos de gráficos
+  const generateStockLevelsChart = (statsData: any) => {
+    if (!statsData.stock_by_warehouse) return [];
+    return statsData.stock_by_warehouse.map((item: any) => ({
+      warehouse: item.warehouse || item.name,
+      current_stock: item.current_stock || item.stock || 0,
+      min_stock: item.min_stock || 0,
+      max_stock: item.max_stock || 0
+    }));
   };
 
-  const generateCategoryFromRealData = (statsData: any) => {
-    // Si hay datos de categorías en statsData, usarlos
-    if (statsData.categories_distribution) {
-      return Object.entries(statsData.categories_distribution).map(([category, value]: [string, any]) => ({
-        category,
-        value: Number(value)
-      }));
-    }
+  const generateSalesTrendChart = (transactions: any[]) => {
+    if (!transactions.length) return [];
     
-    // Si no hay datos de categorías, devolver array vacío
-    return [];
+    // Agrupar transacciones por fecha
+    const salesByDate: Record<string, { sales: number; forecast: number }> = {};
+    
+    transactions.forEach(transaction => {
+      if (transaction.transaction_type === 'sale') {
+        const date = new Date(transaction.created_at).toLocaleDateString();
+        if (!salesByDate[date]) {
+          salesByDate[date] = { sales: 0, forecast: 0 };
+        }
+        salesByDate[date].sales += Math.abs(transaction.quantity || 0);
+      }
+    });
+
+    return Object.entries(salesByDate).map(([date, data]) => ({
+      date,
+      sales: data.sales,
+      forecast: data.sales * 1.1 // Estimación simple
+    }));
   };
 
-  const generateAlertTrendsFromRealData = (alerts: DashboardAlert[]) => {
-    const last7Days = Array.from({length: 7}, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (6 - i));
-      return {
-        date: date.toLocaleDateString('es-PE', { weekday: 'short' }),
-        dateStr: date.toISOString().split('T')[0]
-      };
+  const generateCategoryChart = (statsData: any) => {
+    if (!statsData.products_by_category) return [];
+    return statsData.products_by_category.map((item: any) => ({
+      category: item.category,
+      value: item.count || item.value || 0
+    }));
+  };
+
+  const generateAlertTrendsChart = (alerts: DashboardAlert[]) => {
+    const alertsByDate: Record<string, number> = {};
+    
+    alerts.forEach(alert => {
+      const date = new Date(alert.created_at).toLocaleDateString();
+      alertsByDate[date] = (alertsByDate[date] || 0) + 1;
     });
 
-    return last7Days.map(day => {
-      const dayAlerts = alerts.filter(alert => 
-        alert.created_at.startsWith(day.dateStr)
-      );
-      
-      return {
-        date: day.date,
-        alerts: dayAlerts.length
-      };
-    });
+    return Object.entries(alertsByDate).map(([date, alerts]) => ({
+      date,
+      alerts
+    }));
   };
 
   const formatCurrency = (value: number) => {
