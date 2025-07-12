@@ -29,17 +29,14 @@ class RandomForestForecaster(BaseForecaster):
     def __init__(self, hyperparameters: Optional[Dict[str, Any]] = None):
         """
         Inicializa el forecaster Random Forest
-        
-        Args:
-            hyperparameters: Parámetros específicos del modelo
         """
         if not SKLEARN_AVAILABLE:
             raise ImportError("scikit-learn no está instalado. Instálalo con: pip install scikit-learn")
             
         # Hiperparámetros por defecto
         default_params = {
-            'n_estimators': 100,  # Número de árboles
-            'max_depth': None,  # Profundidad máxima de árboles
+            'n_estimators': 50,  # Reducido para ser más eficiente
+            'max_depth': 10,  # Limitado para evitar overfitting
             'min_samples_split': 2,  # Mínimo de muestras para dividir
             'min_samples_leaf': 1,  # Mínimo de muestras en hoja
             'max_features': 'sqrt',  # Número de features por árbol
@@ -48,10 +45,10 @@ class RandomForestForecaster(BaseForecaster):
             'n_jobs': -1,  # Usar todos los cores
             'oob_score': True,  # Calcular out-of-bag score
             
-            # Features específicas para series temporales
-            'lag_features': [1, 7, 14, 30],  # Lags a incluir
-            'rolling_features': [7, 14, 30],  # Ventanas para estadísticas
-            'seasonal_periods': [7, 30, 365],  # Períodos estacionales
+            # Features específicas para series temporales - Más conservadores
+            'lag_features': [1, 7],  # Menos lags para conservar datos
+            'rolling_features': [7, 14],  # Menos ventanas
+            'seasonal_periods': [7],  # Solo período semanal
             'include_time_features': True,  # Features temporales
             'include_cyclical_features': True,  # Features cíclicas
             'normalize_features': False,  # RF no necesita normalización
@@ -93,16 +90,14 @@ class RandomForestForecaster(BaseForecaster):
             features['trend'] = np.arange(len(data))
         
         if self.hyperparameters.get('include_cyclical_features', True):
-            # Features cíclicas (mejor para RF que sin/cos)
-            features['hour_sin'] = np.sin(2 * np.pi * features.get('hour', 0) / 24)
-            features['hour_cos'] = np.cos(2 * np.pi * features.get('hour', 0) / 24)
+            # Features cíclicas
             features['day_sin'] = np.sin(2 * np.pi * features['day_of_week'] / 7)
             features['day_cos'] = np.cos(2 * np.pi * features['day_of_week'] / 7)
             features['month_sin'] = np.sin(2 * np.pi * features['month'] / 12)
             features['month_cos'] = np.cos(2 * np.pi * features['month'] / 12)
             
             # Features estacionales
-            for period in self.hyperparameters.get('seasonal_periods', [7, 30, 365]):
+            for period in self.hyperparameters.get('seasonal_periods', [7, 30]):
                 if len(data) >= period:
                     features[f'seasonal_sin_{period}'] = np.sin(2 * np.pi * features['day_of_year'] / period)
                     features[f'seasonal_cos_{period}'] = np.cos(2 * np.pi * features['day_of_year'] / period)
@@ -174,32 +169,49 @@ class RandomForestForecaster(BaseForecaster):
         for window in [7, 14, 30]:
             if window < len(data):
                 volatility = data[target_column].rolling(window=window).std()
-                advanced_features[f'volatility_{window}'] = volatility
+                advanced_features[f'volatility_{window}'] = volatility.fillna(0)
                 
-                # Ratio de volatilidad
+                # Ratio de volatilidad con protección contra división por cero
                 if window > 7:
-                    short_vol = data[target_column].rolling(window=7).std()
-                    advanced_features[f'volatility_ratio_{window}_7'] = volatility / (short_vol + 1e-8)
+                    short_vol = data[target_column].rolling(window=7).std().fillna(0)
+                    # Añadir epsilon para evitar división por cero
+                    epsilon = 1e-8
+                    advanced_features[f'volatility_ratio_{window}_7'] = volatility / (short_vol + epsilon)
         
-        # Momentum features
+        # Momentum features con protección contra división por cero
         for period in [3, 7, 14]:
             if period < len(data):
-                momentum = data[target_column] / data[target_column].shift(period) - 1
-                advanced_features[f'momentum_{period}'] = momentum
+                shifted_values = data[target_column].shift(period)
+                # Protección contra división por cero
+                epsilon = 1e-8
+                momentum = (data[target_column] / (shifted_values + epsilon)) - 1
+                advanced_features[f'momentum_{period}'] = momentum.fillna(0)
         
-        # Rate of change
+        # Rate of change con manejo seguro
         for period in [1, 7, 14]:
             if period < len(data):
                 roc = data[target_column].pct_change(periods=period)
+                # Reemplazar infinitos y NaN
+                roc = roc.replace([np.inf, -np.inf], 0).fillna(0)
                 advanced_features[f'roc_{period}'] = roc
         
-        # Autocorrelación local
+        # Autocorrelación local con manejo seguro
         for lag in [1, 7]:
             if lag < len(data) - 14:
-                rolling_corr = data[target_column].rolling(window=14).corr(
-                    data[target_column].shift(lag)
-                )
-                advanced_features[f'autocorr_{lag}'] = rolling_corr
+                try:
+                    rolling_corr = data[target_column].rolling(window=14).corr(
+                        data[target_column].shift(lag)
+                    )
+                    # Manejo de NaN e infinitos
+                    rolling_corr = rolling_corr.replace([np.inf, -np.inf], 0).fillna(0)
+                    advanced_features[f'autocorr_{lag}'] = rolling_corr
+                except Exception:
+                    # Fallback si falla el cálculo de correlación
+                    advanced_features[f'autocorr_{lag}'] = 0
+        
+        # Asegurar que todas las features son finitas
+        for col in advanced_features.columns:
+            advanced_features[col] = advanced_features[col].replace([np.inf, -np.inf], 0).fillna(0)
         
         return advanced_features
     
@@ -221,15 +233,47 @@ class RandomForestForecaster(BaseForecaster):
             advanced_features
         ], axis=1)
         
-        # Elimina filas con NaN
-        all_features = all_features.dropna()
+        # Manejo más inteligente de NaN values
+        # Primero reemplaza infinitos
+        all_features = all_features.replace([np.inf, -np.inf], np.nan)
         
-        # Reemplaza infinitos con NaN y luego elimina
-        all_features = all_features.replace([np.inf, -np.inf], np.nan).dropna()
+        # Forward fill para features de lag (usa el último valor conocido)
+        lag_cols = [col for col in all_features.columns if 'lag_' in col]
+        for col in lag_cols:
+            all_features[col] = all_features[col].fillna(method='ffill')
+        
+        # Para rolling features, usa forward fill también
+        rolling_cols = [col for col in all_features.columns if 'rolling_' in col]
+        for col in rolling_cols:
+            all_features[col] = all_features[col].fillna(method='ffill')
+        
+        # Para features de tiempo y avanzadas, usa interpolación o valores por defecto
+        time_cols = [col for col in all_features.columns if any(x in col for x in ['day_', 'month', 'quarter', 'week_', 'is_', 'trend'])]
+        for col in time_cols:
+            if all_features[col].isna().any():
+                if 'trend' in col:
+                    all_features[col] = all_features[col].fillna(method='ffill')
+                else:
+                    all_features[col] = all_features[col].fillna(0)
+        
+        # Para features restantes, usa la mediana
+        remaining_cols = [col for col in all_features.columns if col not in lag_cols + rolling_cols + time_cols]
+        for col in remaining_cols:
+            if all_features[col].isna().any():
+                median_val = all_features[col].median()
+                if pd.isna(median_val):
+                    median_val = 0
+                all_features[col] = all_features[col].fillna(median_val)
+        
+        # Solo elimina filas que tengan todos los valores NaN
+        all_features = all_features.dropna(how='all')
+        
+        # Si aún quedan NaN, reemplaza con 0
+        all_features = all_features.fillna(0)
         
         return all_features
     
-    def fit(self, data: pd.DataFrame, target_column: str = 'demand') -> 'RandomForestForecaster':
+    def fit(self, data: pd.DataFrame, target_column: str = 'quantity') -> 'RandomForestForecaster':
         """
         Entrena el modelo Random Forest
         """
@@ -249,23 +293,30 @@ class RandomForestForecaster(BaseForecaster):
             # Alinea target con features
             aligned_target = processed_data[target_column].loc[features.index]
             
-            if len(features) < 20:
-                raise ValueError("Insuficientes datos para entrenar Random Forest (mínimo 20 observaciones)")
+            logger.info(f"Features preparadas: {len(features)} filas, {len(features.columns)} columnas")
+            
+            # Validación más flexible - solo necesitamos al menos 5 observaciones para RF
+            if len(features) < 5:
+                raise ValueError(f"Insuficientes datos para entrenar Random Forest (mínimo 5 observaciones, disponibles: {len(features)})")
             
             # Guarda nombres de features
             self.feature_names = features.columns.tolist()
             
+            # Ajusta hiperparámetros según el tamaño de datos
+            n_estimators = min(self.hyperparameters.get('n_estimators', 50), max(10, len(features) // 2))
+            max_depth = min(self.hyperparameters.get('max_depth', 10), max(3, len(features) // 5))
+            
             # Inicializa el modelo Random Forest
             self.model = RandomForestRegressor(
-                n_estimators=self.hyperparameters.get('n_estimators', 100),
-                max_depth=self.hyperparameters.get('max_depth'),
-                min_samples_split=self.hyperparameters.get('min_samples_split', 2),
-                min_samples_leaf=self.hyperparameters.get('min_samples_leaf', 1),
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                min_samples_split=max(2, min(self.hyperparameters.get('min_samples_split', 2), len(features) // 3)),
+                min_samples_leaf=max(1, min(self.hyperparameters.get('min_samples_leaf', 1), len(features) // 5)),
                 max_features=self.hyperparameters.get('max_features', 'sqrt'),
                 bootstrap=self.hyperparameters.get('bootstrap', True),
                 random_state=self.hyperparameters.get('random_state', 42),
                 n_jobs=self.hyperparameters.get('n_jobs', -1),
-                oob_score=self.hyperparameters.get('oob_score', True)
+                oob_score=self.hyperparameters.get('oob_score', True) and len(features) > 10
             )
             
             # Entrena el modelo
@@ -301,6 +352,10 @@ class RandomForestForecaster(BaseForecaster):
         if not self.is_fitted:
             raise ValueError("El modelo debe ser entrenado antes de hacer predicciones")
         
+        # Verificar que tenemos datos de entrenamiento
+        if not hasattr(self, 'training_data') or self.training_data is None or self.training_data.empty:
+            raise ValueError("No hay datos de entrenamiento disponibles para hacer predicciones")
+        
         try:
             # Extiende los datos para pronósticos futuros
             last_date = self.training_data.index[-1]
@@ -311,72 +366,102 @@ class RandomForestForecaster(BaseForecaster):
             )
             
             extended_data = self.training_data.copy()
+            target_column = extended_data.columns[0]  # Asume que la primera columna es el target
             predictions = []
             prediction_intervals = []
             
             for i, future_date in enumerate(future_dates):
-                # Crea datos temporales incluyendo predicciones anteriores
-                temp_data = extended_data.copy()
-                
-                # Añade predicciones anteriores como datos históricos
-                if i > 0:
-                    for j, pred_date in enumerate(future_dates[:i]):
-                        temp_data.loc[pred_date, temp_data.columns[0]] = predictions[j]
-                
-                # Extiende datos para incluir la fecha futura
-                temp_index = pd.Index(list(temp_data.index) + [future_date])
-                temp_df = pd.DataFrame(
-                    index=temp_index,
-                    columns=temp_data.columns
-                )
-                temp_df.loc[temp_data.index] = temp_data.values
-                
-                # Rellena temporalmente el valor futuro
-                temp_df.loc[future_date] = temp_data.iloc[-1].values
-                
-                # Prepara features
-                features = self._prepare_features(temp_df, temp_df.columns[0])
-                
-                if future_date in features.index:
-                    future_features = features.loc[[future_date]]
+                try:
+                    # Crea datos temporales incluyendo predicciones anteriores
+                    temp_data = extended_data.copy()
                     
-                    # Predicción puntual
-                    pred = self.model.predict(future_features.values)[0]
-                    predictions.append(max(0, pred))
+                    # Añade predicciones anteriores como datos históricos
+                    if i > 0:
+                        for j, pred_date in enumerate(future_dates[:i]):
+                            temp_data.loc[pred_date, target_column] = predictions[j]
                     
-                    # Intervalos de confianza usando quantile regression
-                    # Para RF, estimamos intervalos usando la varianza de los árboles
-                    tree_predictions = np.array([
-                        tree.predict(future_features.values)[0] 
-                        for tree in self.model.estimators_
-                    ])
+                    # Extiende datos para incluir la fecha futura
+                    temp_index = pd.Index(list(temp_data.index) + [future_date])
+                    temp_df = pd.DataFrame(
+                        index=temp_index,
+                        columns=temp_data.columns
+                    )
+                    temp_df.loc[temp_data.index] = temp_data.values
                     
-                    pred_std = np.std(tree_predictions)
-                    z_score = 1.96 if confidence_interval >= 0.95 else 1.645
-                    margin = z_score * pred_std
+                    # Rellena temporalmente el valor futuro con el último valor conocido
+                    temp_df.loc[future_date] = temp_data.iloc[-1].values
                     
+                    # Prepara features
+                    features = self._prepare_features(temp_df, target_column)
+                    
+                    # Verificar que features no es None y tiene la fecha futura
+                    if features is not None and not features.empty and future_date in features.index:
+                        future_features = features.loc[[future_date]]
+                        
+                        # Verificar que las features tienen las columnas correctas
+                        if len(future_features.columns) == len(self.feature_names):
+                            # Predicción puntual
+                            pred = self.model.predict(future_features.values)[0]
+                            predictions.append(max(0, pred))
+                            
+                            # Intervalos de confianza usando quantile regression
+                            # Para RF, estimamos intervalos usando la varianza de los árboles
+                            try:
+                                tree_predictions = np.array([
+                                    tree.predict(future_features.values)[0] 
+                                    for tree in self.model.estimators_[:min(20, len(self.model.estimators_))]  # Reduce para eficiencia
+                                ])
+                                
+                                pred_std = np.std(tree_predictions)
+                                z_score = 1.96 if confidence_interval >= 0.95 else 1.645
+                                margin = z_score * pred_std
+                                
+                                prediction_intervals.append({
+                                    'lower': max(0, pred - margin),
+                                    'upper': pred + margin
+                                })
+                            except Exception:
+                                # Fallback para intervalos
+                                prediction_intervals.append({
+                                    'lower': max(0, pred * 0.8),
+                                    'upper': pred * 1.2
+                                })
+                        else:
+                            # Fallback si las features no coinciden
+                            logger.warning(f"Features no coinciden para fecha {future_date}")
+                            avg_pred = np.mean(predictions) if predictions else temp_data[target_column].mean()
+                            predictions.append(max(0, avg_pred))
+                            prediction_intervals.append({
+                                'lower': max(0, avg_pred * 0.8),
+                                'upper': avg_pred * 1.2
+                            })
+                    else:
+                        # Fallback si no se pueden crear features válidas
+                        logger.warning(f"No se pudieron crear features para fecha {future_date}")
+                        last_value = temp_data[target_column].iloc[-1]
+                        predictions.append(max(0, last_value))
+                        prediction_intervals.append({
+                            'lower': max(0, last_value * 0.8),
+                            'upper': last_value * 1.2
+                        })
+                        
+                except Exception as e:
+                    logger.warning(f"Error procesando fecha {future_date}: {str(e)}")
+                    # Fallback a último valor conocido
+                    last_value = extended_data[target_column].iloc[-1] if not extended_data.empty else 1.0
+                    predictions.append(max(0, last_value))
                     prediction_intervals.append({
-                        'lower': max(0, pred - margin),
-                        'upper': pred + margin
-                    })
-                else:
-                    # Fallback si no se pueden crear features
-                    predictions.append(extended_data.iloc[-1, 0])
-                    prediction_intervals.append({
-                        'lower': extended_data.iloc[-1, 0] * 0.8,
-                        'upper': extended_data.iloc[-1, 0] * 1.2
+                        'lower': max(0, last_value * 0.8),
+                        'upper': last_value * 1.2
                     })
             
             # Prepara el resultado
             result = pd.DataFrame({
-                'date': future_dates,
                 'predicted_demand': predictions,
                 'lower_bound': [interval['lower'] for interval in prediction_intervals],
                 'upper_bound': [interval['upper'] for interval in prediction_intervals],
                 'confidence_level': confidence_interval
-            })
-            
-            result.set_index('date', inplace=True)
+            }, index=future_dates)
             
             logger.info(f"Generados {periods} pronósticos Random Forest")
             

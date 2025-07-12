@@ -406,8 +406,8 @@ class DataImportService:
     def _create_object(mapped_data: Dict[str, Any], session: DataImportSession) -> bool:
         """Crea un objeto en la base de datos según el tipo de importación"""
         try:
-            from inventory.models import Product, Supplier, Category
-            from inventory.models import Customer, Lead  # Asumiendo que están en inventory
+            from inventory.models import Product, Supplier, Category, Customer, Lead, Location, InventoryItem, Transaction
+            from datalens_backend.utils import get_default_company
             
             if session.import_type == 'products':
                 # Validar campos requeridos
@@ -417,20 +417,14 @@ class DataImportService:
                 # Manejar relaciones
                 if 'category' in mapped_data and mapped_data['category']:
                     try:
-                        category = Category.objects.get(
-                            company=session.company,
-                            name=mapped_data['category']
-                        )
+                        category = Category.objects.get(name=mapped_data['category'])
                         mapped_data['category'] = category
                     except Category.DoesNotExist:
                         mapped_data.pop('category', None)
                 
                 if 'supplier' in mapped_data and mapped_data['supplier']:
                     try:
-                        supplier = Supplier.objects.get(
-                            company=session.company,
-                            name=mapped_data['supplier']
-                        )
+                        supplier = Supplier.objects.get(name=mapped_data['supplier'])
                         mapped_data['supplier'] = supplier
                     except Supplier.DoesNotExist:
                         mapped_data.pop('supplier', None)
@@ -438,10 +432,13 @@ class DataImportService:
                 # Agregar company
                 mapped_data['company'] = session.company
                 
+                # Sincronizar price con sale_price si no se proporciona
+                if 'sale_price' in mapped_data and 'price' not in mapped_data:
+                    mapped_data['price'] = mapped_data['sale_price']
+                
                 # Crear o actualizar producto
                 if session.skip_duplicates:
                     product, created = Product.objects.get_or_create(
-                        company=session.company,
                         sku=mapped_data['sku'],
                         defaults=mapped_data
                     )
@@ -458,12 +455,14 @@ class DataImportService:
                 if 'name' not in mapped_data:
                     return False
                 
-                mapped_data['company'] = session.company
+                # Validar campos únicos
+                unique_fields = {}
+                if 'tax_id' in mapped_data and mapped_data['tax_id']:
+                    unique_fields['tax_id'] = mapped_data['tax_id']
                 
-                if session.skip_duplicates and 'ruc' in mapped_data:
+                if session.skip_duplicates and unique_fields:
                     supplier, created = Supplier.objects.get_or_create(
-                        company=session.company,
-                        ruc=mapped_data['ruc'],
+                        **unique_fields,
                         defaults=mapped_data
                     )
                     if not created and session.update_existing:
@@ -479,22 +478,8 @@ class DataImportService:
                 if 'name' not in mapped_data:
                     return False
                 
-                mapped_data['company'] = session.company
-                
-                # Manejar categoría padre
-                if 'parent' in mapped_data and mapped_data['parent']:
-                    try:
-                        parent = Category.objects.get(
-                            company=session.company,
-                            name=mapped_data['parent']
-                        )
-                        mapped_data['parent'] = parent
-                    except Category.DoesNotExist:
-                        mapped_data.pop('parent', None)
-                
                 if session.skip_duplicates:
                     category, created = Category.objects.get_or_create(
-                        company=session.company,
                         name=mapped_data['name'],
                         defaults=mapped_data
                     )
@@ -507,7 +492,131 @@ class DataImportService:
                 
                 return True
             
-            # Agregar más tipos según sea necesario
+            elif session.import_type == 'customers':
+                if 'name' not in mapped_data:
+                    return False
+                
+                # Validar campos únicos
+                unique_fields = {}
+                if 'tax_id' in mapped_data and mapped_data['tax_id']:
+                    unique_fields['tax_id'] = mapped_data['tax_id']
+                elif 'email' in mapped_data and mapped_data['email']:
+                    unique_fields['email'] = mapped_data['email']
+                
+                if session.skip_duplicates and unique_fields:
+                    customer, created = Customer.objects.get_or_create(
+                        **unique_fields,
+                        defaults=mapped_data
+                    )
+                    if not created and session.update_existing:
+                        for key, value in mapped_data.items():
+                            setattr(customer, key, value)
+                        customer.save()
+                else:
+                    Customer.objects.create(**mapped_data)
+                
+                return True
+            
+            elif session.import_type == 'leads':
+                if 'name' not in mapped_data or 'email' not in mapped_data:
+                    return False
+                
+                # Asignar usuario responsable por defecto
+                if 'assigned_to' not in mapped_data:
+                    mapped_data['assigned_to'] = session.user
+                
+                if session.skip_duplicates:
+                    lead, created = Lead.objects.get_or_create(
+                        email=mapped_data['email'],
+                        defaults=mapped_data
+                    )
+                    if not created and session.update_existing:
+                        for key, value in mapped_data.items():
+                            setattr(lead, key, value)
+                        lead.save()
+                else:
+                    Lead.objects.create(**mapped_data)
+                
+                return True
+            
+            elif session.import_type == 'locations':
+                if 'name' not in mapped_data or 'code' not in mapped_data:
+                    return False
+                
+                if session.skip_duplicates:
+                    location, created = Location.objects.get_or_create(
+                        code=mapped_data['code'],
+                        defaults=mapped_data
+                    )
+                    if not created and session.update_existing:
+                        for key, value in mapped_data.items():
+                            setattr(location, key, value)
+                        location.save()
+                else:
+                    Location.objects.create(**mapped_data)
+                
+                return True
+            
+            elif session.import_type == 'inventory_items':
+                # Validar campos requeridos
+                if 'product' not in mapped_data or 'location' not in mapped_data or 'quantity' not in mapped_data:
+                    return False
+                
+                # Resolver relaciones
+                try:
+                    if isinstance(mapped_data['product'], str):
+                        product = Product.objects.get(sku=mapped_data['product'])
+                        mapped_data['product'] = product
+                    
+                    if isinstance(mapped_data['location'], str):
+                        location = Location.objects.get(code=mapped_data['location'])
+                        mapped_data['location'] = location
+                except (Product.DoesNotExist, Location.DoesNotExist):
+                    return False
+                
+                # Verificar si ya existe el item
+                if session.skip_duplicates:
+                    item, created = InventoryItem.objects.get_or_create(
+                        product=mapped_data['product'],
+                        location=mapped_data['location'],
+                        batch_number=mapped_data.get('batch_number', ''),
+                        defaults=mapped_data
+                    )
+                    if not created and session.update_existing:
+                        for key, value in mapped_data.items():
+                            setattr(item, key, value)
+                        item.save()
+                else:
+                    InventoryItem.objects.create(**mapped_data)
+                
+                return True
+            
+            elif session.import_type == 'transactions':
+                # Validar campos requeridos
+                if 'product' not in mapped_data or 'transaction_type' not in mapped_data or 'quantity' not in mapped_data:
+                    return False
+                
+                # Resolver relaciones
+                try:
+                    if isinstance(mapped_data['product'], str):
+                        product = Product.objects.get(sku=mapped_data['product'])
+                        mapped_data['product'] = product
+                    
+                    if 'location' in mapped_data and isinstance(mapped_data['location'], str):
+                        location = Location.objects.get(code=mapped_data['location'])
+                        mapped_data['location'] = location
+                except (Product.DoesNotExist, Location.DoesNotExist):
+                    return False
+                
+                # Agregar usuario creador
+                mapped_data['created_by'] = session.user
+                
+                # Establecer fecha por defecto si no se proporciona
+                if 'transaction_date' not in mapped_data:
+                    mapped_data['transaction_date'] = datetime.now()
+                
+                Transaction.objects.create(**mapped_data)
+                return True
             
             return False
             

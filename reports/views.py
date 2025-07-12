@@ -15,6 +15,7 @@ import logging
 import mimetypes
 import json
 from io import BytesIO
+import random
 
 from .models import ReportTemplate, Report, KPIDefinition, KPIValue, ReportSchedule, ReportDistribution
 from .serializers import (
@@ -911,11 +912,11 @@ class AnalyticsDashboardView(APIView):
                 if item.quantity and item.product.cost_price:
                     total_inventory_value += float(item.quantity) * float(item.product.cost_price)
             
-            # Ventas del mes actual (transacciones de tipo 'sale') - corregir agregación
+            # Ventas del mes actual (transacciones de tipo 'sale') - corregir campo de fecha
             sales_transactions = Transaction.objects.filter(
                 transaction_type='sale',
-                created_at__date__gte=current_month_start,
-                created_at__date__lte=end_date
+                transaction_date__gte=current_month_start,  # Usar transaction_date en lugar de created_at
+                transaction_date__lte=end_date
             )
             
             # Calcular por separado para evitar conflictos de agregación
@@ -930,8 +931,8 @@ class AnalyticsDashboardView(APIView):
             # Ventas del mes anterior para calcular crecimiento
             previous_sales_transactions = Transaction.objects.filter(
                 transaction_type='sale',
-                created_at__date__gte=previous_month_start,
-                created_at__date__lt=current_month_start
+                transaction_date__gte=previous_month_start,  # Usar transaction_date
+                transaction_date__lt=current_month_start
             )
             
             previous_sales_value = 0
@@ -952,7 +953,7 @@ class AnalyticsDashboardView(APIView):
             total_sales_year_qty = 0
             yearly_sales = Transaction.objects.filter(
                 transaction_type='sale',
-                created_at__date__gte=end_date - timedelta(days=365)
+                transaction_date__gte=end_date - timedelta(days=365)  # Usar transaction_date
             )
             for transaction in yearly_sales:
                 total_sales_year_qty += abs(float(transaction.quantity or 0))
@@ -985,38 +986,65 @@ class AnalyticsDashboardView(APIView):
             }
     
     def _get_real_trends_data(self, company, start_date, end_date):
-        """Obtener datos de tendencias reales"""
+        """Obtener datos de tendencias reales - MEJORADO para mostrar ventas en SOLES"""
         try:
             monthly_data = []
             for i in range(12):
                 month_start = (end_date.replace(day=1) - timedelta(days=30*i)).replace(day=1)
                 month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
                 
-                # Ventas del mes (valores absolutos porque sales son negativos)
-                sales = Transaction.objects.filter(
+                # NUEVO: Calcular ventas reales en SOLES
+                sales_transactions = Transaction.objects.filter(
                     transaction_type='sale',
-                    created_at__date__gte=month_start,
-                    created_at__date__lte=month_end
-                ).aggregate(total=Sum('quantity'))['total'] or 0
-                sales = abs(sales)
+                    transaction_date__gte=month_start,
+                    transaction_date__lte=month_end
+                )
                 
-                # Entradas del mes (purchases)
-                entries = Transaction.objects.filter(
+                # CALCULAR TANTO SOLES COMO UNIDADES para máxima información
+                sales_value_soles = 0
+                sales_units = 0
+                for transaction in sales_transactions:
+                    qty = abs(float(transaction.quantity or 0))  # Valor absoluto (ventas son negativas)
+                    unit_cost = float(transaction.unit_cost or 0)
+                    sales_value_soles += qty * unit_cost
+                    sales_units += qty
+                
+                # Calcular AMBAS métricas de compras
+                purchase_transactions = Transaction.objects.filter(
                     transaction_type='purchase',
-                    created_at__date__gte=month_start,
-                    created_at__date__lte=month_end
-                ).aggregate(total=Sum('quantity'))['total'] or 0
+                    transaction_date__gte=month_start,
+                    transaction_date__lte=month_end
+                )
+                
+                purchase_value_soles = 0
+                purchase_units = 0
+                for transaction in purchase_transactions:
+                    qty = float(transaction.quantity or 0)
+                    unit_cost = float(transaction.unit_cost or 0)
+                    purchase_value_soles += qty * unit_cost
+                    purchase_units += qty
+                
+                # Contar transacciones para referencia
+                sales_count = sales_transactions.count()
+                purchase_count = purchase_transactions.count()
                 
                 # Valor estimado del inventario para ese mes
-                inventory_value = 250000 + (i * 5000)  # Estimación por ahora
+                inventory_value = 250000 + (i * 5000)
                 
                 monthly_data.append({
                     'month': month_start.strftime('%b'),
                     'month_year': month_start.strftime('%Y-%m'),
-                    'sales': int(sales),
-                    'entries': int(entries),
-                    'inventory_value': inventory_value,
-                    'transactions_count': int(sales + entries)
+                    # DATOS FINANCIEROS (en soles) - para análisis de ingresos
+                    'sales_value': round(sales_value_soles, 2),  # Ventas en S/.
+                    'purchase_value': round(purchase_value_soles, 2),  # Compras en S/.
+                    'inventory_value': inventory_value,  # Valor inventario en S/.
+                    # DATOS DE VOLUMEN (en unidades) - para análisis operativo  
+                    'sales_units': int(sales_units),  # Unidades vendidas
+                    'purchase_units': int(purchase_units),  # Unidades compradas
+                    'transactions_count': sales_count + purchase_count,  # Total transacciones
+                    # COMPATIBILIDAD (mantener campos anteriores para que no se rompa el frontend)
+                    'sales': round(sales_value_soles, 2),  # Por defecto mostrar soles
+                    'entries': round(purchase_value_soles, 2),  # Por defecto mostrar soles
                 })
             
             monthly_data.reverse()  # Orden cronológico
@@ -1086,10 +1114,10 @@ class AnalyticsDashboardView(APIView):
     def _get_real_top_products(self, company, start_date):
         """Obtener productos más vendidos usando datos reales"""
         try:
-            # Obtener productos más vendidos basado en transacciones reales
+            # Obtener productos más vendidos basado en transacciones reales - usar transaction_date
             top_sales = Transaction.objects.filter(
                 transaction_type='sale',
-                created_at__date__gte=start_date
+                transaction_date__gte=start_date  # Usar transaction_date
             ).values(
                 'product__name', 
                 'product__category__name', 

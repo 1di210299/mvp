@@ -66,15 +66,9 @@ import {
 const analyticsService = {
   async getAnalyticsData() {
     try {
-      // Usar el mismo puerto que el resto de la API (8080)
-      const response = await fetch('http://localhost:8080/api/reports/analytics/', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        // Simplificar headers al máximo para evitar 431
-        credentials: 'omit'
-      });
+      // Usar el puerto correcto donde está corriendo el backend (8080)
+      // Simplificar headers al máximo para evitar error 431
+      const response = await fetch('http://localhost:8080/api/reports/analytics/');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -227,15 +221,9 @@ const ReportsPage: React.FC = () => {
       console.error('Error loading analytics:', err);
       setState(prev => ({ 
         ...prev, 
-        error: 'Error al cargar datos de analytics. Mostrando datos de ejemplo.',
-        loading: false 
-      }));
-      
-      // Fallback a datos mock si hay error
-      setState(prev => ({ 
-        ...prev, 
-        data: generateFallbackData(),
-        loading: false 
+        error: 'Error al cargar datos de analytics. Verifica la conexión con el backend.',
+        loading: false,
+        data: null // No usar datos mock, mostrar error
       }));
     }
   };
@@ -299,49 +287,6 @@ const ReportsPage: React.FC = () => {
     loadAnalyticsData();
   }, [state.selectedPeriod]);
 
-  // Datos de fallback en caso de error
-  const generateFallbackData = (): AnalyticsData => ({
-    metrics: {
-      total_products: 150,
-      total_inventory_value: 245680.50,
-      sales_this_month: 1250,
-      sales_value_this_month: 89420.30,
-      active_alerts: 8,
-      sales_growth_percentage: 12.5,
-      inventory_turnover: 4.2,
-      forecast_accuracy: 87.3
-    },
-    trends: {
-      monthly_data: [
-        { month: 'Ene', month_year: '2024-01', sales: 980, entries: 1200, inventory_value: 220000, transactions_count: 45 },
-        { month: 'Feb', month_year: '2024-02', sales: 1120, entries: 1100, inventory_value: 235000, transactions_count: 52 },
-        { month: 'Mar', month_year: '2024-03', sales: 1350, entries: 1300, inventory_value: 248000, transactions_count: 68 },
-        { month: 'Abr', month_year: '2024-04', sales: 1180, entries: 1250, inventory_value: 242000, transactions_count: 61 },
-        { month: 'May', month_year: '2024-05', sales: 1420, entries: 1400, inventory_value: 255000, transactions_count: 74 },
-        { month: 'Jun', month_year: '2024-06', sales: 1290, entries: 1350, inventory_value: 249000, transactions_count: 65 },
-        { month: 'Jul', month_year: '2024-07', sales: 1250, entries: 1300, inventory_value: 246000, transactions_count: 63 }
-      ],
-      inventory_status: [
-        { name: 'Disponible', value: 95, percentage: 63.3, color: '#10b981' },
-        { name: 'Bajo Stock', value: 38, percentage: 25.3, color: '#f59e0b' },
-        { name: 'Agotado', value: 17, percentage: 11.3, color: '#ef4444' }
-      ]
-    },
-    top_products: [
-      { name: 'Producto Premium A', sales: 245, current_stock: 45, category: 'Electrónicos', unit_cost: 125.50 },
-      { name: 'Producto Estándar B', sales: 198, current_stock: 78, category: 'Hogar', unit_cost: 89.99 },
-      { name: 'Producto Especial C', sales: 167, current_stock: 12, category: 'Deportes', unit_cost: 210.00 },
-      { name: 'Producto Base D', sales: 143, current_stock: 89, category: 'Oficina', unit_cost: 45.75 },
-      { name: 'Producto Plus E', sales: 132, current_stock: 23, category: 'Tecnología', unit_cost: 189.99 }
-    ],
-    recent_alerts: [
-      { id: 1, message: 'Stock bajo en Producto A', severity: 'medium', status: 'active', created_at: '2024-07-10T10:30:00Z', product_name: 'Producto A' },
-      { id: 2, message: 'Producto B agotado', severity: 'high', status: 'active', created_at: '2024-07-10T09:15:00Z', product_name: 'Producto B' },
-      { id: 3, message: 'Reposición pendiente', severity: 'low', status: 'acknowledged', created_at: '2024-07-09T16:45:00Z' }
-    ],
-    last_updated: new Date().toISOString()
-  });
-
   if (state.loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -387,15 +332,155 @@ const ReportsPage: React.FC = () => {
 
   const { metrics, trends, top_products, recent_alerts } = state.data;
 
+  // Funciones de formato mejoradas
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-MX', {
+    return new Intl.NumberFormat('es-PE', {
       style: 'currency',
-      currency: 'MXN'
+      currency: 'PEN',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(value);
   };
 
   const formatNumber = (value: number) => {
-    return new Intl.NumberFormat('es-MX').format(value);
+    return new Intl.NumberFormat('es-PE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+
+  const formatLargeNumber = (value: number) => {
+    if (value >= 1000000) {
+      return (value / 1000000).toFixed(1) + 'M';
+    } else if (value >= 1000) {
+      return (value / 1000).toFixed(1) + 'K';
+    }
+    return value.toString();
+  };
+
+  // Tooltip personalizado SÚPER COMPLETO con ambas métricas
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-200 dark:border-gray-600 min-w-[320px]">
+          <p className="font-bold text-gray-900 dark:text-white mb-3 text-center border-b pb-2">
+            📅 {label} 2024/2025
+          </p>
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="mb-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <div 
+                  className="w-4 h-4 rounded-full shadow-sm"
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="font-semibold text-gray-800 dark:text-gray-100">
+                  {entry.name === 'sales' || entry.name === 'sales_value' ? '🛒 VENTAS' :
+                   entry.name === 'entries' || entry.name === 'purchase_value' ? '📦 COMPRAS' :
+                   entry.name === 'inventory_value' ? '💰 VALOR INVENTARIO' :
+                   entry.name === 'sales_units' ? '📊 UNIDADES VENDIDAS' :
+                   entry.name === 'purchase_units' ? '📊 UNIDADES COMPRADAS' :
+                   entry.name === 'transactions_count' ? '📋 TRANSACCIONES' :
+                   entry.name.toUpperCase()}
+                </span>
+              </div>
+              
+              {/* Mostrar valores financieros y de volumen juntos */}
+              {(entry.name === 'sales' || entry.name === 'sales_value') && (
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">💰 Ingresos:</span>
+                    <span className="font-bold text-green-600 dark:text-green-400">
+                      {formatCurrency(entry.value)}
+                    </span>
+                  </div>
+                  {/* Buscar datos de unidades en el payload */}
+                  {payload.find((p: any) => p.dataKey === 'sales_units') && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-gray-300">📊 Unidades:</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                        {formatNumber(payload.find((p: any) => p.dataKey === 'sales_units')?.value || 0)} uds.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {(entry.name === 'entries' || entry.name === 'purchase_value') && (
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">💰 Costo:</span>
+                    <span className="font-bold text-orange-600 dark:text-orange-400">
+                      {formatCurrency(entry.value)}
+                    </span>
+                  </div>
+                  {/* Buscar datos de unidades en el payload */}
+                  {payload.find((p: any) => p.dataKey === 'purchase_units') && (
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600 dark:text-gray-300">📊 Unidades:</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                        {formatNumber(payload.find((p: any) => p.dataKey === 'purchase_units')?.value || 0)} uds.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {entry.name === 'inventory_value' && (
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">💰 Valor Total:</span>
+                  <span className="font-bold text-purple-600 dark:text-purple-400">
+                    {formatCurrency(entry.value)}
+                  </span>
+                </div>
+              )}
+              
+              {entry.name === 'transactions_count' && (
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">📋 Operaciones:</span>
+                  <span className="font-bold text-gray-600 dark:text-gray-400">
+                    {entry.value} transacciones
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+          
+          <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-600 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
+            <p className="text-xs text-blue-800 dark:text-blue-200 text-center font-semibold">
+              💡 ANÁLISIS COMPLETO: Datos financieros Y operativos
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-300 text-center mt-1">
+              🔍 Ventas/Compras en SOLES + UNIDADES para decisiones integrales
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Tooltip para gráfico de pie mejorado
+  const PieTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600">
+          <div className="flex items-center gap-2 mb-1">
+            <div 
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: data.color }}
+            />
+            <span className="font-semibold text-gray-900 dark:text-white">
+              {data.name}
+            </span>
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {data.value} productos ({data.percentage}%)
+          </p>
+        </div>
+      );
+    }
+    return null;
   };
 
   const getSeverityColor = (severity: string) => {
@@ -506,8 +591,21 @@ const ReportsPage: React.FC = () => {
                   axisLine={{ stroke: '#e5e7eb' }}
                 />
                 <YAxis 
-                  tick={{ fontSize: 12 }}
-                  axisLine={{ stroke: '#e5e7eb' }}
+                  yAxisId="left"
+                  stroke="#6b7280"
+                  fontSize={11}
+                  tick={{ fill: '#6b7280' }}
+                  axisLine={{ stroke: '#d1d5db' }}
+                  tickFormatter={formatLargeNumber}
+                />
+                <YAxis 
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="#6b7280"
+                  fontSize={11}
+                  tick={{ fill: '#6b7280' }}
+                  axisLine={{ stroke: '#d1d5db' }}
+                  tickFormatter={(value) => formatLargeNumber(value)}
                 />
                 <Tooltip 
                   contentStyle={{
@@ -521,29 +619,29 @@ const ReportsPage: React.FC = () => {
                 
                 {type === 'line' && (
                   <>
-                    <Line type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={3} dot={{ r: 6 }} />
-                    <Line type="monotone" dataKey="entries" stroke="#10b981" strokeWidth={3} dot={{ r: 6 }} />
+                    <Line yAxisId="left" type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={3} dot={{ r: 6 }} />
+                    <Line yAxisId="left" type="monotone" dataKey="entries" stroke="#10b981" strokeWidth={3} dot={{ r: 6 }} />
                   </>
                 )}
                 
                 {type === 'bar' && (
                   <>
-                    <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="entries" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="left" dataKey="entries" fill="#10b981" radius={[4, 4, 0, 0]} />
                   </>
                 )}
                 
                 {type === 'area' && (
                   <>
-                    <Area type="monotone" dataKey="inventory_value" stackId="1" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="transactions_count" stackId="1" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.6} />
+                    <Area yAxisId="right" type="monotone" dataKey="inventory_value" stackId="1" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
+                    <Area yAxisId="left" type="monotone" dataKey="transactions_count" stackId="2" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.6} />
                   </>
                 )}
                 
                 {type === 'composed' && (
                   <>
-                    <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Line type="monotone" dataKey="inventory_value" stroke="#ef4444" strokeWidth={3} dot={{ r: 6 }} />
+                    <Bar yAxisId="left" dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="inventory_value" stroke="#ef4444" strokeWidth={3} dot={{ r: 6 }} />
                   </>
                 )}
               </ChartComponent>
@@ -765,64 +863,71 @@ const ReportsPage: React.FC = () => {
           />
         </div>
 
-        {/* Gráficos principales - Layout mejorado */}
+        {/* Gráficos principales - Layout mejorado con tooltips personalizados */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Tendencias de Ventas */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-            <CardHeader className="pb-4">
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-xl">
+            <CardHeader className="pb-4 border-b border-gray-100 dark:border-gray-700">
               <CardTitle className="flex items-center text-gray-900 dark:text-white">
                 <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
                 Tendencias de Ventas e Inventario
               </CardTitle>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Comparación mensual de ventas, compras y valor de inventario
+              </p>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={trends.monthly_data}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <CardContent className="pt-6">
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={trends.monthly_data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
                   <XAxis 
                     dataKey="month" 
                     stroke="#6b7280"
-                    fontSize={12}
+                    fontSize={11}
+                    tick={{ fill: '#6b7280' }}
+                    axisLine={{ stroke: '#d1d5db' }}
                   />
                   <YAxis 
                     yAxisId="left"
                     stroke="#6b7280"
-                    fontSize={12}
+                    fontSize={11}
+                    tick={{ fill: '#6b7280' }}
+                    axisLine={{ stroke: '#d1d5db' }}
+                    tickFormatter={formatLargeNumber}
+                    domain={[0, 'dataMax']}
+                    label={{ value: 'Unidades', angle: -90, position: 'insideLeft', textAnchor: 'middle' }}
                   />
                   <YAxis 
                     yAxisId="right"
                     orientation="right"
                     stroke="#6b7280"
-                    fontSize={12}
+                    fontSize={11}
+                    tick={{ fill: '#6b7280' }}
+                    axisLine={{ stroke: '#d1d5db' }}
+                    tickFormatter={(value) => formatLargeNumber(value)}
+                    domain={[200000, 350000]}
+                    label={{ value: 'Valor (S/.)', angle: 90, position: 'insideRight', textAnchor: 'middle' }}
                   />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: '#1f2937',
-                      border: 'none',
-                      borderRadius: '8px',
-                      color: '#fff'
-                    }}
-                    formatter={(value, name) => [
-                      typeof value === 'number' ? formatNumber(value) : value,
-                      name === 'sales' ? 'Ventas' : 
-                      name === 'entries' ? 'Entradas' : 
-                      name === 'inventory_value' ? 'Valor Inventario' : name
-                    ]}
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="rect"
                   />
-                  <Legend />
                   <Bar 
                     yAxisId="left"
                     dataKey="sales" 
                     fill="#3b82f6" 
                     name="Ventas"
                     radius={[4, 4, 0, 0]}
+                    opacity={0.8}
                   />
                   <Bar 
                     yAxisId="left"
                     dataKey="entries" 
                     fill="#10b981" 
-                    name="Entradas"
+                    name="Compras"
                     radius={[4, 4, 0, 0]}
+                    opacity={0.8}
                   />
                   <Line 
                     yAxisId="right"
@@ -831,7 +936,8 @@ const ReportsPage: React.FC = () => {
                     stroke="#f59e0b" 
                     strokeWidth={3}
                     name="Valor Inventario"
-                    dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }}
+                    dot={{ fill: '#f59e0b', strokeWidth: 2, r: 5 }}
+                    activeDot={{ r: 8, fill: '#f59e0b' }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -839,59 +945,65 @@ const ReportsPage: React.FC = () => {
           </Card>
 
           {/* Estado del Inventario */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-            <CardHeader className="pb-4">
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-xl">
+            <CardHeader className="pb-4 border-b border-gray-100 dark:border-gray-700">
               <CardTitle className="flex items-center text-gray-900 dark:text-white">
                 <Package className="h-5 w-5 mr-2 text-green-600" />
                 Estado del Inventario
               </CardTitle>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Distribución actual por estado de stock
+              </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="grid grid-cols-1 gap-6">
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
                     <Pie
                       data={trends.inventory_status}
                       cx="50%"
                       cy="50%"
-                      outerRadius={80}
+                      outerRadius={85}
+                      innerRadius={40}
                       dataKey="value"
-                      label={({ name, percentage }) => `${name}: ${percentage}%`}
+                      label={({ name, percentage }) => `${percentage}%`}
+                      labelLine={false}
+                      stroke="#ffffff"
+                      strokeWidth={2}
                     >
                       {trends.inventory_status.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.color}
+                          style={{
+                            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                            transition: 'all 0.3s ease'
+                          }}
+                        />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      formatter={(value, name) => [value, 'Productos']}
-                      contentStyle={{
-                        backgroundColor: '#1f2937',
-                        border: 'none',
-                        borderRadius: '8px',
-                        color: '#fff'
-                      }}
-                    />
+                    <Tooltip content={<PieTooltip />} />
                   </PieChart>
                 </ResponsiveContainer>
 
                 <div className="space-y-3">
                   {trends.inventory_status.map((status, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-xl shadow-sm hover:shadow-md transition-shadow">
                       <div className="flex items-center gap-3">
                         <div 
-                          className="w-4 h-4 rounded-full"
+                          className="w-5 h-5 rounded-full shadow-inner"
                           style={{ backgroundColor: status.color }}
                         />
-                        <span className="font-medium text-gray-900 dark:text-white">
+                        <span className="font-semibold text-gray-900 dark:text-white">
                           {status.name}
                         </span>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-gray-900 dark:text-white">
+                        <p className="font-bold text-xl text-gray-900 dark:text-white">
                           {status.value}
                         </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {status.percentage}%
+                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                          {status.percentage}% del total
                         </p>
                       </div>
                     </div>
@@ -901,6 +1013,85 @@ const ReportsPage: React.FC = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Gráfico adicional de tendencias detallado */}
+        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-xl">
+          <CardHeader className="pb-4 border-b border-gray-100 dark:border-gray-700">
+            <CardTitle className="flex items-center text-gray-900 dark:text-white">
+              <Activity className="h-5 w-5 mr-2 text-purple-600" />
+              Análisis Detallado de Transacciones
+            </CardTitle>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Volumen de transacciones y evolución del valor de inventario
+            </p>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={trends.monthly_data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="colorInventory" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
+                  </linearGradient>
+                  <linearGradient id="colorTransactions" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                <XAxis 
+                  dataKey="month" 
+                  stroke="#6b7280"
+                  fontSize={11}
+                  tick={{ fill: '#6b7280' }}
+                  axisLine={{ stroke: '#d1d5db' }}
+                />
+                <YAxis 
+                  yAxisId="left"
+                  stroke="#6b7280"
+                  fontSize={11}
+                  tick={{ fill: '#6b7280' }}
+                  axisLine={{ stroke: '#d1d5db' }}
+                  tickFormatter={formatLargeNumber}
+                />
+                <YAxis 
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="#6b7280"
+                  fontSize={11}
+                  tick={{ fill: '#6b7280' }}
+                  axisLine={{ stroke: '#d1d5db' }}
+                  tickFormatter={formatLargeNumber}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend 
+                  wrapperStyle={{ paddingTop: '20px' }}
+                  iconType="rect"
+                />
+                <Area 
+                  yAxisId="right"
+                  type="monotone" 
+                  dataKey="inventory_value" 
+                  stackId="1" 
+                  stroke="#8b5cf6" 
+                  fill="url(#colorInventory)"
+                  name="Valor Inventario"
+                  strokeWidth={2}
+                />
+                <Area 
+                  yAxisId="left"
+                  type="monotone" 
+                  dataKey="transactions_count" 
+                  stackId="2" 
+                  stroke="#f59e0b" 
+                  fill="url(#colorTransactions)"
+                  name="Transacciones"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
         {/* Sección de productos top y alertas */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

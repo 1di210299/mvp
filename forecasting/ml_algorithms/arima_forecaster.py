@@ -289,15 +289,22 @@ class ARIMAForecaster(BaseForecaster):
             
             self.metrics = self.calculate_metrics(y_true.values, fitted_values.values)
             
-            # Añade métricas específicas de ARIMA
-            self.metrics['aic'] = self.fitted_model.aic
-            self.metrics['bic'] = self.fitted_model.bic
-            self.metrics['hqic'] = self.fitted_model.hqic
+            # Añade métricas específicas de ARIMA - Asegurar valores JSON válidos
+            self.metrics['aic'] = float(self.fitted_model.aic) if not np.isnan(self.fitted_model.aic) else 0.0
+            self.metrics['bic'] = float(self.fitted_model.bic) if not np.isnan(self.fitted_model.bic) else 0.0
+            self.metrics['hqic'] = float(self.fitted_model.hqic) if not np.isnan(self.fitted_model.hqic) else 0.0
             
-            # Test de residuales
-            residuals = self.fitted_model.resid
-            ljung_box = acorr_ljungbox(residuals, lags=10, return_df=True)
-            self.metrics['ljung_box_p_value'] = ljung_box['lb_pvalue'].iloc[-1]
+            # Test de residuales - Manejo seguro de NaN
+            try:
+                residuals = self.fitted_model.resid
+                if len(residuals) > 10:
+                    ljung_box = acorr_ljungbox(residuals, lags=10, return_df=True)
+                    p_value = ljung_box['lb_pvalue'].iloc[-1]
+                    self.metrics['ljung_box_p_value'] = float(p_value) if not np.isnan(p_value) else 0.0
+                else:
+                    self.metrics['ljung_box_p_value'] = 0.0
+            except Exception:
+                self.metrics['ljung_box_p_value'] = 0.0
             
             logger.info(f"Modelo ARIMA entrenado exitosamente.")
             logger.info(f"AIC: {self.metrics['aic']:.2f}, MAE: {self.metrics['mae']:.2f}, MAPE: {self.metrics['mape']:.2f}%")
@@ -322,6 +329,26 @@ class ARIMAForecaster(BaseForecaster):
         if not self.is_fitted:
             raise ValueError("El modelo debe ser entrenado antes de hacer predicciones")
         
+        # FIX: Verificar que fitted_model existe después de cargar desde archivo
+        if not hasattr(self, 'fitted_model') or self.fitted_model is None:
+            # Si no existe fitted_model, intentar recrearlo desde el modelo base
+            if hasattr(self, 'model') and self.model is not None:
+                logger.warning("fitted_model no encontrado, intentando recrear...")
+                try:
+                    # Reajustar el modelo si tenemos datos de entrenamiento
+                    if hasattr(self, 'training_data') and self.training_data is not None:
+                        target_column = 'quantity' if 'quantity' in self.training_data.columns else self.training_data.columns[0]
+                        timeseries = self.training_data[target_column]
+                        self.fitted_model = self.model.fit()
+                        logger.info("fitted_model recreado exitosamente")
+                    else:
+                        raise ValueError("No hay datos de entrenamiento disponibles para recrear el modelo")
+                except Exception as e:
+                    logger.error(f"Error recreando fitted_model: {str(e)}")
+                    raise ValueError(f"No se pudo recrear el modelo ARIMA: {str(e)}")
+            else:
+                raise ValueError("Modelo ARIMA no disponible para hacer predicciones")
+        
         try:
             # Genera pronósticos
             forecast_result = self.fitted_model.forecast(
@@ -335,8 +362,14 @@ class ARIMAForecaster(BaseForecaster):
                 alpha=1-confidence_interval
             ).conf_int()
             
-            # Crea fechas futuras
-            last_date = self.training_data.index[-1]
+            # Crea fechas futuras basadas en el índice de datos de entrenamiento
+            if hasattr(self, 'training_data') and not self.training_data.empty:
+                last_date = self.training_data.index[-1]
+            else:
+                # Fallback a fecha actual
+                from datetime import datetime
+                last_date = pd.Timestamp(datetime.now().date())
+            
             future_dates = pd.date_range(
                 start=last_date + pd.Timedelta(days=1),
                 periods=periods,
@@ -345,19 +378,16 @@ class ARIMAForecaster(BaseForecaster):
             
             # Prepara el resultado
             result = pd.DataFrame({
-                'date': future_dates,
-                'predicted_demand': forecast_result,
-                'lower_bound': conf_int.iloc[:, 0],
-                'upper_bound': conf_int.iloc[:, 1],
+                'predicted_demand': forecast_result.values,
+                'lower_bound': conf_int.iloc[:, 0].values,
+                'upper_bound': conf_int.iloc[:, 1].values,
                 'confidence_level': confidence_interval
-            })
+            }, index=future_dates)
             
             # Asegura que no haya valores negativos
             result['predicted_demand'] = result['predicted_demand'].clip(lower=0)
             result['lower_bound'] = result['lower_bound'].clip(lower=0)
             result['upper_bound'] = result['upper_bound'].clip(lower=0)
-            
-            result.set_index('date', inplace=True)
             
             logger.info(f"Generados {periods} pronósticos ARIMA")
             

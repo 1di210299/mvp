@@ -1,7 +1,9 @@
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.decorators import action, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from datetime import datetime, timedelta
@@ -16,6 +18,7 @@ from .serializers import (
 from .services.ml_model_service import MLModelService
 from .services.forecast_service import ForecastService
 from .services.evaluation_service import EvaluationService
+from .services import ChartService
 from .tasks import (
     train_ml_model, generate_forecasts_for_model, 
     evaluate_ml_model, compare_model_algorithms
@@ -26,6 +29,12 @@ from datalens_backend.utils import get_default_company
 
 logger = logging.getLogger(__name__)
 
+
+class ForecastPagination(PageNumberPagination):
+    """Paginación optimizada para pronósticos"""
+    page_size = 50  # Solo 50 pronósticos por página
+    page_size_query_param = 'page_size'
+    max_page_size = 100  # Máximo 100 items por página
 
 class ForecastModelViewSet(viewsets.ModelViewSet):
     """ViewSet para gestión de modelos de pronóstico"""
@@ -119,9 +128,9 @@ class ForecastModelViewSet(viewsets.ModelViewSet):
 
 
 class DemandForecastViewSet(viewsets.ModelViewSet):
-    """ViewSet para pronósticos de demanda"""
+    """ViewSet para pronósticos de demanda con paginación optimizada"""
     serializer_class = DemandForecastSerializer
-    pagination_class = None  # Desactivar paginación para mostrar todos los productos
+    pagination_class = ForecastPagination  # Activar paginación
     
     def get_queryset(self):
         print(f"🔍 DemandForecastViewSet.get_queryset() - Iniciando...")
@@ -136,24 +145,31 @@ class DemandForecastViewSet(viewsets.ModelViewSet):
             return DemandForecast.objects.none()
             
         try:
-            queryset = DemandForecast.objects.filter(product__company=company)
+            # Optimizar query con select_related para evitar N+1 queries
+            queryset = DemandForecast.objects.select_related(
+                'product', 'model'
+            ).filter(product__company=company)
+            
             count = queryset.count()
             print(f"📊 Total de pronósticos en BD para empresa {company.name}: {count}")
             
-            # Debug: Ver todos los pronósticos en la BD
-            all_forecasts = DemandForecast.objects.all()
-            print(f"📈 Total de pronósticos en toda la BD: {all_forecasts.count()}")
-            
-            if all_forecasts.exists():
-                sample = all_forecasts.first()
-                print(f"🎯 Ejemplo de pronóstico: {sample.id} - {sample.product.name if sample.product else 'Sin producto'}")
-            
-            # Filtros opcionales
+            # Filtros opcionales para reducir datos
             product_id = self.request.query_params.get('product_id')
             model_id = self.request.query_params.get('model_id')
             days_ahead = self.request.query_params.get('days_ahead')
+            recent_only = self.request.query_params.get('recent_only', 'true')  # Por defecto solo recientes
             
-            print(f"🔧 Filtros aplicados - product_id: {product_id}, model_id: {model_id}, days_ahead: {days_ahead}")
+            print(f"🔧 Filtros aplicados - product_id: {product_id}, model_id: {model_id}, days_ahead: {days_ahead}, recent_only: {recent_only}")
+            
+            # Filtro por fechas recientes (últimos 7 días + próximos 30 días)
+            if recent_only.lower() == 'true':
+                recent_date = datetime.now().date() - timedelta(days=7)
+                future_date = datetime.now().date() + timedelta(days=30)
+                queryset = queryset.filter(
+                    forecast_date__gte=recent_date,
+                    forecast_date__lte=future_date
+                )
+                print(f"📅 Filtrado por fechas recientes ({recent_date} a {future_date}): {queryset.count()} resultados")
             
             if product_id:
                 queryset = queryset.filter(product_id=product_id)
@@ -166,9 +182,10 @@ class DemandForecastViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(forecast_date__lte=future_date)
                 print(f"📅 Filtrado por fecha hasta {future_date}: {queryset.count()} resultados")
                 
-            final_queryset = queryset.order_by('product__name', 'forecast_date')
+            # Ordenar por fecha de pronóstico más reciente primero
+            final_queryset = queryset.order_by('-created_at', 'forecast_date')
             final_count = final_queryset.count()
-            print(f"✅ Queryset final: {final_count} pronósticos")
+            print(f"✅ Queryset final: {final_count} pronósticos (con paginación)")
             
             return final_queryset
         except Exception as e:
@@ -176,15 +193,39 @@ class DemandForecastViewSet(viewsets.ModelViewSet):
             return DemandForecast.objects.none()
     
     def list(self, request, *args, **kwargs):
-        """Override del método list para manejo robusto de errores"""
+        """Override del método list con manejo robusto de errores y límites"""
         try:
-            queryset = self.get_queryset()
+            # Verificar si se solicitan demasiados datos sin filtros
+            queryset = self.filter_queryset(self.get_queryset())
+            
+            # Si hay más de 1000 items sin filtros específicos, forzar filtros
+            if queryset.count() > 1000:
+                product_id = request.query_params.get('product_id')
+                recent_only = request.query_params.get('recent_only', 'true')
+                
+                if not product_id and recent_only.lower() != 'true':
+                    return Response({
+                        'error': 'Demasiados datos solicitados',
+                        'message': 'Use filtros como product_id o recent_only=true para limitar los resultados',
+                        'total_available': queryset.count(),
+                        'suggestion': 'Agregue ?recent_only=true&page_size=50 a su solicitud'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Paginación estándar
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response(serializer.data)
+            
+            # Fallback sin paginación (solo para querysets pequeños)
             serializer = self.get_serializer(queryset, many=True)
             return Response({
                 'count': queryset.count(),
                 'results': serializer.data
             })
+            
         except Exception as e:
+            print(f"❌ Error en list de pronósticos: {e}")
             # En caso de error, devolver respuesta vacía pero válida
             return Response({
                 'count': 0,
@@ -192,6 +233,41 @@ class DemandForecastViewSet(viewsets.ModelViewSet):
                 'message': 'No forecasting data available',
                 'error': f'Forecasting service temporarily unavailable: {str(e)}'
             })
+    
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Endpoint optimizado para obtener resumen de pronósticos"""
+        try:
+            company = get_default_company()
+            if not company:
+                return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Solo obtener estadísticas básicas sin datos completos
+            total_forecasts = DemandForecast.objects.filter(product__company=company).count()
+            recent_forecasts = DemandForecast.objects.filter(
+                product__company=company,
+                created_at__gte=datetime.now() - timedelta(days=7)
+            ).count()
+            
+            # Contar productos con pronósticos
+            products_with_forecasts = DemandForecast.objects.filter(
+                product__company=company
+            ).values('product').distinct().count()
+            
+            return Response({
+                'total_forecasts': total_forecasts,
+                'recent_forecasts': recent_forecasts,
+                'products_with_forecasts': products_with_forecasts,
+                'company': company.name,
+                'last_updated': datetime.now()
+            })
+            
+        except Exception as e:
+            print(f"❌ Error en summary: {e}")
+            return Response({
+                'error': 'Error getting forecast summary',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ReorderRecommendationViewSet(viewsets.ModelViewSet):
@@ -762,3 +838,183 @@ class MLModelViewSet(viewsets.ModelViewSet):
                 {'error': str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class DemandForecastChartView(APIView):
+    """
+    Vista para generar gráficos de proyecciones de demanda
+    """
+    # permission_classes = [IsAuthenticated]  # Comentado para pruebas
+    
+    def get(self, request):
+        """
+        GET /api/forecasting/charts/demand/
+        Genera gráfico de proyecciones de demanda
+        
+        Parámetros:
+        - chart_type: line, bar, area (default: line)
+        - days_ahead: días a proyectar (default: 7)
+        - product_ids: IDs de productos separados por coma
+        - location_ids: IDs de ubicaciones separados por coma
+        """
+        try:
+            # Obtener empresa por defecto
+            company = get_default_company()
+            if not company:
+                return Response({
+                    'error': 'No se encontró empresa por defecto'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Obtener parámetros
+            chart_type = request.query_params.get('chart_type', 'line')
+            days_ahead = int(request.query_params.get('days_ahead', 7))
+            
+            # Procesar product_ids
+            product_ids = request.query_params.get('product_ids')
+            if product_ids:
+                product_ids = [int(id.strip()) for id in product_ids.split(',') if id.strip()]
+            
+            # Procesar location_ids
+            location_ids = request.query_params.get('location_ids')
+            if location_ids:
+                location_ids = [int(id.strip()) for id in location_ids.split(',') if id.strip()]
+            
+            # Generar gráfico
+            chart_service = ChartService()
+            result = chart_service.generate_demand_forecast_chart(
+                company_id=company.id,  # Usar empresa por defecto
+                product_ids=product_ids,
+                location_ids=location_ids,
+                days_ahead=days_ahead,
+                chart_type=chart_type
+            )
+            
+            if 'error' in result:
+                return Response({
+                    'error': result['error']
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({
+                'success': True,
+                'chart_image': result['chart_image'],
+                'data': result['data'],
+                'stats': result['stats'],
+                'total_points': result['total_points']
+            })
+            
+        except ValueError as e:
+            return Response({
+                'error': f'Parámetros inválidos: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error generando gráfico de demanda: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ModelComparisonChartView(APIView):
+    """
+    Vista para generar gráficos de comparación de modelos ML
+    """
+    # permission_classes = [IsAuthenticated]  # Comentado para pruebas
+    
+    def get(self, request):
+        """
+        GET /api/forecasting/charts/models/
+        Genera gráfico de comparación entre modelos ML
+        """
+        try:
+            # Obtener empresa por defecto
+            company = get_default_company()
+            if not company:
+                return Response({
+                    'error': 'No se encontró empresa por defecto'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            chart_service = ChartService()
+            result = chart_service.generate_model_comparison_chart(
+                company_id=company.id  # Usar empresa por defecto
+            )
+            
+            if 'error' in result:
+                return Response({
+                    'error': result['error']
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({
+                'success': True,
+                'chart_image': result['chart_image'],
+                'models_data': result['models_data']
+            })
+            
+        except Exception as e:
+            logger.error(f"Error generando gráfico de comparación: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ForecastDataView(APIView):
+    """
+    Vista para obtener datos de pronósticos en formato JSON
+    """
+    # permission_classes = [IsAuthenticated]  # Comentado para pruebas
+    
+    def get(self, request):
+        """
+        GET /api/forecasting/data/
+        Obtiene datos de pronósticos para gráficos del frontend
+        """
+        try:
+            # Obtener empresa por defecto
+            company = get_default_company()
+            if not company:
+                return Response({
+                    'error': 'No se encontró empresa por defecto'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Obtener parámetros
+            days_ahead = int(request.query_params.get('days_ahead', 7))
+            product_ids = request.query_params.get('product_ids')
+            location_ids = request.query_params.get('location_ids')
+            
+            # Procesar IDs
+            if product_ids:
+                product_ids = [int(id.strip()) for id in product_ids.split(',') if id.strip()]
+            if location_ids:
+                location_ids = [int(id.strip()) for id in location_ids.split(',') if id.strip()]
+            
+            # Obtener datos usando el servicio de gráficos
+            chart_service = ChartService()
+            data = chart_service._get_forecast_data(
+                company_id=company.id,  # Usar empresa por defecto
+                product_ids=product_ids,
+                location_ids=location_ids,
+                days_ahead=days_ahead
+            )
+            
+            if data.empty:
+                return Response({
+                    'error': 'No hay datos de pronósticos disponibles',
+                    'data': []
+                })
+            
+            # Preparar datos para el frontend
+            chart_data = chart_service._prepare_chart_data(data)
+            stats = chart_service._calculate_stats(data)
+            
+            return Response({
+                'success': True,
+                'data': chart_data,
+                'stats': stats,
+                'total_points': len(data)
+            })
+            
+        except ValueError as e:
+            return Response({
+                'error': f'Parámetros inválidos: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error obteniendo datos de pronósticos: {str(e)}")
+            return Response({
+                'error': 'Error interno del servidor'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

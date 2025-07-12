@@ -32,6 +32,10 @@ DEBUG = env('DEBUG')
 # ALLOWED_HOSTS configuration
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
 
+# Add testserver for Django test client
+if DEBUG:
+    ALLOWED_HOSTS.extend(['testserver'])
+
 # Production settings
 if not DEBUG:
     # In production, allow all hosts (Railway/Render will provide domain)
@@ -74,6 +78,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'datalens_backend.middleware.DevelopmentOptimizationMiddleware',  # Middleware personalizado para timeouts
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -136,9 +141,24 @@ REST_FRAMEWORK = {
     # ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
+    'PAGE_SIZE': 50,  # Reducido de 20 a 50 para balance performance/usabilidad
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
+    ],
+    # Configuración de throttling para evitar sobrecarga
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ] if not DEBUG else [],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '1000/hour',
+        'user': '2000/hour'
+    } if not DEBUG else {},
+    # Parser classes optimizados
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
     ],
 }
 
@@ -200,6 +220,11 @@ CORS_ALLOWED_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+]
+
+CORS_EXPOSE_HEADERS = [
+    'Content-Type',
+    'X-CSRFToken',
 ]
 
 CORS_ALLOW_METHODS = [
@@ -312,13 +337,41 @@ DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@datalens.com')
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 
-# Logging
+# Configuración adicional para evitar error 431 (Request Header Fields Too Large)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB
+
+# Configuración de timeout y conexiones para desarrollo
+if DEBUG:
+    # Configuración de timeouts para evitar errores
+    import socket
+    socket.setdefaulttimeout(30)
+    
+    # Configuración adicional del servidor de desarrollo
+    CONN_MAX_AGE = 0  # Cerrar conexiones después de cada request
+    
+    # Configuración de la base de datos para evitar locks
+    DATABASES['default']['OPTIONS'] = {
+        'timeout': 20,
+        'check_same_thread': False,  # Para SQLite
+    }
+    
+    # Configuración adicional para requests grandes
+    DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+    FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Configuración de logging mejorada para debugging
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
             'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
             'style': '{',
         },
     },
@@ -330,9 +383,21 @@ LOGGING = {
             'formatter': 'verbose',
         },
         'console': {
-            'level': 'INFO',
+            'level': 'DEBUG' if DEBUG else 'INFO',
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            'formatter': 'simple' if DEBUG else 'verbose',
+        },
+    },
+    'loggers': {
+        'django.server': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': False,
         },
     },
     'root': {
@@ -411,4 +476,147 @@ OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
 
 # Configuración de campos personalizados
 CUSTOM_FIELDS_CONFIG = {
-    'max_fields_per_model': 50,}  # Máximo número de campos personalizados por modelo
+    'max_fields_per_model': 50,
+}
+
+# Configuración adicional para evitar error 431 (Request Header Fields Too Large)
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 1000
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB
+
+# Configuración de timeout y conexiones para desarrollo
+if DEBUG:
+    # Configuración de timeouts para evitar errores
+    import socket
+    socket.setdefaulttimeout(30)
+    
+    # Configuración adicional del servidor de desarrollo
+    CONN_MAX_AGE = 0  # Cerrar conexiones después de cada request
+    
+    # Configuración de la base de datos para evitar locks
+    DATABASES['default']['OPTIONS'] = {
+        'timeout': 20,
+        'check_same_thread': False,  # Para SQLite
+    }
+    
+    # Configuración adicional para requests grandes
+    DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+    FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Configuración de logging mejorada para debugging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'django.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple' if DEBUG else 'verbose',
+        },
+    },
+    'loggers': {
+        'django.server': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': 'INFO',
+    },
+}
+
+# Machine Learning Configuration
+ML_MODELS_PATH = BASE_DIR / 'models' / 'ml_models'
+ML_EXPERIMENTS_PATH = BASE_DIR / 'experiments'
+ML_PLOTS_PATH = MEDIA_ROOT / 'ml_plots'
+
+# Asegura que los directorios ML existen
+os.makedirs(ML_MODELS_PATH, exist_ok=True)
+os.makedirs(ML_EXPERIMENTS_PATH, exist_ok=True)
+os.makedirs(ML_PLOTS_PATH, exist_ok=True)
+
+# Configuración de pronósticos
+FORECASTING_CONFIG = {
+    'default_horizon_days': 30,
+    'max_horizon_days': 365,
+    'min_training_data_points': 30,
+    'default_confidence_interval': 95,
+    'auto_retrain_threshold_days': 7,
+    'hyperparameter_optimization_timeout': 3600,  # 1 hora
+    'parallel_training_workers': 3,
+}
+
+# Configuración de algoritmos ML
+ML_ALGORITHMS_CONFIG = {
+    'prophet': {
+        'enabled': True,
+        'default_hyperparameters': {
+            'seasonality_mode': 'additive',
+            'changepoint_prior_scale': 0.05,
+            'seasonality_prior_scale': 10.0,
+            'yearly_seasonality': 'auto',
+            'weekly_seasonality': 'auto',
+            'daily_seasonality': 'auto'
+        }
+    },
+    'arima': {
+        'enabled': True,
+        'default_hyperparameters': {
+            'auto_arima': True,
+            'seasonal': True,
+            'stepwise': True,
+            'max_p': 5,
+            'max_d': 2,
+            'max_q': 5,
+            'information_criterion': 'aic'
+        }
+    },
+    'ensemble': {
+        'enabled': True,
+        'default_hyperparameters': {
+            'voting_method': 'weighted_average',
+            'auto_weight_calculation': True,
+            'min_models': 2
+        }
+    }
+}
+
+# Configuración de evaluación de modelos
+MODEL_EVALUATION_CONFIG = {
+    'default_evaluation_period_days': 30,
+    'min_evaluation_data_points': 10,
+    'performance_metrics': ['mae', 'mape', 'rmse', 'r2', 'directional_accuracy'],
+    'auto_evaluation_schedule_hours': 24,  # Evaluar cada 24 horas
+    'performance_alert_threshold_mape': 25,  # Alertar si MAPE > 25%
+}
+
+# Configuración de OpenAI
+OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
+
+# Configuración de campos personalizados
+CUSTOM_FIELDS_CONFIG = {
+    'max_fields_per_model': 50,
+}

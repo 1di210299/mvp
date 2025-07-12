@@ -1,15 +1,13 @@
 """
 Servicio para gestión de modelos de Machine Learning
 """
-
-import pandas as pd
-import numpy as np
 from typing import Dict, List, Optional, Tuple, Any, Union
-import logging
-import os
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 import math
+import os
+import logging
+import pandas as pd
 
 from django.conf import settings
 from django.utils import timezone
@@ -447,28 +445,51 @@ class MLModelService:
             elif forecast_model.categories.exists():
                 target_products = target_products.filter(category__in=forecast_model.categories.all())
             
-            # Obtiene transacciones
+            # FIX: Obtiene transacciones y agrupa correctamente por FECHA (no datetime)
             from django.db import models
+            from django.db.models import Sum
+            from django.db.models.functions import TruncDate
+            
             transactions = Transaction.objects.filter(
                 product__in=target_products,
                 transaction_date__gte=start_date,
                 transaction_type__in=['sale', 'usage']
-            ).values('transaction_date').annotate(
-                quantity=models.Sum('quantity')
-            ).order_by('transaction_date')
+            ).annotate(
+                # Agrupa por fecha solamente (sin horas/minutos/segundos)
+                date_only=TruncDate('transaction_date')
+            ).values('date_only').annotate(
+                # Suma las cantidades por fecha, usando valor absoluto para ventas
+                total_quantity=Sum(models.Case(
+                    models.When(transaction_type='sale', then=models.F('quantity') * -1),  # Ventas negativas se convierten a positivas
+                    default=models.F('quantity'),  # Uso se mantiene como está
+                    output_field=models.DecimalField()
+                ))
+            ).order_by('date_only')
             
             if not transactions.exists():
+                logger.warning(f"No se encontraron transacciones para el modelo {forecast_model.name}")
                 return pd.DataFrame()
+            
+            # Debug: Mostrar las primeras transacciones encontradas
+            logger.info(f"Transacciones encontradas para entrenamiento: {transactions.count()}")
+            for t in list(transactions)[:3]:
+                logger.info(f"Fecha: {t['date_only']}, Cantidad: {t['total_quantity']}")
             
             # Convierte a DataFrame
             df = pd.DataFrame(list(transactions))
-            df['date'] = pd.to_datetime(df['transaction_date'])
+            df['date'] = pd.to_datetime(df['date_only'])
             df = df.set_index('date')
-            df = df[['quantity']]
+            df = df[['total_quantity']]
+            df.rename(columns={'total_quantity': 'quantity'}, inplace=True)
             
-            # Rellena fechas faltantes
+            # Convierte a float para los algoritmos ML
+            df['quantity'] = df['quantity'].astype(float)
+            
+            # Rellena fechas faltantes con 0
             full_date_range = pd.date_range(start=start_date, end=timezone.now().date(), freq='D')
-            df = df.reindex(full_date_range, fill_value=0)
+            df = df.reindex(full_date_range, fill_value=0.0)
+            
+            logger.info(f"Datos de entrenamiento preparados: {len(df)} días, suma total: {df['quantity'].sum()}")
             
             return df
             
@@ -476,220 +497,129 @@ class MLModelService:
             logger.error(f"Error obteniendo datos de entrenamiento: {str(e)}")
             return pd.DataFrame()
     
-    def _train_best_model(self, 
-                         training_data: pd.DataFrame,
-                         model_name: str,
-                         optimize_hyperparameters: bool = True) -> Tuple[Any, str, Dict[str, float]]:
-        """
-        Entrena automáticamente el mejor modelo
-        """
-        return self.trainer.auto_train_best_model(
-            data=training_data,
-            target_column='quantity',
-            algorithms_to_try=['prophet', 'arima', 'ensemble', 'linear_regression', 'random_forest', 'lstm'],
-            optimization_metric='mae',
-            optimize_hyperparameters=optimize_hyperparameters,
-            model_name=model_name
-        )
-    
     def _train_specific_model(self,
                             algorithm_name: str,
                             training_data: pd.DataFrame,
-                            hyperparameters: Optional[Dict[str, Any]],
-                            model_name: str,
+                            hyperparameters: Optional[Dict[str, Any]] = None,
+                            model_name: str = "model",
                             optimize_hyperparameters: bool = True) -> Tuple[Any, Dict[str, float]]:
         """
-        Entrena un modelo específico
+        Entrena un modelo específico con un algoritmo dado
+        
+        Args:
+            algorithm_name: Nombre del algoritmo a usar
+            training_data: Datos de entrenamiento
+            hyperparameters: Hiperparámetros específicos
+            model_name: Nombre del modelo
+            optimize_hyperparameters: Si optimizar hiperparámetros
+            
+        Returns:
+            Tupla con el modelo entrenado y las métricas
         """
-        if optimize_hyperparameters and algorithm_name in ['prophet', 'arima']:
-            best_model, best_params, optimization_history = self.trainer.hyperparameter_optimization(
-                algorithm_name=algorithm_name,
-                data=training_data,
-                target_column='quantity',
-                optimization_metric='mae'
-            )
-            return best_model, best_model.metrics
-        else:
-            return self.trainer.train_single_model(
+        try:
+            # Entrena el modelo con el algoritmo específico
+            model, metrics = self.trainer.train_single_model(
                 algorithm_name=algorithm_name,
                 data=training_data,
                 target_column='quantity',
                 hyperparameters=hyperparameters,
                 model_name=model_name
             )
-    
-    def train_models_for_company(self,
-                                company: Company,
-                                product_ids: Optional[List[int]] = None,
-                                algorithm: str = 'prophet',
-                                retrain_existing: bool = False) -> List[Dict[str, Any]]:
-        """
-        Entrena modelos para una empresa específica
-        
-        Args:
-            company: Empresa para la cual entrenar modelos
-            product_ids: Lista de IDs de productos específicos (opcional)
-            algorithm: Algoritmo a usar
-            retrain_existing: Si re-entrenar modelos existentes
             
-        Returns:
-            Lista de resultados de entrenamiento
-        """
-        try:
-            # Determina productos a procesar
-            if product_ids:
-                products = Product.objects.filter(id__in=product_ids, company=company)
-            else:
-                products = Product.objects.filter(company=company, is_active=True)
+            if model is None:
+                raise ValueError(f"No se pudo entrenar el modelo con el algoritmo {algorithm_name}")
             
-            results = []
-            
-            for product in products:
-                try:
-                    # Verifica si ya existe un modelo para este producto
-                    existing_model = ForecastModel.objects.filter(
-                        company=company,
-                        model_type=algorithm,
-                        products=product
-                    ).first()
-                    
-                    if existing_model and not retrain_existing:
-                        results.append({
-                            'product_id': product.id,
-                            'product_name': product.name,
-                            'status': 'skipped',
-                            'message': 'Modelo ya existe'
-                        })
-                        continue
-                    
-                    if existing_model and retrain_existing:
-                        # Re-entrena el modelo existente
-                        model = self.retrain_model(existing_model.id)
-                        results.append({
-                            'product_id': product.id,
-                            'product_name': product.name,
-                            'model_id': model.id,
-                            'status': 'retrained',
-                            'algorithm': algorithm
-                        })
-                    else:
-                        # Crea nuevo modelo
-                        model = self.create_and_train_model(
-                            company=company,
-                            name=f"{algorithm.title()} Model for {product.name}",
-                            description=f"Modelo de pronóstico {algorithm} para {product.name}",
-                            model_type=algorithm,
-                            products=[product]
-                        )
-                        results.append({
-                            'product_id': product.id,
-                            'product_name': product.name,
-                            'model_id': model.id,
-                            'status': 'created',
-                            'algorithm': algorithm
-                        })
-                        
-                except Exception as e:
-                    logger.error(f"Error entrenando modelo para producto {product.id}: {str(e)}")
-                    results.append({
-                        'product_id': product.id,
-                        'product_name': product.name,
-                        'status': 'error',
-                        'error': str(e)
-                    })
-            
-            return results
+            return model, metrics
             
         except Exception as e:
-            logger.error(f"Error entrenando modelos para empresa {company.id}: {str(e)}")
+            logger.error(f"Error entrenando modelo específico con {algorithm_name}: {str(e)}")
             raise
-
-    def train_model_for_product(self,
-                              product: Product,
-                              algorithm: str = 'prophet',
-                              retrain_existing: bool = False) -> Optional[ForecastModel]:
+    
+    def _train_best_model(self, 
+                         training_data: pd.DataFrame,
+                         model_name: str,
+                         optimize_hyperparameters: bool = True) -> Tuple[Any, str, Dict[str, float]]:
         """
-        Entrena un modelo para un producto específico
+        Entrena automáticamente el mejor modelo probando múltiples algoritmos
+        """
+        # Lista de algoritmos a probar en orden de prioridad
+        algorithms_to_try = ['linear_regression', 'random_forest', 'prophet', 'arima', 'lstm']
         
-        Args:
-            product: Producto para el cual entrenar el modelo
-            algorithm: Algoritmo a usar
-            retrain_existing: Si re-entrenar modelo existente
-            
-        Returns:
-            Modelo entrenado o None si hubo error
-        """
-        try:
-            # Verifica si ya existe un modelo
-            existing_model = ForecastModel.objects.filter(
-                company=product.company,
-                model_type=algorithm,
-                products=product
-            ).first()
-            
-            if existing_model and not retrain_existing:
-                return existing_model
-            
-            if existing_model and retrain_existing:
-                return self.retrain_model(existing_model.id)
-            else:
-                return self.create_and_train_model(
-                    company=product.company,
-                    name=f"{algorithm.title()} Model for {product.name}",
-                    description=f"Modelo de pronóstico {algorithm} para {product.name}",
-                    model_type=algorithm,
-                    products=[product]
+        best_model = None
+        best_algorithm = 'prophet'  # Fallback por defecto
+        best_metrics = {'mae': float('inf'), 'mape': 100.0, 'r2': -float('inf')}
+        
+        logger.info(f"Probando múltiples algoritmos para encontrar el mejor modelo: {algorithms_to_try}")
+        
+        for algorithm in algorithms_to_try:
+            try:
+                logger.info(f"Probando algoritmo: {algorithm}")
+                
+                # Entrena el modelo con el algoritmo actual
+                model, metrics = self.trainer.train_single_model(
+                    algorithm_name=algorithm,
+                    data=training_data,
+                    target_column='quantity',
+                    model_name=f"{model_name}_{algorithm}",
+                    hyperparameters=None
                 )
                 
-        except Exception as e:
-            logger.error(f"Error entrenando modelo para producto {product.id}: {str(e)}")
-            return None
-    
-    def _update_model_metrics(self, ml_model, results):
-        """Actualiza las métricas del modelo con validación completa"""
-        try:
-            # Validar y asignar MAE
-            mae = results.get('mae')
-            if mae is not None and not (math.isinf(mae) or math.isnan(mae)):
-                ml_model.mae = round(Decimal(str(mae)), 2)
-            else:
-                ml_model.mae = None
-                logger.warning(f"MAE inválido para modelo {ml_model.id}: {mae}")
-            
-            # Validar y asignar MAPE
-            mape = results.get('mape')
-            if mape is not None and not (math.isinf(mape) or math.isnan(mape)):
-                try:
-                    ml_model.mape = round(Decimal(str(mape)), 2)
-                except (InvalidOperation, ValueError):
-                    ml_model.mape = None
-                    logger.warning(f"MAPE no convertible para modelo {ml_model.id}: {mape}")
-            else:
-                ml_model.mape = None
-                if mape is not None:
-                    logger.warning(f"MAPE infinito para modelo {ml_model.id}")
+                if model and metrics:
+                    # Evalúa si este modelo es mejor que el actual
+                    is_better = self._is_better_model(metrics, best_metrics)
+                    
+                    logger.info(f"Algoritmo {algorithm}: MAE={metrics.get('mae', 'N/A'):.3f}, "
+                              f"MAPE={metrics.get('mape', 'N/A'):.2f}%, R²={metrics.get('r2', 'N/A'):.3f}")
+                    
+                    if is_better:
+                        best_model = model
+                        best_algorithm = algorithm
+                        best_metrics = metrics.copy()
+                        logger.info(f"¡Nuevo mejor modelo encontrado: {algorithm}!")
+                        
+            except Exception as e:
+                logger.warning(f"Error entrenando {algorithm}: {str(e)}")
+                continue
+        
+        # Si encontramos un buen modelo, optimizamos sus hiperparámetros
+        if best_model and optimize_hyperparameters and best_algorithm in ['random_forest', 'lstm']:
+            try:
+                logger.info(f"Optimizando hiperparámetros para el mejor algoritmo: {best_algorithm}")
+                optimized_model, optimized_metrics = self.trainer.train_single_model(
+                    algorithm_name=best_algorithm,
+                    data=training_data,
+                    target_column='quantity',
+                    model_name=model_name,
+                    hyperparameters=None
+                )
                 
-            ml_model.last_trained = timezone.now()
-            ml_model.status = 'trained'
-            
-            # Validar antes de guardar
-            self._validate_model_before_save(ml_model)
-            ml_model.save()
-            
-            logger.info(f"Modelo {ml_model.id} actualizado: MAE={ml_model.mae}, MAPE={ml_model.mape}")
-            
-        except Exception as e:
-            logger.error(f"Error actualizando métricas del modelo {ml_model.id}: {str(e)}")
-            # Guardar estado mínimo
-            ml_model.last_trained = timezone.now()
-            ml_model.status = 'error'
-            ml_model.save()
-            raise
+                if optimized_model and self._is_better_model(optimized_metrics, best_metrics):
+                    best_model = optimized_model
+                    best_metrics = optimized_metrics
+                    logger.info("Hiperparámetros optimizados mejoraron el modelo!")
+                    
+            except Exception as e:
+                logger.warning(f"Error optimizando hiperparámetros: {str(e)}")
+        
+        logger.info(f"Mejor modelo seleccionado: {best_algorithm} con MAE={best_metrics.get('mae', 0):.3f}")
+        return best_model, best_algorithm, best_metrics
     
-    def _validate_model_before_save(self, ml_model):
-        """Valida el modelo antes de guardarlo"""
-        if ml_model.mae is not None and ml_model.mae < 0:
-            raise ValueError(f"MAE no puede ser negativo: {ml_model.mae}")
-            
-        if ml_model.mape is not None and ml_model.mape < 0:
-            raise ValueError(f"MAPE no puede ser negativo: {ml_model.mape}")
+    def _is_better_model(self, new_metrics: Dict[str, float], current_best: Dict[str, float]) -> bool:
+        """
+        Determina si un modelo nuevo es mejor que el actual basado en múltiples métricas
+        """
+        # Pesos para diferentes métricas (MAE es más importante)
+        mae_weight = 0.4
+        mape_weight = 0.3
+        r2_weight = 0.3
+        
+        # Normaliza las métricas para comparación
+        mae_score = 1.0 if current_best['mae'] == 0 else min(current_best['mae'] / max(new_metrics.get('mae', float('inf')), 0.001), 10)
+        mape_score = 1.0 if current_best['mape'] == 0 else min(current_best['mape'] / max(new_metrics.get('mape', 100), 0.001), 10)
+        r2_score = max(new_metrics.get('r2', -1) / max(current_best['r2'], 0.001), 0.1) if current_best['r2'] > 0 else (new_metrics.get('r2', 0) + 1)
+        
+        # Calcula puntuación compuesta
+        new_score = (mae_score * mae_weight + mape_score * mape_weight + r2_score * r2_weight)
+        
+        # Es mejor si la puntuación compuesta es mayor a 1.05 (5% de mejora mínima)
+        return new_score > 1.05

@@ -8,6 +8,7 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -205,54 +206,92 @@ class BaseForecaster(ABC):
     
     def save_model(self, filepath: str) -> bool:
         """
-        Guarda el modelo entrenado en un archivo
+        Guarda el modelo entrenado en archivo
         
         Args:
             filepath: Ruta donde guardar el modelo
             
         Returns:
-            True si se guardó exitosamente
+            bool: True si se guardó exitosamente
         """
+        if not self.is_fitted:
+            logger.warning("Intentando guardar un modelo no entrenado")
+            return False
+        
         try:
-            import joblib
+            # Asegura que el directorio existe
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
             
+            # Prepara todos los datos del modelo para guardar
             model_data = {
                 'model': self.model,
                 'hyperparameters': self.hyperparameters,
-                'is_fitted': self.is_fitted,
-                'feature_names': self.feature_names,
                 'metrics': self.metrics,
-                'model_name': self.get_model_name()
+                'is_fitted': self.is_fitted,
+                'model_type': getattr(self, 'model_type', self.__class__.__name__.replace('Forecaster', '').lower()),
+                'training_data': getattr(self, 'training_data', None),
+                'feature_names': getattr(self, 'feature_names', None),
+                'scaler': getattr(self, 'scaler', None),
+                'target_scaler': getattr(self, 'target_scaler', None),
+                'feature_importance_': getattr(self, 'feature_importance_', None),
+                'fitted_model': getattr(self, 'fitted_model', None),  # Para ARIMA
+                'last_values': getattr(self, 'last_values', None),  # Para LSTM
+                'sequence_length': getattr(self, 'sequence_length', None),  # Para LSTM
+                'training_history': getattr(self, 'training_history', None),  # Para LSTM
             }
             
+            # Usa joblib para guardar
+            import joblib
             joblib.dump(model_data, filepath)
+            
             logger.info(f"Modelo guardado exitosamente en {filepath}")
             return True
             
         except Exception as e:
-            logger.error(f"Error al guardar el modelo: {str(e)}")
+            logger.error(f"Error guardando modelo: {str(e)}")
             return False
     
     def load_model(self, filepath: str) -> bool:
         """
-        Carga un modelo desde un archivo
+        Carga el modelo desde archivo
         
         Args:
             filepath: Ruta del archivo del modelo
             
         Returns:
-            True si se cargó exitosamente
+            bool: True si se cargó exitosamente
         """
+        if not os.path.exists(filepath):
+            logger.error(f"Archivo de modelo no encontrado: {filepath}")
+            return False
+        
         try:
+            # Carga los datos del modelo
             import joblib
-            
             model_data = joblib.load(filepath)
             
-            self.model = model_data['model']
-            self.hyperparameters = model_data['hyperparameters']
-            self.is_fitted = model_data['is_fitted']
-            self.feature_names = model_data['feature_names']
-            self.metrics = model_data['metrics']
+            # Restaura todos los atributos
+            self.model = model_data.get('model')
+            self.hyperparameters = model_data.get('hyperparameters', {})
+            self.metrics = model_data.get('metrics', {})
+            self.is_fitted = model_data.get('is_fitted', False)
+            
+            # Restaura datos de entrenamiento y otros atributos específicos
+            self.training_data = model_data.get('training_data')
+            self.feature_names = model_data.get('feature_names')
+            self.scaler = model_data.get('scaler')
+            self.target_scaler = model_data.get('target_scaler')
+            self.feature_importance_ = model_data.get('feature_importance_')
+            
+            # Para ARIMA
+            if hasattr(self, 'fitted_model') or 'fitted_model' in model_data:
+                self.fitted_model = model_data.get('fitted_model')
+            
+            # Para LSTM
+            if hasattr(self, 'last_values') or 'last_values' in model_data:
+                self.last_values = model_data.get('last_values')
+                self.sequence_length = model_data.get('sequence_length', 30)
+                self.training_history = model_data.get('training_history')
             
             logger.info(f"Modelo cargado exitosamente desde {filepath}")
             return True

@@ -79,7 +79,6 @@ class Product(models.Model):
     # Precios
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Precio de costo")
     sale_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name="Precio de venta")
-    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Precio")  # Mantener por compatibilidad
     
     # Stock
     stock = models.IntegerField(default=0, verbose_name="Stock actual")
@@ -174,7 +173,7 @@ class Transaction(models.Model):
     unit_cost = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     reference_number = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
-    transaction_date = models.DateTimeField(auto_now_add=True)
+    transaction_date = models.DateTimeField()  # CAMBIADO: Removido auto_now_add=True para permitir fechas específicas
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):

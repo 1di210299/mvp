@@ -32,9 +32,6 @@ class LSTMForecaster(BaseForecaster):
     def __init__(self, hyperparameters: Optional[Dict[str, Any]] = None):
         """
         Inicializa el forecaster LSTM
-        
-        Args:
-            hyperparameters: Parámetros específicos del modelo
         """
         if not TENSORFLOW_AVAILABLE:
             raise ImportError("TensorFlow no está instalado. Instálalo con: pip install tensorflow")
@@ -50,7 +47,7 @@ class LSTMForecaster(BaseForecaster):
             'use_batch_norm': True,  # Normalización por lotes
             
             # Entrenamiento
-            'epochs': 100,  # Número máximo de épocas
+            'epochs': 50,  # Número máximo de épocas (reducido para ser más práctico)
             'batch_size': 32,  # Tamaño del lote
             'learning_rate': 0.001,  # Tasa de aprendizaje
             'validation_split': 0.2,  # Fracción para validación
@@ -61,7 +58,6 @@ class LSTMForecaster(BaseForecaster):
             # Preprocesamiento
             'normalize_features': True,  # Normalizar datos
             'add_features': True,  # Añadir features adicionales
-            'feature_columns': ['trend', 'seasonality'],  # Features adicionales
             
             # Configuración
             'random_state': 42,
@@ -128,14 +124,6 @@ class LSTMForecaster(BaseForecaster):
                          sequence_length: int) -> Tuple[np.ndarray, np.ndarray]:
         """
         Crea secuencias para entrenamiento del LSTM
-        
-        Args:
-            data: Datos de entrada (features)
-            target: Variable objetivo
-            sequence_length: Longitud de la secuencia
-            
-        Returns:
-            Tupla con (X, y) para entrenamiento
         """
         X, y = [], []
         
@@ -148,12 +136,6 @@ class LSTMForecaster(BaseForecaster):
     def _build_model(self, input_shape: Tuple[int, int]) -> tf.keras.Model:
         """
         Construye la arquitectura del modelo LSTM
-        
-        Args:
-            input_shape: Forma de los datos de entrada (sequence_length, n_features)
-            
-        Returns:
-            Modelo LSTM compilado
         """
         model = Sequential()
         
@@ -209,7 +191,7 @@ class LSTMForecaster(BaseForecaster):
         
         return model
     
-    def fit(self, data: pd.DataFrame, target_column: str = 'demand') -> 'LSTMForecaster':
+    def fit(self, data: pd.DataFrame, target_column: str = 'quantity') -> 'LSTMForecaster':
         """
         Entrena el modelo LSTM
         """
@@ -292,7 +274,7 @@ class LSTMForecaster(BaseForecaster):
             # Entrena el modelo
             self.history = self.model.fit(
                 X, y,
-                epochs=self.hyperparameters.get('epochs', 100),
+                epochs=self.hyperparameters.get('epochs', 50),
                 batch_size=self.hyperparameters.get('batch_size', 32),
                 validation_split=self.hyperparameters.get('validation_split', 0.2),
                 callbacks=callbacks,
@@ -419,18 +401,24 @@ class LSTMForecaster(BaseForecaster):
             # Para LSTM, usamos la variabilidad histórica como aproximación
             historical_errors = []
             if len(self.training_data) > sequence_length:
-                # Calcula errores en predicciones retrospectivas
-                for i in range(sequence_length, min(len(self.training_data), sequence_length + 50)):
-                    seq_input = historical_data[i-sequence_length:i].reshape(1, sequence_length, -1)
-                    pred = self.model.predict(seq_input, verbose=0)[0, 0]
-                    
-                    if self.scaler is not None:
-                        pred = self.scaler.inverse_transform([[pred]])[0, 0]
-                        actual = self.scaler.inverse_transform(target_values[i:i+1])[0, 0]
-                    else:
-                        actual = target_values[i, 0]
-                    
-                    historical_errors.append(abs(pred - actual))
+                # Calcula errores en predicciones retrospectivas (muestreado para eficiencia)
+                sample_points = min(20, len(self.training_data) - sequence_length)
+                sample_indices = np.linspace(sequence_length, len(self.training_data)-1, sample_points, dtype=int)
+                
+                for i in sample_indices:
+                    try:
+                        seq_input = historical_data[i-sequence_length:i].reshape(1, sequence_length, -1)
+                        pred = self.model.predict(seq_input, verbose=0)[0, 0]
+                        
+                        if self.scaler is not None:
+                            pred = self.scaler.inverse_transform([[pred]])[0, 0]
+                            actual = self.scaler.inverse_transform(target_values[i:i+1])[0, 0]
+                        else:
+                            actual = target_values[i, 0]
+                        
+                        historical_errors.append(abs(pred - actual))
+                    except:
+                        continue
             
             # Calcula margen de error
             if historical_errors:
@@ -504,12 +492,16 @@ class LSTMForecaster(BaseForecaster):
         Guarda el modelo LSTM entrenado
         """
         if not self.is_fitted:
-            return False
+            return super().save_model(filepath)
         
         try:
-            self.model.save(filepath)
-            logger.info(f"Modelo LSTM guardado en {filepath}")
-            return True
+            # Para LSTM, guardamos el modelo de TensorFlow por separado
+            model_path = filepath.replace('.joblib', '_keras.h5')
+            self.model.save(model_path)
+            
+            # Guardamos el resto con joblib
+            return super().save_model(filepath)
+            
         except Exception as e:
             logger.error(f"Error guardando modelo LSTM: {str(e)}")
             return False
@@ -519,10 +511,17 @@ class LSTMForecaster(BaseForecaster):
         Carga un modelo LSTM previamente guardado
         """
         try:
-            self.model = tf.keras.models.load_model(filepath)
-            self.is_fitted = True
+            # Carga el modelo base
+            if not super().load_model(filepath):
+                return False
+            
+            # Carga el modelo de TensorFlow
+            model_path = filepath.replace('.joblib', '_keras.h5')
+            self.model = tf.keras.models.load_model(model_path)
+            
             logger.info(f"Modelo LSTM cargado desde {filepath}")
             return True
+            
         except Exception as e:
             logger.error(f"Error cargando modelo LSTM: {str(e)}")
             return False

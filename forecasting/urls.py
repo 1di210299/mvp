@@ -17,6 +17,11 @@ urlpatterns = [
     # Product-specific endpoints
     path('products/<int:product_id>/forecast/', views.ProductForecastView.as_view(), name='product_forecast'),
     
+    # Gráficos de pronósticos
+    path('charts/demand/', views.DemandForecastChartView.as_view(), name='demand-forecast-chart'),
+    path('charts/models/', views.ModelComparisonChartView.as_view(), name='model-comparison-chart'),
+    path('data/', views.ForecastDataView.as_view(), name='forecast-data'),
+
     # Bulk operations (available through viewset actions)
     # /api/forecasting/models/train_models/ - POST para entrenamiento masivo
     # /api/forecasting/models/comparison/ - GET para comparación de modelos

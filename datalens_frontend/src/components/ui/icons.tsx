@@ -645,7 +645,7 @@ export const Phone: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -948,7 +948,7 @@ export const Users: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 24 24"
+    viewBox="0 0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -1128,5 +1128,39 @@ export const Layers: React.FC<IconProps> = ({ className = '', size = 20, color }
     <polygon points="12,2 2,7 12,12 22,7 12,2" />
     <polyline points="2,17 12,22 22,17" />
     <polyline points="2,12 12,17 22,12" />
+  </svg>
+);
+
+export const LineChart: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #2563eb)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg line-chart-icon ${className}`}
+  >
+    <path d="M3 3v18h18" />
+    <path d="M18.7 8L12 13.8 7.3 9.2 2 14.5" />
+  </svg>
+);
+
+export const PieChart: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #7c3aed)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg pie-chart-icon ${className}`}
+  >
+    <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+    <path d="M22 12A10 10 0 0 0 12 2v10z" />
   </svg>
 );

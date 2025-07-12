@@ -90,15 +90,20 @@ class ForecastService:
             forecasts_created = 0
             
             with transaction.atomic():
-                # Elimina pronósticos existentes para el período
+                # FIX: Eliminar pronósticos existentes que puedan entrar en conflicto
+                # No solo de este modelo, sino cualquier pronóstico para las mismas combinaciones
                 start_date = predictions.index[0].date()
                 end_date = predictions.index[-1].date()
                 
-                DemandForecast.objects.filter(
-                    model=forecast_model,
-                    product__in=target_products,
-                    forecast_date__range=(start_date, end_date)
-                ).delete()
+                # Eliminar pronósticos existentes para evitar conflictos UNIQUE
+                for product in target_products:
+                    for location in target_locations:
+                        DemandForecast.objects.filter(
+                            product=product,
+                            location=location,
+                            forecast_date__range=(start_date, end_date),
+                            forecast_type='ml_prediction'  # Solo eliminar pronósticos ML
+                        ).delete()
                 
                 # Crea nuevos pronósticos
                 for product in target_products:
@@ -117,20 +122,41 @@ class ForecastService:
                             adjusted_lower = max(0, row['lower_bound'] * adjustment_factor)
                             adjusted_upper = row['upper_bound'] * adjustment_factor
                             
-                            # Crea el pronóstico
-                            DemandForecast.objects.create(
-                                model=forecast_model,
+                            # Verificar si ya existe un pronóstico para esta combinación específica
+                            existing_forecast = DemandForecast.objects.filter(
                                 product=product,
                                 location=location,
                                 forecast_date=date.date(),
-                                predicted_demand=Decimal(str(adjusted_demand)),
-                                lower_bound=Decimal(str(adjusted_lower)),
-                                upper_bound=Decimal(str(adjusted_upper)),
-                                confidence_level=Decimal(str(confidence_interval * 100)),
-                                seasonality_factor=Decimal(str(row.get('seasonality', 1.0))),
-                                trend_factor=Decimal(str(row.get('trend', 1.0))),
-                                external_factors=self._get_external_factors(product, date.date())
-                            )
+                                forecast_type='ml_prediction'
+                            ).first()
+                            
+                            if existing_forecast:
+                                # Actualizar pronóstico existente en lugar de crear nuevo
+                                existing_forecast.model = forecast_model
+                                existing_forecast.predicted_demand = Decimal(str(adjusted_demand))
+                                existing_forecast.lower_bound = Decimal(str(adjusted_lower))
+                                existing_forecast.upper_bound = Decimal(str(adjusted_upper))
+                                existing_forecast.confidence_level = Decimal(str(confidence_interval * 100))
+                                existing_forecast.seasonality_factor = Decimal(str(row.get('seasonality', 1.0)))
+                                existing_forecast.trend_factor = Decimal(str(row.get('trend', 1.0)))
+                                existing_forecast.external_factors = self._get_external_factors(product, date.date())
+                                existing_forecast.save()
+                            else:
+                                # Crear el pronóstico nuevo
+                                DemandForecast.objects.create(
+                                    model=forecast_model,
+                                    product=product,
+                                    location=location,
+                                    forecast_date=date.date(),
+                                    predicted_demand=Decimal(str(adjusted_demand)),
+                                    lower_bound=Decimal(str(adjusted_lower)),
+                                    upper_bound=Decimal(str(adjusted_upper)),
+                                    confidence_level=Decimal(str(confidence_interval * 100)),
+                                    forecast_type='ml_prediction',
+                                    seasonality_factor=Decimal(str(row.get('seasonality', 1.0))),
+                                    trend_factor=Decimal(str(row.get('trend', 1.0))),
+                                    external_factors=self._get_external_factors(product, date.date())
+                                )
                             forecasts_created += 1
             
             # Actualiza timestamp de última predicción
@@ -581,22 +607,58 @@ class ForecastService:
     
     def _get_future_demand(self, product: Product, location: Location, days_ahead: int) -> float:
         """
-        Obtiene la demanda proyectada futura
+        Obtiene la demanda proyectada futura con cálculo más realista
         """
         try:
             end_date = timezone.now().date() + timedelta(days=days_ahead)
             
-            demand = DemandForecast.objects.filter(
+            # Primero buscar pronósticos específicos para esta ubicación
+            demand_specific = DemandForecast.objects.filter(
                 product=product,
                 location=location,
-                forecast_date__range=(timezone.now().date(), end_date)
-            ).aggregate(total=models.Sum('predicted_demand'))['total'] or 0
+                forecast_date__range=(timezone.now().date() + timedelta(days=1), end_date)
+            ).aggregate(total=models.Sum('predicted_demand'))['total']
             
-            return float(demand)
+            if demand_specific and demand_specific > 0:
+                print(f"    📊 Demanda específica encontrada para {location.name}: {demand_specific}")
+                return float(demand_specific)
+            
+            # Si no hay pronósticos específicos, buscar pronósticos generales (location=None)
+            demand_general = DemandForecast.objects.filter(
+                product=product,
+                location__isnull=True,
+                forecast_date__range=(timezone.now().date() + timedelta(days=1), end_date)
+            ).aggregate(total=models.Sum('predicted_demand'))['total']
+            
+            if demand_general and demand_general > 0:
+                print(f"    📊 Demanda general encontrada: {demand_general}")
+                # Aplicar factor de ubicación a la demanda general
+                location_factor = self._get_location_factor(product, location)
+                adjusted_demand = float(demand_general) * location_factor
+                print(f"    📊 Demanda ajustada para {location.name}: {adjusted_demand} (factor: {location_factor})")
+                return adjusted_demand
+            
+            # Como último recurso, buscar cualquier pronóstico para este producto
+            demand_any = DemandForecast.objects.filter(
+                product=product,
+                forecast_date__range=(timezone.now().date() + timedelta(days=1), end_date)
+            ).aggregate(total=models.Sum('predicted_demand'))['total']
+            
+            if demand_any and demand_any > 0:
+                print(f"    📊 Demanda cualquier ubicación encontrada: {demand_any}")
+                # Dividir por número de ubicaciones activas como aproximación
+                active_locations_count = Location.objects.filter(is_active=True).count()
+                estimated_demand = float(demand_any) / max(active_locations_count, 1)
+                print(f"    📊 Demanda estimada para {location.name}: {estimated_demand}")
+                return estimated_demand
+            
+            print(f"    ⚠️ No se encontraron pronósticos para {product.name} en {location.name}")
+            return 0.0
             
         except Exception as e:
             logger.warning(f"Error obteniendo demanda futura: {str(e)}")
-            return 0
+            print(f"    ❌ Error obteniendo demanda futura: {str(e)}")
+            return 0.0
     
     def _calculate_reorder_recommendation(self,
                                         product: Product,
@@ -609,6 +671,12 @@ class ForecastService:
         Calcula recomendación de reorden específica
         """
         try:
+            # FIX: Convertir todo a float para evitar errores de tipos
+            current_stock = float(current_stock)
+            projected_demand = float(projected_demand)
+            lead_time_days = int(lead_time_days)
+            safety_stock_days = int(safety_stock_days)
+            
             # Calcula stock de seguridad
             daily_demand = projected_demand / (lead_time_days + safety_stock_days)
             safety_stock = daily_demand * safety_stock_days
@@ -641,25 +709,32 @@ class ForecastService:
                     priority = 'low'
                 
                 # Calcula costo estimado (usando cost_price del modelo Product)
-                estimated_cost = recommended_quantity * float(product.cost_price or 0)
+                cost_price = float(product.cost_price or 0)
+                estimated_cost = recommended_quantity * cost_price
                 
                 # Calcula ventas potenciales perdidas (usando sale_price del modelo Product)
-                potential_lost_sales = max(0, projected_demand - current_stock) * float(product.sale_price or 0)
+                sale_price = float(product.sale_price or 0)
+                potential_lost_sales = max(0, projected_demand - current_stock) * sale_price
+                
+                # Genera razón detallada
+                justification = f"Stock actual ({current_stock:.1f}) por debajo del punto de reorden ({reorder_point:.1f}). " \
+                               f"Demanda proyectada: {projected_demand:.1f} unidades en {lead_time_days + safety_stock_days} días. " \
+                               f"Se requieren {recommended_quantity:.1f} unidades para mantener {safety_stock_days} días de stock de seguridad."
                 
                 # Crea la recomendación
                 recommendation = ReorderRecommendation.objects.create(
                     product=product,
                     location=location,
-                    recommended_quantity=Decimal(str(recommended_quantity)),
-                    current_stock=Decimal(str(current_stock)),
-                    projected_demand=Decimal(str(projected_demand)),
+                    recommended_quantity=Decimal(str(round(recommended_quantity, 2))),
+                    current_stock=Decimal(str(round(current_stock, 2))),
+                    projected_demand=Decimal(str(round(projected_demand, 2))),
                     recommended_order_date=recommended_order_date,
                     expected_stockout_date=expected_stockout_date,
                     lead_time_days=lead_time_days,
                     priority=priority,
-                    estimated_cost=Decimal(str(estimated_cost)),
-                    potential_lost_sales=Decimal(str(potential_lost_sales)),
-                    justification=f"Stock actual ({current_stock:.1f}) por debajo del punto de reorden ({reorder_point:.1f})"
+                    estimated_cost=Decimal(str(round(estimated_cost, 2))),
+                    potential_lost_sales=Decimal(str(round(potential_lost_sales, 2))),
+                    justification=justification  # FIX: Usar 'justification' que es el campo correcto en el modelo
                 )
                 
                 return recommendation
@@ -700,7 +775,7 @@ class ForecastService:
                 forecast_model = self._retrain_model_for_product(product)
                 if not forecast_model:
                     print(f"  ❌ No se pudo entrenar modelo para {product.name}")
-                    return []
+                    return self._generate_base_forecasts(product, forecast_horizon, include_confidence)
                 ml_model = self.ml_service.load_trained_model(forecast_model.id)
             
             # 3. Generar predicciones usando el modelo ML
@@ -718,20 +793,16 @@ class ForecastService:
                 print(f"  🎯 Predicciones ML generadas: {len(predictions)} períodos")
                 
             except Exception as e:
-                print(f"  ❌ Error en predicción ML: {str(e)}")
+                print(f"  ❌ Error generando pronósticos ML para {product.name}: {str(e)}")
+                logger.error(f"Error generando pronósticos ML para {product.sku}: {str(e)}")
                 # Fallback a predicciones base
                 return self._generate_base_forecasts(product, forecast_horizon, include_confidence)
             
-            # 4. Crear registros de DemandForecast
+            # 4. Crear registros de DemandForecast usando get_or_create para evitar duplicados
             forecasts_created = []
             locations = Location.objects.filter(is_active=True)
             
             for location in locations:
-                # Verificar si hay stock en esta ubicación
-                current_stock = self._get_current_stock(product, location)
-                if current_stock == 0:
-                    continue  # Skip ubicaciones sin stock
-                
                 print(f"    📍 Creando pronósticos para {location.name}")
                 
                 for i, (date_idx, row) in enumerate(predictions.iterrows()):
@@ -753,36 +824,51 @@ class ForecastService:
                     adjusted_lower = lower_bound * location_factor
                     adjusted_upper = upper_bound * location_factor
                     
-                    # Crear el pronóstico
-                    forecast = DemandForecast.objects.create(
-                        model=forecast_model,
+                    # FIX: Usar get_or_create para evitar error UNIQUE constraint
+                    forecast, created = DemandForecast.objects.get_or_create(
                         product=product,
                         location=location,
                         forecast_date=forecast_date,
-                        predicted_demand=Decimal(str(round(adjusted_demand, 2))),
-                        lower_bound=Decimal(str(round(adjusted_lower, 2))),
-                        upper_bound=Decimal(str(round(adjusted_upper, 2))),
-                        confidence_level=Decimal('85.0'),
                         forecast_type='ml_prediction',
-                        seasonality_factor=Decimal(str(round(row.get('seasonality', 1.0), 2))),
-                        trend_factor=Decimal(str(round(row.get('trend', 1.0), 2))),
-                        external_factors={
-                            'algorithm': forecast_model.model_type,
-                            'model_metrics': {
-                                'mae': float(forecast_model.mae or 0),
-                                'mape': float(forecast_model.mape or 0),
-                                'rmse': float(forecast_model.rmse or 0)
-                            },
-                            'location_factor': location_factor
+                        defaults={
+                            'model': forecast_model,
+                            'predicted_demand': Decimal(str(round(adjusted_demand, 2))),
+                            'lower_bound': Decimal(str(round(adjusted_lower, 2))),
+                            'upper_bound': Decimal(str(round(adjusted_upper, 2))),
+                            'confidence_level': Decimal('85.0'),
+                            'seasonality_factor': Decimal(str(round(row.get('seasonality', 1.0), 2))),
+                            'trend_factor': Decimal(str(round(row.get('trend', 1.0), 2))),
+                            'external_factors': {
+                                'algorithm': forecast_model.model_type,
+                                'model_metrics': {
+                                    'mae': float(forecast_model.mae or 0),
+                                    'mape': float(forecast_model.mape or 0),
+                                    'rmse': float(forecast_model.rmse or 0)
+                                },
+                                'location_factor': location_factor
+                            }
                         }
                     )
+                    
+                    if not created:
+                        # Si ya existe, actualizarlo con nuevos valores
+                        forecast.model = forecast_model
+                        forecast.predicted_demand = Decimal(str(round(adjusted_demand, 2)))
+                        forecast.lower_bound = Decimal(str(round(adjusted_lower, 2)))
+                        forecast.upper_bound = Decimal(str(round(adjusted_upper, 2)))
+                        forecast.confidence_level = Decimal('85.0')
+                        forecast.save()
+                        print(f"      🔄 Pronóstico actualizado para {forecast_date}")
+                    else:
+                        print(f"      ✅ Pronóstico creado para {forecast_date}")
+                    
                     forecasts_created.append(forecast)
             
             # Actualizar timestamp de última predicción
             forecast_model.last_prediction_at = timezone.now()
             forecast_model.save()
             
-            print(f"  ✅ {len(forecasts_created)} pronósticos ML creados para {product.name}")
+            print(f"  ✅ {len(forecasts_created)} pronósticos ML procesados para {product.name}")
             return forecasts_created
             
         except Exception as e:
