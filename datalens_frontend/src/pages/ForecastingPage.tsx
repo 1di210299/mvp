@@ -212,11 +212,30 @@ const ForecastingPage: React.FC = () => {
       return (
         <div className={`text-center py-12 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
           <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>No hay datos de ML disponibles</p>
-          <p className={`text-sm mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>
-            Pronósticos en BD: {state.forecasts.length} | 
-            Total de puntos: {data?.total_points || 'N/A'}
+          <p className="text-lg font-semibold mb-2">No hay pronósticos de demanda disponibles</p>
+          <p className={`text-sm mb-6 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>
+            {recommendations.length > 0 
+              ? `Tienes ${recommendations.length} recomendaciones basadas en datos históricos, pero necesitas generar pronósticos ML para ver visualizaciones avanzadas.`
+              : 'Necesitas generar pronósticos para ver análisis de machine learning.'
+            }
           </p>
+          <div className="space-y-3">
+            <button 
+              onClick={generateNewForecasts}
+              disabled={state.isGenerating}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 mx-auto disabled:opacity-50 transition-all"
+            >
+              {state.isGenerating ? (
+                <RefreshCw className="h-5 w-5 animate-spin" />
+              ) : (
+                <TrendingUp className="h-5 w-5" />
+              )}
+              {state.isGenerating ? 'Generando pronósticos...' : 'Generar Pronósticos ML'}
+            </button>
+            <p className={`text-xs ${isDarkMode ? 'text-gray-600' : 'text-gray-500'}`}>
+              Los pronósticos se generarán usando modelos Prophet, ARIMA y Random Forest
+            </p>
+          </div>
         </div>
       );
     }

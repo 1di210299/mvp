@@ -6,6 +6,7 @@ router = DefaultRouter()
 router.register(r'rules', views.AlertRuleViewSet, basename='alert-rules')
 router.register(r'alerts', views.AlertViewSet, basename='alerts')
 router.register(r'notifications', views.NotificationLogViewSet, basename='notifications')
+router.register(r'recipients', views.AlertRecipientViewSet, basename='alert-recipients')
 
 urlpatterns = [
     # Custom endpoints

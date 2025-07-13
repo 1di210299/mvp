@@ -14,6 +14,7 @@ import CategoriesPage from './pages/CategoriesPage';
 import SuppliersPage from './pages/SuppliersPage';
 import TransactionsPage from './pages/TransactionsPage';
 import AlertsPage from './pages/AlertsPage';
+import AlertRecipientsPage from './pages/AlertRecipientsPage';
 import ForecastingPage from './pages/ForecastingPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
@@ -106,6 +107,14 @@ const AppContent: React.FC = () => {
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
                   <AlertsPage />
+                </main>
+              </>
+            } />
+            <Route path="/app/alerts/recipients" element={
+              <>
+                <Navbar user={user} onLogout={logout} />
+                <main className="app-main">
+                  <AlertRecipientsPage />
                 </main>
               </>
             } />

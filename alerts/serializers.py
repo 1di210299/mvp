@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import AlertRule, Alert, NotificationLog
+from .models import AlertRule, Alert, NotificationLog, AlertRecipient
 from inventory.models import Product, Category, Location
 from authentication.models import User
 
@@ -178,3 +178,91 @@ class NotificationTestSerializer(serializers.Serializer):
     )
     test_phone = serializers.CharField(required=False, allow_blank=True)
     test_email = serializers.EmailField(required=False, allow_blank=True)
+
+
+class AlertRecipientSerializer(serializers.ModelSerializer):
+    """Serializer para gestionar destinatarios de alertas"""
+    
+    class Meta:
+        model = AlertRecipient
+        fields = [
+            'id', 'name', 'email', 'phone', 'notification_type',
+            'receive_all_alerts', 'receive_critical_only', 'receive_high_and_critical',
+            'alert_types', 'is_active', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate(self, data):
+        """Validación personalizada"""
+        # Validar que tenga al menos email o teléfono
+        if not data.get('email') and not data.get('phone'):
+            raise serializers.ValidationError(
+                "Debe proporcionar al menos un email o teléfono."
+            )
+        
+        # Validar tipo de notificación vs datos disponibles
+        notification_type = data.get('notification_type')
+        
+        if notification_type in ['email', 'both'] and not data.get('email'):
+            raise serializers.ValidationError(
+                "Debe proporcionar un email para notificaciones por email."
+            )
+        
+        if notification_type in ['whatsapp', 'both'] and not data.get('phone'):
+            raise serializers.ValidationError(
+                "Debe proporcionar un teléfono para notificaciones por WhatsApp."
+            )
+        
+        # Validar formato de teléfono
+        phone = data.get('phone')
+        if phone:
+            import re
+            # Formato básico: +51999999999
+            if not re.match(r'^\+\d{1,3}\d{8,12}$', phone):
+                raise serializers.ValidationError(
+                    "El teléfono debe tener el formato +51999999999"
+                )
+        
+        return data
+    
+    def create(self, validated_data):
+        """Crear destinatario asignándole la empresa del usuario"""
+        user = self.context['request'].user
+        validated_data['company'] = user.company
+        validated_data['created_by'] = user
+        return super().create(validated_data)
+
+
+class AlertRecipientListSerializer(serializers.ModelSerializer):
+    """Serializer simplificado para listar destinatarios"""
+    contact_info = serializers.SerializerMethodField()
+    alert_settings = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AlertRecipient
+        fields = [
+            'id', 'name', 'contact_info', 'notification_type',
+            'alert_settings', 'is_active', 'created_at'
+        ]
+    
+    def get_contact_info(self, obj):
+        """Obtiene información de contacto"""
+        info = []
+        if obj.email:
+            info.append(f"📧 {obj.email}")
+        if obj.phone:
+            info.append(f"📱 {obj.phone}")
+        return info
+    
+    def get_alert_settings(self, obj):
+        """Obtiene configuración de alertas en formato legible"""
+        if obj.receive_all_alerts:
+            return "Todas las alertas"
+        elif obj.receive_critical_only:
+            return "Solo alertas críticas"
+        elif obj.receive_high_and_critical:
+            return "Alertas altas y críticas"
+        elif obj.alert_types:
+            return f"Tipos específicos ({len(obj.alert_types)})"
+        else:
+            return "Sin configurar"

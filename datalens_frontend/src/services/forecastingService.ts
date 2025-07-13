@@ -13,6 +13,12 @@ interface ForecastingService {
   trainModel(data: any): Promise<any>;
   getModels(): Promise<any>;
   getProductForecast(productId: number): Promise<any>;
+  getForecastData(params?: {
+    days_ahead?: number;
+    product_ids?: string;
+    location_ids?: string;
+  }): Promise<any>;
+  generateRecommendations(): Promise<any>;
 }
 
 class ForecastingServiceImpl implements ForecastingService {
@@ -142,6 +148,46 @@ class ForecastingServiceImpl implements ForecastingService {
     } catch (error) {
       console.error('Error en getProductForecast:', error);
       return { predicted_demand: 0, confidence: 0 };
+    }
+  }
+
+  async getForecastData(params?: {
+    days_ahead?: number;
+    product_ids?: string;
+    location_ids?: string;
+  }): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/forecast-data/`, {
+        headers: this.getAuthHeaders(),
+        method: 'POST',
+        body: JSON.stringify(params),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar datos de pronóstico');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error en getForecastData:', error);
+      return { results: [] };
+    }
+  }
+
+  async generateRecommendations(): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/generate-recommendations/`, {
+        headers: this.getAuthHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al generar recomendaciones');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error en generateRecommendations:', error);
+      return { results: [] };
     }
   }
 }

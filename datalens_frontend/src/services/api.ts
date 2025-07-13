@@ -14,19 +14,85 @@ import {
 
 const API_BASE_URL = 'http://localhost:8080/api';  // REVERT: Volver a 8080 como estaba originalmente
 
+// **NUEVO: Función para crear headers optimizados**
+const createOptimizedHeaders = (includeAuth: boolean = true): Record<string, string> => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+
+  if (includeAuth) {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      // Verificar si el token es demasiado grande
+      if (token.length > 2000) {
+        console.warn('⚠️ Token muy grande, podría causar error 431');
+        // Intentar renovar el token automáticamente
+        refreshAuthToken().then((newToken) => {
+          if (newToken && newToken.length < 2000) {
+            headers.Authorization = `Bearer ${newToken}`;
+          }
+        });
+      } else {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+  }
+
+  return headers;
+};
+
+// **NUEVO: Función para verificar y limpiar tokens corruptos**
+const validateAndCleanToken = (): boolean => {
+  try {
+    const token = localStorage.getItem('access_token');
+    if (!token) return false;
+
+    // Verificar tamaño del token
+    if (token.length > 3000) {
+      console.warn('🧹 Token excesivamente grande, limpiando...');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      return false;
+    }
+
+    // Verificar estructura básica de JWT
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.warn('🧹 Token malformado, limpiando...');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error validando token:', error);
+    return false;
+  }
+};
+
 // Configuración de axios
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  // **NUEVO: Configurar timeouts más cortos para evitar headers grandes**
+  timeout: 10000,
+  maxRedirects: 3,
 });
 
 // Interceptor para agregar token a las requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  // Validar token antes de cada petición
+  if (validateAndCleanToken()) {
+    const token = localStorage.getItem('access_token');
+    if (token && token.length < 2000) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -67,6 +133,11 @@ const refreshAuthToken = async (): Promise<string | null> => {
     const { tokens, user } = response.data;
     const newAccessToken = tokens.access;
     
+    // **NUEVO: Verificar tamaño del nuevo token**
+    if (newAccessToken.length > 2000) {
+      console.warn('⚠️ Nuevo token muy grande, puede causar problemas');
+    }
+    
     // Actualizar tokens en localStorage
     localStorage.setItem('access_token', newAccessToken);
     if (tokens.refresh) {
@@ -105,6 +176,27 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     
+    // **NUEVO: Manejo específico del error 431**
+    if (error.response?.status === 431) {
+      console.error('❌ Error 431: Headers demasiado grandes');
+      
+      // Limpiar tokens y reintentar
+      validateAndCleanToken();
+      
+      if (!originalRequest._retry) {
+        originalRequest._retry = true;
+        
+        // Intentar renovar token
+        const newToken = await refreshAuthToken();
+        if (newToken && originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        }
+      }
+      
+      return Promise.reject(new Error('Headers demasiado grandes. Por favor, inicia sesión nuevamente.'));
+    }
+    
     // Si es error 401 (token expirado) y no hemos intentado renovar aún
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
@@ -134,7 +226,6 @@ api.interceptors.response.use(
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
           }
-          
           return api(originalRequest);
         } else {
           processQueue(error, null);
@@ -180,9 +271,9 @@ export const authService = {
 // Servicios de inventario
 export const inventoryService = {
   // Real API endpoints para pronósticos
-  getForecasts: async (): Promise<ApiResponse<any>> => {
+  getForecasts: async (params?: any): Promise<ApiResponse<any>> => {
     try {
-      const response = await api.get('/forecasting/forecasts/');
+      const response = await api.get('/forecasting/forecasts/', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching forecasts:', error);
@@ -328,9 +419,9 @@ export const inventoryService = {
   },
 
   // Real API para transacciones con manejo de errores mejorado
-  getTransactions: async (): Promise<ApiResponse<any>> => {
+  getTransactions: async (params?: any): Promise<ApiResponse<any>> => {
     try {
-      const response = await api.get('/inventory/transactions/');
+      const response = await api.get('/inventory/transactions/', { params });
       return response.data;
     } catch (error: any) {
       console.error('Error fetching transactions:', error);
@@ -380,9 +471,9 @@ export const inventoryService = {
   // ===== MÉTODOS PARA DASHBOARD =====
   
   // Dashboard de inventario
-  getInventoryDashboard: async (): Promise<any> => {
+  getInventoryDashboard: async (params?: any): Promise<any> => {
     try {
-      const response = await api.get('/inventory/dashboard/');
+      const response = await api.get('/inventory/dashboard/', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching inventory dashboard:', error);
@@ -619,10 +710,49 @@ export const settingsService = {
     return response.data;
   },
 
-  // Información del sistema
+  // NUEVO: Información REAL del sistema desde el backend
   getSystemInfo: async (): Promise<any> => {
-    const response = await api.get('/auth/system-info/');
-    return response.data;
+    try {
+      const response = await api.get('/reports/system-info/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching system info:', error);
+      // Fallback con datos básicos si el endpoint falla
+      return {
+        system_info: {
+          app_version: '2.1.0',
+          django_version: 'N/A',
+          python_version: 'N/A',
+          platform: 'N/A',
+          last_updated: new Date().toLocaleDateString('es-ES')
+        },
+        database_info: {
+          type: 'Database not connected',
+          size: 'N/A',
+          migrations: 0,
+          storage_usage: 'N/A'
+        },
+        resources: {
+          memory_usage: 'N/A',
+          storage_usage: 'N/A',
+          uptime: 'N/A'
+        },
+        app_stats: {
+          total_products: 0,
+          total_transactions: 0,
+          active_alerts: 0,
+          total_users: 0,
+          total_companies: 0
+        },
+        server_config: {
+          debug_mode: true,
+          time_zone: 'America/Lima',
+          language_code: 'es-pe',
+          allowed_hosts: 0,
+          installed_apps: 0
+        }
+      };
+    }
   },
 
   // Cambio de contraseña
@@ -634,8 +764,8 @@ export const settingsService = {
 
 // Servicios de alertas
 export const alertService = {
-  getAlerts: async (): Promise<ApiResponse<Alert>> => {
-    const response = await api.get('/alerts/alerts/');
+  getAlerts: async (params?: any): Promise<ApiResponse<Alert>> => {
+    const response = await api.get('/alerts/alerts/', { params });
     return response.data;
   },
 
@@ -695,8 +825,8 @@ export const alertService = {
   },
 
   // Dashboard y verificación
-  getAlertsDashboard: async (): Promise<any> => {
-    const response = await api.get('/alerts/dashboard/');
+  getAlertsDashboard: async (params?: any): Promise<any> => {
+    const response = await api.get('/alerts/dashboard/', { params });
     return response.data;
   },
 
@@ -1107,3 +1237,6 @@ export const extendedInventoryService = {
 };
 
 export default api;
+
+// **NUEVO: Exportar funciones de utilidad para uso en otros componentes**
+export { createOptimizedHeaders, validateAndCleanToken };

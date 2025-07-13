@@ -572,45 +572,111 @@ class GenerateRecommendationsView(APIView):
     """Vista para generar recomendaciones de reorden"""
     
     def post(self, request):
+        print(f"🚀 GenerateRecommendationsView.post() - Iniciando generación de recomendaciones...")
+        print(f"📝 Datos recibidos: {request.data}")
+        
         company = get_default_company()
         if not company:
+            print("❌ No se encontró empresa")
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
             
+        print(f"🏢 Empresa encontrada: {company.name}")
         product_ids = request.data.get('product_ids', [])
         
         try:
             forecast_service = ForecastService()
             
+            # FIX: Si no se especifican productos, usar TODOS los productos activos de la empresa
             if product_ids:
                 products = Product.objects.filter(id__in=product_ids, company=company)
+                print(f"📦 Productos específicos solicitados: {len(product_ids)} IDs")
             else:
                 products = Product.objects.filter(company=company, is_active=True)
+                print(f"📦 Usando TODOS los productos activos: {products.count()}")
             
-            # Generar recomendaciones para la empresa completa
+            if not products.exists():
+                print("❌ No hay productos para procesar")
+                return Response({
+                    'error': 'No hay productos para generar recomendaciones',
+                    'details': 'Verifique que existen productos activos en la empresa'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            print(f"🔄 Iniciando generación de recomendaciones para {products.count()} productos...")
+            
+            # FIX: Primero generar pronósticos para TODOS los productos si no existen
+            print("📈 Verificando pronósticos existentes...")
+            products_without_forecasts = []
+            
+            for product in products:
+                recent_forecasts = DemandForecast.objects.filter(
+                    product=product,
+                    forecast_date__gte=timezone.now().date(),
+                    forecast_date__lte=timezone.now().date() + timedelta(days=30)
+                ).count()
+                
+                if recent_forecasts == 0:
+                    products_without_forecasts.append(product)
+            
+            print(f"⚠️ Productos sin pronósticos: {len(products_without_forecasts)}")
+            
+            # Generar pronósticos para productos que no los tienen
+            if products_without_forecasts:
+                print("🔧 Generando pronósticos faltantes...")
+                for product in products_without_forecasts:
+                    try:
+                        print(f"  📊 Generando pronósticos para {product.name}...")
+                        forecasts = forecast_service.generate_forecasts(
+                            product=product,
+                            forecast_horizon=30,
+                            include_confidence=True
+                        )
+                        print(f"  ✅ {len(forecasts)} pronósticos creados para {product.name}")
+                    except Exception as e:
+                        print(f"  ❌ Error generando pronósticos para {product.name}: {str(e)}")
+                        continue
+            
+            # Ahora generar las recomendaciones con pronósticos actualizados
+            print("💡 Generando recomendaciones de reorden...")
             recommendations = forecast_service.generate_reorder_recommendations(
                 company_id=company.id,
-                products=list(products) if product_ids else None
+                products=list(products) if product_ids else None,
+                lead_time_days=7,
+                safety_stock_days=3
             )
+            
+            print(f"✅ Recomendaciones generadas: {len(recommendations)}")
             
             recommendations_created = []
             for rec in recommendations:
                 recommendations_created.append({
+                    'id': rec.id,
                     'product_id': rec.product.id,
                     'product_name': rec.product.name,
-                    'recommendation_id': rec.id,
+                    'location': rec.location.name if rec.location else 'General',
                     'priority': rec.priority,
-                    'quantity': float(rec.recommended_quantity),
+                    'recommended_quantity': float(rec.recommended_quantity),
                     'current_stock': float(rec.current_stock),
-                    'expected_stockout_date': rec.expected_stockout_date.isoformat() if rec.expected_stockout_date else None
+                    'projected_demand': float(rec.projected_demand),
+                    'expected_stockout_date': rec.expected_stockout_date.isoformat() if rec.expected_stockout_date else None,
+                    'estimated_cost': float(rec.estimated_cost) if rec.estimated_cost else 0,
+                    'justification': rec.justification[:200] + '...' if len(rec.justification) > 200 else rec.justification
                 })
             
-            return Response({
+            response_data = {
                 'message': f'Recomendaciones generadas: {len(recommendations_created)}',
-                'recommendations': recommendations_created
-            })
+                'recommendations': recommendations_created,
+                'total_products_analyzed': products.count(),
+                'products_with_recommendations': len(recommendations_created),
+                'company': company.name
+            }
+            
+            print(f"📤 Respuesta enviada: {len(recommendations_created)} recomendaciones")
+            return Response(response_data)
             
         except Exception as e:
-            logger.error(f"Error generando recomendaciones: {str(e)}")
+            error_msg = f"Error generando recomendaciones: {str(e)}"
+            print(f"❌ {error_msg}")
+            logger.error(error_msg)
             return Response({
                 'error': 'Error al generar recomendaciones',
                 'details': str(e)

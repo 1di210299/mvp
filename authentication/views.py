@@ -468,25 +468,37 @@ class TokenValidationView(APIView):
         description="Verifica si un token JWT es válido y retorna información del usuario"
     )
     def post(self, request):
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"🔍 TokenValidationView - Request data: {request.data}")
+        logger.info(f"🔍 TokenValidationView - Request headers: {dict(request.headers)}")
+        
         token = request.data.get('token')
         
         if not token:
+            logger.error("❌ No token provided in request")
             return Response({
                 'status': 'error',
                 'message': 'Token requerido'
             }, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"🔍 Token received: {token[:50]}..." if len(token) > 50 else f"🔍 Token received: {token}")
         
         try:
             from rest_framework_simplejwt.tokens import UntypedToken
             from django.contrib.auth import get_user_model
             
             # Validar el token
+            logger.info("🔄 Validating token...")
             validated_token = UntypedToken(token)
             user_id = validated_token.get('user_id')
+            logger.info(f"✅ Token validated, user_id: {user_id}")
             
             # Obtener el usuario
             User = get_user_model()
             user = User.objects.get(id=user_id)
+            logger.info(f"✅ User found: {user.email}")
             
             return Response({
                 'status': 'success',
@@ -495,12 +507,14 @@ class TokenValidationView(APIView):
                 'expires_at': validated_token.get('exp')
             })
             
-        except TokenError:
+        except TokenError as e:
+            logger.error(f"❌ Token error: {str(e)}")
             return Response({
                 'status': 'error',
                 'message': 'Token inválido o expirado'
             }, status=status.HTTP_401_UNAUTHORIZED)
         except Exception as e:
+            logger.error(f"❌ General error: {str(e)}")
             return Response({
                 'status': 'error',
                 'message': 'Error al validar token',

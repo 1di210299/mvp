@@ -38,7 +38,7 @@ class SupplierSerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     """Serializer optimizado para Product - eliminando redundancias"""
     
-    # Campos relacionales (read-only)
+    # Campos relacionales (read-only para mostrar nombres)
     category_name = serializers.CharField(source='category.name', read_only=True)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     
@@ -48,6 +48,10 @@ class ProductSerializer(serializers.ModelSerializer):
     # **COMPATIBILIDAD: Alias para el frontend**
     current_stock = serializers.ReadOnlyField(source='stock')  # Alias para compatibilidad
     
+    # FIX: Campos para crear categoría/proveedor sobre la marcha
+    category_data = serializers.DictField(write_only=True, required=False, help_text="Datos para crear nueva categoría si category no se proporciona")
+    supplier_data = serializers.DictField(write_only=True, required=False, help_text="Datos para crear nuevo proveedor si supplier no se proporciona")
+    
     class Meta:
         model = Product
         fields = [
@@ -55,8 +59,8 @@ class ProductSerializer(serializers.ModelSerializer):
             'id', 'sku', 'name', 'description',
             
             # Relaciones (IDs para escritura, nombres para lectura)
-            'category', 'category_name', 
-            'supplier', 'supplier_name',
+            'category', 'category_name', 'category_data',  # FIX: Agregar category_data
+            'supplier', 'supplier_name', 'supplier_data',  # FIX: Agregar supplier_data
             
             # Precios (solo los esenciales)
             'cost_price',     # Precio de compra
@@ -87,31 +91,170 @@ class ProductSerializer(serializers.ModelSerializer):
             'id', 'stock_value', 'current_stock', 'category_name', 'supplier_name', 'created_at'
         ]
 
+    def to_internal_value(self, data):
+        """Override para agregar logging de datos recibidos"""
+        print(f"🔍 ProductSerializer.to_internal_value() - Datos recibidos:")
+        print(f"📝 Raw data: {data}")
+        
+        try:
+            # FIX: Mapear unit_price a sale_price si viene del frontend
+            if 'unit_price' in data and 'sale_price' not in data:
+                data['sale_price'] = data.pop('unit_price')
+                print(f"🔄 Mapeando unit_price a sale_price: {data['sale_price']}")
+            
+            result = super().to_internal_value(data)
+            print(f"✅ Datos procesados exitosamente: {result}")
+            return result
+        except Exception as e:
+            print(f"❌ Error en to_internal_value: {str(e)}")
+            print(f"📋 Tipo de error: {type(e).__name__}")
+            raise
+
     def validate(self, data):
-        """Validaciones personalizadas"""
-        # Validar que el precio de venta sea mayor al costo
-        if data.get('sale_price', 0) < data.get('cost_price', 0):
-            raise serializers.ValidationError(
-                "El precio de venta no puede ser menor al precio de costo"
-            )
+        """Validaciones personalizadas con logging"""
+        print(f"🔍 ProductSerializer.validate() - Validando datos:")
+        print(f"📝 Data a validar: {data}")
         
-        # Validar que el stock mínimo sea menor al máximo
-        if data.get('min_stock', 0) >= data.get('max_stock', 100):
-            raise serializers.ValidationError(
-                "El stock mínimo debe ser menor al stock máximo"
-            )
+        try:
+            # FIX: Validar que se proporcione categoría O datos para crearla
+            if not data.get('category') and not data.get('category_data'):
+                raise serializers.ValidationError("Debe proporcionar una categoría existente o datos para crear una nueva")
+            
+            # FIX: Validar datos de nueva categoría si se proporcionan
+            if data.get('category_data'):
+                category_data = data['category_data']
+                if not category_data.get('name'):
+                    raise serializers.ValidationError("El nombre de la categoría es requerido")
+                print(f"📋 Nueva categoría a crear: {category_data}")
+            
+            # FIX: Validar datos de nuevo proveedor si se proporcionan  
+            if data.get('supplier_data'):
+                supplier_data = data['supplier_data']
+                if not supplier_data.get('name'):
+                    raise serializers.ValidationError("El nombre del proveedor es requerido")
+                print(f"🚚 Nuevo proveedor a crear: {supplier_data}")
+            
+            # Validar precios (solo si ambos están presentes)
+            sale_price = data.get('sale_price')
+            cost_price = data.get('cost_price')
+            
+            if sale_price is not None and cost_price is not None:
+                if float(sale_price) < float(cost_price):
+                    error_msg = "El precio de venta no puede ser menor al precio de costo"
+                    print(f"❌ Error de validación: {error_msg}")
+                    raise serializers.ValidationError(error_msg)
+                else:
+                    print(f"✅ Precios válidos: venta={sale_price}, costo={cost_price}")
+            
+            # Validar stocks (solo si ambos están presentes)
+            min_stock = data.get('min_stock')
+            max_stock = data.get('max_stock')
+            
+            if min_stock is not None and max_stock is not None:
+                if int(min_stock) >= int(max_stock):
+                    error_msg = "El stock mínimo debe ser menor al stock máximo"
+                    print(f"❌ Error de validación: {error_msg}")
+                    raise serializers.ValidationError(error_msg)
+                else:
+                    print(f"✅ Stocks válidos: min={min_stock}, max={max_stock}")
+            
+            # Auto-calcular reorder_point si no se proporciona
+            reorder_point = data.get('reorder_point')
+            if min_stock is not None and max_stock is not None:
+                if reorder_point is None or int(reorder_point) == 0:
+                    # Auto-calcular: punto medio entre min y max, pero más cerca del mínimo
+                    auto_reorder = int(min_stock) + max(5, int((int(max_stock) - int(min_stock)) * 0.3))
+                    data['reorder_point'] = auto_reorder
+                    print(f"🔧 Auto-calculando reorder_point: {auto_reorder} (entre {min_stock} y {max_stock})")
+                elif not (int(min_stock) <= int(reorder_point) <= int(max_stock)):
+                    # Si está fuera del rango, ajustarlo automáticamente
+                    auto_reorder = int(min_stock) + max(5, int((int(max_stock) - int(min_stock)) * 0.3))
+                    data['reorder_point'] = auto_reorder
+                    print(f"🔧 Ajustando reorder_point fuera de rango de {reorder_point} a {auto_reorder}")
+                else:
+                    print(f"✅ Punto de reorden válido: {reorder_point}")
+            
+            print(f"✅ Todas las validaciones pasaron exitosamente")
+            return data
+            
+        except serializers.ValidationError:
+            # Re-lanzar errores de validación
+            raise
+        except Exception as e:
+            print(f"❌ Error inesperado en validate: {str(e)}")
+            print(f"📋 Tipo de error: {type(e).__name__}")
+            import traceback
+            print(f"🔍 Traceback: {traceback.format_exc()}")
+            raise serializers.ValidationError(f"Error de validación: {str(e)}")
+
+    def create(self, validated_data):
+        """Override del método create con logging y creación de relaciones"""
+        print(f"🔍 ProductSerializer.create() - Creando producto:")
+        print(f"📝 Validated data: {validated_data}")
         
-        # Validar que el punto de reorden esté entre min y max
-        reorder_point = data.get('reorder_point', 0)
-        min_stock = data.get('min_stock', 0)
-        max_stock = data.get('max_stock', 100)
-        
-        if not (min_stock <= reorder_point <= max_stock):
-            raise serializers.ValidationError(
-                "El punto de reorden debe estar entre el stock mínimo y máximo"
-            )
-        
-        return data
+        try:
+            # FIX: Crear categoría si se proporcionaron datos para una nueva
+            category_data = validated_data.pop('category_data', None)
+            if category_data and not validated_data.get('category'):
+                print(f"📋 Creando nueva categoría: {category_data}")
+                category, created = Category.objects.get_or_create(
+                    name=category_data['name'],
+                    defaults={
+                        'description': category_data.get('description', ''),
+                        'is_active': True
+                    }
+                )
+                validated_data['category'] = category
+                print(f"✅ Categoría {'creada' if created else 'existente'}: {category.name}")
+            
+            # FIX: Crear proveedor si se proporcionaron datos para uno nuevo
+            supplier_data = validated_data.pop('supplier_data', None)
+            if supplier_data and not validated_data.get('supplier'):
+                print(f"🚚 Creando nuevo proveedor: {supplier_data}")
+                supplier, created = Supplier.objects.get_or_create(
+                    name=supplier_data['name'],
+                    defaults={
+                        'contact_name': supplier_data.get('contact_name', ''),
+                        'email': supplier_data.get('email', ''),
+                        'phone': supplier_data.get('phone', ''),
+                        'address': supplier_data.get('address', ''),
+                        'is_active': True
+                    }
+                )
+                validated_data['supplier'] = supplier
+                print(f"✅ Proveedor {'creado' if created else 'existente'}: {supplier.name}")
+            
+            # Asignar valores por defecto si no se proporcionan
+            defaults = {
+                'stock': 0,
+                'min_stock': 0,
+                'max_stock': 100,
+                'reorder_point': 10,
+                'cost_price': 0.0,
+                'sale_price': 0.0,
+                'unit': 'unidad',
+                'is_active': True,
+                'track_batches': False,
+                'has_expiration': False
+            }
+            
+            for field, default_value in defaults.items():
+                if field not in validated_data or validated_data[field] is None:
+                    validated_data[field] = default_value
+                    print(f"🔧 Asignando valor por defecto {field}: {default_value}")
+            
+            print(f"💾 Creando producto con datos finales: {validated_data}")
+            product = super().create(validated_data)
+            print(f"✅ Producto creado exitosamente: {product.id} - {product.name}")
+            
+            return product
+            
+        except Exception as e:
+            print(f"❌ Error en ProductSerializer.create: {str(e)}")
+            print(f"📋 Tipo de error: {type(e).__name__}")
+            import traceback
+            print(f"🔍 Traceback: {traceback.format_exc()}")
+            raise
 
 
 class SaleSerializer(serializers.ModelSerializer):

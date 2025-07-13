@@ -109,7 +109,7 @@ const SettingsPage: React.FC = () => {
       // Cargar configuraciones del usuario desde la API real
       const settingsData = await settingsService.getUserSettings();
       
-      // Cargar información del sistema
+      // NUEVO: Cargar información REAL del sistema desde el backend
       const systemInfo = await settingsService.getSystemInfo();
       
       setState(prev => ({
@@ -140,7 +140,7 @@ const SettingsPage: React.FC = () => {
           lowStockThreshold: settingsData.system_settings.low_stock_threshold || 10,
           autoReorder: settingsData.system_settings.auto_reorder || false
         },
-        systemInfo: systemInfo,
+        systemInfo: systemInfo, // AHORA VIENE DEL BACKEND REAL
         loading: false
       }));
     } catch (err) {
@@ -709,24 +709,75 @@ const SettingsPage: React.FC = () => {
 
                 <div className="border-t pt-4 space-y-2">
                   <h4 className="font-medium">Información del Sistema</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">Versión:</span>
-                      <span className="ml-2 font-medium">v2.1.0</span>
+                  {state.systemInfo ? (
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">Versión:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.system_info.app_version}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Última actualización:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.system_info.last_updated}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Base de datos:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.database_info.type}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Almacenamiento:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.resources.storage_usage}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Memoria:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.resources.memory_usage}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Tiempo activo:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.resources.uptime}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Python:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.system_info.python_version}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Django:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.system_info.django_version}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Plataforma:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.system_info.platform}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Zona horaria:</span>
+                        <span className="ml-2 font-medium">{state.systemInfo.server_config.time_zone}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Última actualización:</span>
-                      <span className="ml-2 font-medium">15/06/2024</span>
+                  ) : (
+                    <div className="text-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p className="text-sm text-gray-500">Cargando información del sistema...</p>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Base de datos:</span>
-                      <span className="ml-2 font-medium">PostgreSQL 13.7</span>
+                  )}
+                  
+                  {state.systemInfo && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                      <h5 className="font-medium text-sm mb-2">Estadísticas de la Aplicación</h5>
+                      <div className="grid grid-cols-3 gap-4 text-xs">
+                        <div className="text-center">
+                          <div className="font-bold text-lg text-blue-600">{state.systemInfo.app_stats.total_products}</div>
+                          <div className="text-gray-600">Productos</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-bold text-lg text-green-600">{state.systemInfo.app_stats.total_transactions}</div>
+                          <div className="text-gray-600">Transacciones</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-bold text-lg text-orange-600">{state.systemInfo.app_stats.active_alerts}</div>
+                          <div className="text-gray-600">Alertas Activas</div>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Almacenamiento:</span>
-                      <span className="ml-2 font-medium">2.3 GB / 10 GB</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

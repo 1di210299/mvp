@@ -3,6 +3,130 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 
 
+class AlertRecipient(models.Model):
+    """Gestión de destinatarios globales para alertas"""
+    
+    RECIPIENT_TYPES = [
+        ('email', 'Email'),
+        ('whatsapp', 'WhatsApp'),
+        ('both', 'Email y WhatsApp'),
+    ]
+    
+    company = models.ForeignKey(
+        'authentication.Company',
+        on_delete=models.CASCADE,
+        related_name='alert_recipients'
+    )
+    name = models.CharField(
+        max_length=100, 
+        verbose_name="Nombre del destinatario"
+    )
+    email = models.EmailField(
+        blank=True,
+        null=True,
+        verbose_name="Email"
+    )
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="Teléfono WhatsApp",
+        help_text="Formato: +51999999999"
+    )
+    notification_type = models.CharField(
+        max_length=20,
+        choices=RECIPIENT_TYPES,
+        default='email',
+        verbose_name="Tipo de notificación"
+    )
+    
+    # Configuración de alertas
+    receive_all_alerts = models.BooleanField(
+        default=True,
+        verbose_name="Recibir todas las alertas"
+    )
+    receive_critical_only = models.BooleanField(
+        default=False,
+        verbose_name="Solo alertas críticas"
+    )
+    receive_high_and_critical = models.BooleanField(
+        default=False,
+        verbose_name="Alertas altas y críticas"
+    )
+    
+    # Filtros por tipo de alerta
+    alert_types = models.JSONField(
+        default=list,
+        verbose_name="Tipos de alerta",
+        help_text="Lista de tipos de alerta que este destinatario quiere recibir"
+    )
+    
+    # Estado
+    is_active = models.BooleanField(default=True, verbose_name="Activo")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        'authentication.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_recipients'
+    )
+    
+    class Meta:
+        verbose_name = "Destinatario de alertas"
+        verbose_name_plural = "Destinatarios de alertas"
+        ordering = ['name']
+        unique_together = [['company', 'email'], ['company', 'phone']]
+    
+    def __str__(self):
+        return f"{self.name} ({self.email or self.phone})"
+    
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        
+        # Validar que tenga al menos email o teléfono
+        if not self.email and not self.phone:
+            raise ValidationError("Debe proporcionar al menos un email o teléfono.")
+        
+        # Validar tipo de notificación vs datos disponibles
+        if self.notification_type in ['email', 'both'] and not self.email:
+            raise ValidationError("Debe proporcionar un email para notificaciones por email.")
+        
+        if self.notification_type in ['whatsapp', 'both'] and not self.phone:
+            raise ValidationError("Debe proporcionar un teléfono para notificaciones por WhatsApp.")
+    
+    def should_receive_alert(self, alert):
+        """Determina si este destinatario debe recibir una alerta específica"""
+        if not self.is_active:
+            return False
+        
+        # Filtro por severidad
+        if self.receive_critical_only and alert.severity != 'critical':
+            return False
+        
+        if self.receive_high_and_critical and alert.severity not in ['high', 'critical']:
+            return False
+        
+        # Filtro por tipo de alerta
+        if self.alert_types and alert.rule:
+            if alert.rule.alert_type not in self.alert_types:
+                return False
+        
+        return True
+    
+    def get_contact_info(self):
+        """Obtiene la información de contacto según el tipo de notificación"""
+        contact = {}
+        
+        if self.notification_type in ['email', 'both'] and self.email:
+            contact['email'] = self.email
+        
+        if self.notification_type in ['whatsapp', 'both'] and self.phone:
+            contact['phone'] = self.phone
+        
+        return contact
+
+
 class AlertRule(models.Model):
     """Reglas de alertas configurables"""
     
@@ -156,7 +280,7 @@ class AlertRule(models.Model):
         return f"{self.name} - {self.get_alert_type_display()}"
     
     def get_recipient_emails(self):
-        """Obtiene todos los emails de destinatarios"""
+        """Obtiene todos los emails de destinatarios incluyendo destinatarios globales"""
         emails = []
         
         # Emails de usuarios
@@ -164,10 +288,24 @@ class AlertRule(models.Model):
             if user.email and user.email_notifications:
                 emails.append(user.email)
         
-        # Emails adicionales
+        # Emails adicionales de la regla
         if self.additional_emails:
             additional = [email.strip() for email in self.additional_emails.split(',')]
             emails.extend(additional)
+        
+        # ✅ NUEVO: Emails de destinatarios globales
+        from .models import AlertRecipient
+        global_recipients = AlertRecipient.objects.filter(
+            company=self.company,
+            is_active=True,
+            notification_type__in=['email', 'both']
+        )
+        
+        for recipient in global_recipients:
+            # Verificar si debe recibir alertas basándose en una alerta ficticia
+            # Para esto necesitaremos crear una alerta temporal para validar
+            if recipient.email and recipient.receive_all_alerts:
+                emails.append(recipient.email)
         
         return list(set(emails))  # Eliminar duplicados
 

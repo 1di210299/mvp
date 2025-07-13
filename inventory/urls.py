@@ -22,6 +22,7 @@ urlpatterns = [
     
     # Vistas adicionales de inventario
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
+    path('dashboard-fixed/', views.InventoryDashboardView.as_view(), name='inventory-dashboard-fixed'),  # FIX: Nueva vista corregida
     path('upload/', views.FileUploadView.as_view(), name='file-upload'),
     path('low-stock/', views.LowStockView.as_view(), name='low-stock'),
     path('stock-movements/', views.StockMovementsView.as_view(), name='stock-movements'),

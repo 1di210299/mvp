@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,10 +7,11 @@ from django.utils import timezone
 from django.db.models import Count, Q
 from datetime import timedelta
 import logging
-from .models import AlertRule, Alert, NotificationLog
+from .models import AlertRule, Alert, NotificationLog, AlertRecipient
 from .serializers import (
     AlertRuleSerializer, AlertSerializer, NotificationLogSerializer,
-    AlertDashboardSerializer, AlertActionSerializer
+    AlertDashboardSerializer, AlertActionSerializer, NotificationTestSerializer,
+    AlertRecipientSerializer, AlertRecipientListSerializer
 )
 from .tasks import check_alert_rule, check_all_alerts, test_notification_services
 from .services import AlertService, notification_service  # ✅ Importación corregida
@@ -490,3 +491,177 @@ class NotificationSettingsView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class AlertRecipientViewSet(viewsets.ModelViewSet):
+    """ViewSet para gestionar destinatarios de alertas"""
+    
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_serializer_class(self):
+        # Usar siempre el serializer completo para mantener consistencia
+        return AlertRecipientSerializer
+    
+    def get_queryset(self):
+        """Filtrar destinatarios por empresa del usuario"""
+        return AlertRecipient.objects.filter(
+            company=self.request.user.company
+        ).order_by('name')
+    
+    def perform_create(self, serializer):
+        """Crear destinatario con la empresa del usuario"""
+        serializer.save(
+            company=self.request.user.company,
+            created_by=self.request.user
+        )
+    
+    @action(detail=True, methods=['post'])
+    def toggle_status(self, request, pk=None):
+        """Activar/desactivar un destinatario"""
+        recipient = self.get_object()
+        recipient.is_active = not recipient.is_active
+        recipient.save()
+        
+        status_text = "activado" if recipient.is_active else "desactivado"
+        return Response({
+            'success': True,
+            'message': f'Destinatario {status_text} correctamente',
+            'is_active': recipient.is_active
+        })
+    
+    @action(detail=True, methods=['post'])
+    def test_notification(self, request, pk=None):
+        """Enviar notificación de prueba a un destinatario"""
+        recipient = self.get_object()
+        notification_type = request.data.get('type', 'email')
+        
+        try:
+            alert_service = AlertService()
+            
+            # Crear alerta de prueba
+            test_alert_data = {
+                'title': f'🔔 Prueba de Notificación - {recipient.name}',
+                'message': f'Esta es una prueba de notificación para verificar que {recipient.name} recibe correctamente las alertas del sistema DataLens.',
+                'severity': 'medium',
+                'company': request.user.company
+            }
+            
+            if notification_type in ['email', 'both']:
+                if recipient.email:
+                    success = alert_service.send_email_notification(
+                        recipients=[recipient.email],
+                        subject=test_alert_data['title'],
+                        message=test_alert_data['message'],
+                        alert_data=test_alert_data
+                    )
+                    if not success:
+                        return Response({
+                            'success': False,
+                            'message': 'Error al enviar email de prueba'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if notification_type in ['whatsapp', 'both']:
+                if recipient.phone:
+                    success = alert_service.send_whatsapp_notification(
+                        phone_numbers=[recipient.phone],
+                        message=test_alert_data['message'],
+                        alert_data=test_alert_data
+                    )
+                    if not success:
+                        return Response({
+                            'success': False,
+                            'message': 'Error al enviar WhatsApp de prueba'
+                        }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({
+                'success': True,
+                'message': f'Notificación de prueba enviada correctamente a {recipient.name}'
+            })
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': f'Error al enviar notificación: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Obtener estadísticas de destinatarios"""
+        recipients = self.get_queryset()
+        
+        stats = {
+            'total': recipients.count(),
+            'active': recipients.filter(is_active=True).count(),
+            'inactive': recipients.filter(is_active=False).count(),
+            'email_only': recipients.filter(notification_type='email').count(),
+            'whatsapp_only': recipients.filter(notification_type='whatsapp').count(),
+            'both': recipients.filter(notification_type='both').count(),
+            'receive_all': recipients.filter(receive_all_alerts=True).count(),
+            'critical_only': recipients.filter(receive_critical_only=True).count(),
+            'high_and_critical': recipients.filter(receive_high_and_critical=True).count(),
+        }
+        
+        return Response(stats)
+    
+    @action(detail=False, methods=['post'])
+    def bulk_import(self, request):
+        """Importar múltiples destinatarios desde un archivo"""
+        import csv
+        import io
+        
+        if 'file' not in request.FILES:
+            return Response({
+                'success': False,
+                'message': 'No se proporcionó archivo'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        file_obj = request.FILES['file']
+        
+        try:
+            # Leer archivo CSV
+            decoded_file = file_obj.read().decode('utf-8')
+            csv_data = csv.DictReader(io.StringIO(decoded_file))
+            
+            created_count = 0
+            errors = []
+            
+            for row_num, row in enumerate(csv_data, start=1):
+                try:
+                    # Validar campos requeridos
+                    if not row.get('name'):
+                        errors.append(f"Fila {row_num}: Nombre es requerido")
+                        continue
+                    
+                    if not row.get('email') and not row.get('phone'):
+                        errors.append(f"Fila {row_num}: Email o teléfono requerido")
+                        continue
+                    
+                    # Crear destinatario
+                    recipient_data = {
+                        'name': row['name'],
+                        'email': row.get('email', ''),
+                        'phone': row.get('phone', ''),
+                        'notification_type': row.get('notification_type', 'email'),
+                        'receive_all_alerts': row.get('receive_all_alerts', 'true').lower() == 'true',
+                        'company': request.user.company,
+                        'created_by': request.user
+                    }
+                    
+                    AlertRecipient.objects.create(**recipient_data)
+                    created_count += 1
+                    
+                except Exception as e:
+                    errors.append(f"Fila {row_num}: {str(e)}")
+            
+            return Response({
+                'success': True,
+                'message': f'Se importaron {created_count} destinatarios correctamente',
+                'created_count': created_count,
+                'errors': errors
+            })
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': f'Error al procesar archivo: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)

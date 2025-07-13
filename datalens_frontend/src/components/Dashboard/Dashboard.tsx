@@ -8,9 +8,12 @@ import {
   Badge,
   Alert,
   AlertDescription,
-  AdvancedBarChart,
-  AdvancedLineChart,
-  AdvancedPieChart
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Input
 } from '../ui';
 import {
   BarChart3,
@@ -25,10 +28,32 @@ import {
   Calendar,
   Target,
   Zap,
-  Activity
+  Activity,
+  Filter,
+  Search,
+  Download,
+  Settings
 } from '../ui/icons';
-import { 
-  inventoryService, 
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ComposedChart
+} from 'recharts';
+import {
+  inventoryService,
   alertService
 } from '../../services/api';
 import { forecastingService } from '../../services/forecastingService';
@@ -86,6 +111,19 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showSecondaryMetrics, setShowSecondaryMetrics] = useState(false);
+  
+  // NUEVO: Estados para filtros y fecha
+  const [filters, setFilters] = useState({
+    dateRange: '7days',
+    category: 'all',
+    warehouse: 'all',
+    status: 'all',
+    searchTerm: '',
+    customStartDate: '',
+    customEndDate: ''
+  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -96,11 +134,60 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError('');
       
-      console.log('🔍 Dashboard Principal: Iniciando carga de datos...');
+      console.log('🔍 Dashboard Principal: Iniciando carga de datos con filtros:', filters);
       
-      // Usar servicios de API con autenticación en lugar de fetch directo
+      // NUEVO: Construir parámetros de filtro para el backend
+      const filterParams: any = {};
+      
+      // Agregar filtros de fecha
+      if (filters.dateRange && filters.dateRange !== 'all') {
+        const now = new Date();
+        let startDate = new Date();
+        let endDate = new Date();
+
+        switch (filters.dateRange) {
+          case '7days':
+            startDate.setDate(now.getDate() - 7);
+            break;
+          case '30days':
+            startDate.setDate(now.getDate() - 30);
+            break;
+          case '90days':
+            startDate.setDate(now.getDate() - 90);
+            break;
+          case 'custom':
+            if (filters.customStartDate) {
+              startDate = new Date(filters.customStartDate);
+            }
+            if (filters.customEndDate) {
+              endDate = new Date(filters.customEndDate);
+            }
+            break;
+        }
+        
+        filterParams.start_date = startDate.toISOString().split('T')[0];
+        filterParams.end_date = endDate.toISOString().split('T')[0];
+      }
+
+      // Agregar otros filtros
+      if (filters.category && filters.category !== 'all') {
+        filterParams.category = filters.category;
+      }
+      if (filters.warehouse && filters.warehouse !== 'all') {
+        filterParams.warehouse = filters.warehouse;
+      }
+      if (filters.status && filters.status !== 'all') {
+        filterParams.status = filters.status;
+      }
+      if (filters.searchTerm) {
+        filterParams.search = filters.searchTerm;
+      }
+
+      console.log('📋 Parámetros de filtro para backend:', filterParams);
+      
+      // Usar servicios de API con autenticación y filtros
       const [statsRes, alertsRes, forecastsRes, transactionsRes] = await Promise.allSettled([
-        inventoryService.getInventoryDashboard().catch(() => {
+        inventoryService.getInventoryDashboard(filterParams).catch(() => {
           // Fallback con datos mínimos
           return {
             total_products: 0,
@@ -113,7 +200,7 @@ const Dashboard: React.FC = () => {
         }),
         // CORREGIDO: Usar getAlertsDashboard para estadísticas y getAlerts para la lista
         Promise.all([
-          alertService.getAlertsDashboard().catch((err) => {
+          alertService.getAlertsDashboard(filterParams).catch((err) => {
             console.error('❌ Dashboard Principal: Error en getAlertsDashboard:', err);
             return { 
               total_alerts: 0, 
@@ -121,13 +208,13 @@ const Dashboard: React.FC = () => {
               critical_alerts: 0 
             };
           }),
-          alertService.getAlerts().catch((err) => {
+          alertService.getAlerts(filterParams).catch((err) => {
             console.error('❌ Dashboard Principal: Error en getAlerts:', err);
             return { results: [] };
           })
         ]),
-        inventoryService.getForecasts().catch(() => ({ results: [] })),
-        inventoryService.getTransactions().catch(() => ({ results: [] }))
+        inventoryService.getForecasts(filterParams).catch(() => ({ results: [] })),
+        inventoryService.getTransactions(filterParams).catch(() => ({ results: [] }))
       ]);
 
       // Procesar estadísticas con validación
@@ -311,6 +398,110 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // NUEVO: Manejo de filtros
+  const handleFilterChange = (key: string, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  // NUEVO: Aplicar filtros a los datos
+  const applyFilters = (data: DashboardData) => {
+    let filteredData = { ...data };
+
+    // Filtrar por rango de fechas
+    if (filters.dateRange && filters.dateRange !== 'all') {
+      const now = new Date();
+      let startDate = new Date();
+      let endDate = new Date();
+
+      switch (filters.dateRange) {
+        case '7days':
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case '30days':
+          startDate.setDate(now.getDate() - 30);
+          break;
+        case '90days':
+          startDate.setDate(now.getDate() - 90);
+          break;
+        case 'custom':
+          if (filters.customStartDate) {
+            startDate = new Date(filters.customStartDate);
+          }
+          if (filters.customEndDate) {
+            endDate = new Date(filters.customEndDate);
+          }
+          break;
+        default:
+          break;
+      }
+
+      filteredData.transactions = data.transactions.filter(transaction => {
+        const transactionDate = new Date(transaction.created_at);
+        return transactionDate >= startDate && transactionDate <= endDate;
+      });
+
+      filteredData.alerts = data.alerts.filter(alert => {
+        const alertDate = new Date(alert.created_at);
+        return alertDate >= startDate && alertDate <= endDate;
+      });
+    }
+
+    // Filtrar por término de búsqueda
+    if (filters.searchTerm) {
+      const searchTerm = filters.searchTerm.toLowerCase();
+      filteredData.transactions = filteredData.transactions.filter(transaction => 
+        transaction.product_name.toLowerCase().includes(searchTerm)
+      );
+      filteredData.alerts = filteredData.alerts.filter(alert => 
+        alert.message.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    return filteredData;
+  };
+
+  // CORREGIDO: Eliminar el useEffect que causaba loop infinito
+  // Los filtros ahora se aplican en el backend, no en el frontend
+
+  // NUEVO: Cargar datos cuando cambian filtros principales
+  useEffect(() => {
+    loadDashboardData();
+  }, [filters.dateRange, filters.category, filters.warehouse, filters.status]);
+
+  // NUEVO: Auto-refresh con filtros
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        loadDashboardData();
+      }, 30000); // 30 segundos
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh]);
+
+  // NUEVO: Aplicar filtro de búsqueda en tiempo real (solo frontend)
+  useEffect(() => {
+    if (filters.searchTerm && data) {
+      const searchTerm = filters.searchTerm.toLowerCase();
+      const filteredTransactions = data.transactions.filter(transaction => 
+        transaction.product_name.toLowerCase().includes(searchTerm)
+      );
+      const filteredAlerts = data.alerts.filter(alert => 
+        alert.message.toLowerCase().includes(searchTerm) ||
+        alert.title.toLowerCase().includes(searchTerm)
+      );
+      
+      // Actualizar solo los datos que se pueden filtrar localmente
+      setData(prev => prev ? {
+        ...prev,
+        transactions: filteredTransactions,
+        alerts: filteredAlerts
+      } : null);
+    } else if (!filters.searchTerm && data) {
+      // Si no hay término de búsqueda, recargar datos completos
+      loadDashboardData();
+    }
+  }, [filters.searchTerm]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center transition-colors duration-300">
@@ -455,6 +646,230 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-8 py-12">
+        {/* NUEVO: Panel de filtros avanzado con fechas */}
+        <Card className="mb-8 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-slate-200 dark:border-slate-700 shadow-lg">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Filter className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <CardTitle className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+                  Filtros y Controles
+                </CardTitle>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setShowFilters(!showFilters)}
+                className="text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+              >
+                {showFilters ? 'Ocultar' : 'Mostrar'} Filtros
+              </Button>
+            </div>
+          </CardHeader>
+          
+          {showFilters && (
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                {/* Rango de fechas */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Período
+                  </label>
+                  <Select 
+                    value={filters.dateRange} 
+                    onValueChange={(value) => handleFilterChange('dateRange', value)}
+                  >
+                    <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los datos</SelectItem>
+                      <SelectItem value="7days">Últimos 7 días</SelectItem>
+                      <SelectItem value="30days">Últimos 30 días</SelectItem>
+                      <SelectItem value="90days">Últimos 90 días</SelectItem>
+                      <SelectItem value="custom">Personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Fechas personalizadas */}
+                {filters.dateRange === 'custom' && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Fecha inicio
+                      </label>
+                      <Input
+                        type="date"
+                        value={filters.customStartDate}
+                        onChange={(e) => handleFilterChange('customStartDate', e.target.value)}
+                        className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Fecha fin
+                      </label>
+                      <Input
+                        type="date"
+                        value={filters.customEndDate}
+                        onChange={(e) => handleFilterChange('customEndDate', e.target.value)}
+                        className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Categoría */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Categoría
+                  </label>
+                  <Select 
+                    value={filters.category} 
+                    onValueChange={(value) => handleFilterChange('category', value)}
+                  >
+                    <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
+                      <Package className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las categorías</SelectItem>
+                      <SelectItem value="electronics">Electrónicos</SelectItem>
+                      <SelectItem value="clothing">Ropa</SelectItem>
+                      <SelectItem value="food">Alimentos</SelectItem>
+                      <SelectItem value="books">Libros</SelectItem>
+                      <SelectItem value="home">Hogar</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Almacén */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Almacén
+                  </label>
+                  <Select 
+                    value={filters.warehouse} 
+                    onValueChange={(value) => handleFilterChange('warehouse', value)}
+                  >
+                    <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
+                      <Package className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los almacenes</SelectItem>
+                      <SelectItem value="main">Almacén Principal</SelectItem>
+                      <SelectItem value="secondary">Almacén Secundario</SelectItem>
+                      <SelectItem value="warehouse_a">Almacén A</SelectItem>
+                      <SelectItem value="warehouse_b">Almacén B</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Estado */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Estado
+                  </label>
+                  <Select 
+                    value={filters.status} 
+                    onValueChange={(value) => handleFilterChange('status', value)}
+                  >
+                    <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
+                      <Activity className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos los estados</SelectItem>
+                      <SelectItem value="active">Activo</SelectItem>
+                      <SelectItem value="inactive">Inactivo</SelectItem>
+                      <SelectItem value="pending">Pendiente</SelectItem>
+                      <SelectItem value="completed">Completado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Búsqueda */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Buscar
+                  </label>
+                  <div className="relative">
+                    <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+                    <Input
+                      placeholder="Buscar productos..."
+                      value={filters.searchTerm}
+                      onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                      className="pl-10 bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Controles adicionales */}
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200 dark:border-slate-600">
+                <div className="flex items-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAutoRefresh(!autoRefresh)}
+                    className={autoRefresh ? 'bg-green-50 border-green-200 text-green-700' : ''}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
+                    Auto-actualizar
+                  </Button>
+
+                  <div className="text-sm text-slate-600 dark:text-slate-400">
+                    {autoRefresh && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        <div className="w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></div>
+                        Actualizando cada 30s
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFilters({
+                      dateRange: '7days',
+                      category: 'all',
+                      warehouse: 'all',
+                      status: 'all',
+                      searchTerm: '',
+                      customStartDate: '',
+                      customEndDate: ''
+                    })}
+                  >
+                    Limpiar filtros
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const csvData = data?.transactions.map(t => ({
+                        producto: t.product_name,
+                        cantidad: t.quantity,
+                        tipo: t.transaction_type,
+                        fecha: new Date(t.created_at).toLocaleDateString()
+                      }));
+                      console.log('Exportar datos:', csvData);
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
         {/* Error Alert mejorado */}
         {error && (
           <Alert variant="destructive" className="mb-12 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 rounded-xl">
@@ -724,16 +1139,53 @@ const Dashboard: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="relative">
-                    <AdvancedLineChart
-                      data={data.chartData.salesTrend}
-                      xAxisKey="date"
-                      yAxisKey="sales"
-                      multiple={['sales', 'forecast']}
-                      curved={true}
-                      height={300}
-                    />
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={data.chartData.salesTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#6b7280"
+                          fontSize={11}
+                          tick={{ fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <YAxis 
+                          stroke="#6b7280"
+                          fontSize={11}
+                          tick={{ fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
+                        <Legend />
+                        <Line 
+                          type="monotone" 
+                          dataKey="sales" 
+                          stroke="#3b82f6" 
+                          strokeWidth={3}
+                          dot={{ fill: '#3b82f6', strokeWidth: 2, r: 5 }}
+                          activeDot={{ r: 8, fill: '#3b82f6' }}
+                          name="Ventas Reales"
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="forecast" 
+                          stroke="#6366f1" 
+                          strokeWidth={2}
+                          strokeDasharray="5 5"
+                          dot={{ fill: '#6366f1', strokeWidth: 2, r: 4 }}
+                          name="Pronóstico IA"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
                     <div className="absolute top-2 right-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-1 border border-slate-200 dark:border-slate-600">
-                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Últimos 30 días</span>
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Filtrado por: {filters.dateRange}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -759,12 +1211,32 @@ const Dashboard: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   {data.chartData.categoryDistribution.length > 0 ? (
-                    <AdvancedPieChart
-                      data={data.chartData.categoryDistribution}
-                      nameKey="category"
-                      valueKey="value"
-                      height={300}
-                    />
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={data.chartData.categoryDistribution}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          innerRadius={40}
+                          dataKey="value"
+                          label={({ category, value }) => `${category}: ${value}`}
+                        >
+                          {data.chartData.categoryDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
                   ) : (
                     <div className="h-[300px] flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-600 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-500">
                       <div className="text-center">
@@ -808,13 +1280,36 @@ const Dashboard: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   {data.chartData.stockLevels.length > 0 ? (
-                    <AdvancedBarChart
-                      data={data.chartData.stockLevels}
-                      xAxisKey="warehouse"
-                      yAxisKey="current_stock"
-                      multiple={['current_stock', 'min_stock', 'max_stock']}
-                      height={300}
-                    />
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={data.chartData.stockLevels} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                        <XAxis 
+                          dataKey="warehouse" 
+                          stroke="#6b7280"
+                          fontSize={11}
+                          tick={{ fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <YAxis 
+                          stroke="#6b7280"
+                          fontSize={11}
+                          tick={{ fill: '#6b7280' }}
+                          axisLine={{ stroke: '#d1d5db' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
+                        <Legend />
+                        <Bar dataKey="current_stock" fill="#8b5cf6" name="Stock Actual" />
+                        <Bar dataKey="min_stock" fill="#ef4444" name="Stock Mínimo" />
+                        <Bar dataKey="max_stock" fill="#10b981" name="Stock Máximo" />
+                      </BarChart>
+                    </ResponsiveContainer>
                   ) : (
                     <div className="h-[300px] flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-600 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-500">
                       <div className="text-center">
@@ -852,13 +1347,34 @@ const Dashboard: React.FC = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <AdvancedBarChart
-                    data={data.chartData.alertTrends}
-                    xAxisKey="date"
-                    yAxisKey="alerts"
-                    color="#ef4444"
-                    height={300}
-                  />
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={data.chartData.alertTrends} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                      <XAxis 
+                        dataKey="date" 
+                        stroke="#6b7280"
+                        fontSize={11}
+                        tick={{ fill: '#6b7280' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                      />
+                      <YAxis 
+                        stroke="#6b7280"
+                        fontSize={11}
+                        tick={{ fill: '#6b7280' }}
+                        axisLine={{ stroke: '#d1d5db' }}
+                      />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="alerts" fill="#ef4444" name="Alertas por Día" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>

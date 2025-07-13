@@ -50,12 +50,13 @@ import {
   Check
 } from '../components/ui/icons';
 import { inventoryService } from '../services/api';
-import { Product, Category, ApiResponse } from '../types';
+import { Product, Category, Supplier, ApiResponse } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 
 interface ProductsPageState {
   products: Product[];
   categories: Category[];
+  suppliers: Supplier[]; // FIX: Agregar suppliers al state
   loading: boolean;
   error: string | null;
   searchTerm: string;
@@ -64,8 +65,12 @@ interface ProductsPageState {
   sortDirection: 'asc' | 'desc';
   isDialogOpen: boolean;
   isUploadDialogOpen: boolean;
+  isCategoryDialogOpen: boolean; // FIX: Dialog para crear categoría
+  isSupplierDialogOpen: boolean; // FIX: Dialog para crear proveedor
   selectedProduct: Product | null;
   formData: Partial<Product>;
+  categoryFormData: { name: string; description: string }; // FIX: Form data para categoría
+  supplierFormData: { name: string; contact_name: string; email: string; phone: string }; // FIX: Form data para proveedor
   selectedProducts: number[];
   showAdvancedFilters: boolean;
   visibleColumns: {
@@ -86,6 +91,7 @@ const ProductsPage: React.FC = () => {
   const [state, setState] = useState<ProductsPageState>({
     products: [],
     categories: [],
+    suppliers: [], // FIX: Inicializar suppliers
     loading: true,
     error: null,
     searchTerm: '',
@@ -94,8 +100,12 @@ const ProductsPage: React.FC = () => {
     sortDirection: 'asc',
     isDialogOpen: false,
     isUploadDialogOpen: false,
+    isCategoryDialogOpen: false, // FIX: Inicializar dialog de categoría
+    isSupplierDialogOpen: false, // FIX: Inicializar dialog de proveedor
     selectedProduct: null,
     formData: {},
+    categoryFormData: { name: '', description: '' }, // FIX: Inicializar formData de categoría
+    supplierFormData: { name: '', contact_name: '', email: '', phone: '' }, // FIX: Inicializar formData de proveedor
     selectedProducts: [],
     showAdvancedFilters: false,
     visibleColumns: {
@@ -146,6 +156,21 @@ const ProductsPage: React.FC = () => {
         { id: 3, name: 'Artesanías', description: 'Productos artesanales', is_active: true },
       ];
       setState(prev => ({ ...prev, categories: fallbackCategories }));
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const response = await inventoryService.getSuppliers();
+      const suppliers = response.results || response || [];
+      setState(prev => ({ ...prev, suppliers }));
+    } catch (err) {
+      console.error('Error loading suppliers:', err);
+      const fallbackSuppliers: Supplier[] = [
+        { id: 1, name: 'Proveedor 1', contact_name: 'Contacto 1', email: 'contacto1@ejemplo.com', phone: '123456789' },
+        { id: 2, name: 'Proveedor 2', contact_name: 'Contacto 2', email: 'contacto2@ejemplo.com', phone: '987654321' },
+      ];
+      setState(prev => ({ ...prev, suppliers: fallbackSuppliers }));
     }
   };
 
@@ -356,6 +381,22 @@ const ProductsPage: React.FC = () => {
     }));
   };
 
+  const openCategoryDialog = () => {
+    setState(prev => ({
+      ...prev,
+      categoryFormData: { name: '', description: '' },
+      isCategoryDialogOpen: true
+    }));
+  };
+
+  const openSupplierDialog = () => {
+    setState(prev => ({
+      ...prev,
+      supplierFormData: { name: '', contact_name: '', email: '', phone: '' },
+      isSupplierDialogOpen: true
+    }));
+  };
+
   const getStockStatus = (product: Product) => {
     // CORREGIDO: Usar 'stock' en lugar de 'current_stock' para coincidir con la API
     const currentStock = product.stock || product.current_stock || 0;
@@ -431,9 +472,60 @@ const ProductsPage: React.FC = () => {
     }
   };
 
+  const handleCreateCategory = async () => {
+    if (!state.categoryFormData.name?.trim()) {
+      setState(prev => ({ ...prev, error: 'El nombre de la categoría es requerido' }));
+      return;
+    }
+
+    try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      await inventoryService.createCategory(state.categoryFormData);
+      await fetchCategories();
+      setState(prev => ({ 
+        ...prev, 
+        isCategoryDialogOpen: false, 
+        categoryFormData: { name: '', description: '' },
+        loading: false 
+      }));
+    } catch (err) {
+      setState(prev => ({ 
+        ...prev, 
+        error: err instanceof Error ? err.message : 'Error al crear categoría',
+        loading: false 
+      }));
+    }
+  };
+
+  const handleCreateSupplier = async () => {
+    if (!state.supplierFormData.name?.trim()) {
+      setState(prev => ({ ...prev, error: 'El nombre del proveedor es requerido' }));
+      return;
+    }
+
+    try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      await inventoryService.createSupplier(state.supplierFormData);
+      await fetchSuppliers();
+      setState(prev => ({ 
+        ...prev, 
+        isSupplierDialogOpen: false, 
+        supplierFormData: { name: '', contact_name: '', email: '', phone: '' },
+        loading: false 
+      }));
+    } catch (err) {
+      setState(prev => ({ 
+        ...prev, 
+        error: err instanceof Error ? err.message : 'Error al crear proveedor',
+        loading: false 
+      }));
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+    fetchSuppliers(); // FIX: Cargar proveedores al iniciar
   }, []);
 
   useEffect(() => {
@@ -448,6 +540,7 @@ const ProductsPage: React.FC = () => {
   const handleRefresh = async () => {
     await fetchProducts();
     await fetchCategories();
+    await fetchSuppliers(); // FIX: Refrescar proveedores
   };
 
   useEffect(() => {
@@ -1143,6 +1236,88 @@ const ProductsPage: React.FC = () => {
                     className={`h-12 ${!state.formData.sku?.trim() ? 'border-red-300 focus:border-red-400' : isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
                   />
                 </div>
+
+                {/* FIX: Agregar dropdown de categorías con opción de crear nueva */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`text-sm font-semibold ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                      Categoría
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={openCategoryDialog}
+                      className={`text-xs ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Nueva
+                    </Button>
+                  </div>
+                  <Select 
+                    value={state.formData.category?.toString() || ''} 
+                    onValueChange={(value) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, category: value ? parseInt(value) : undefined }
+                    }))}
+                  >
+                    <SelectTrigger className={`h-12 ${isDarkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-slate-300'}`}>
+                      <SelectValue placeholder="Selecciona una categoría..." />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white'}>
+                      {state.categories.map(category => (
+                        <SelectItem 
+                          key={category.id} 
+                          value={category.id.toString()}
+                          className={isDarkMode ? 'text-white hover:bg-gray-600' : 'hover:bg-gray-50'}
+                        >
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* FIX: Agregar dropdown de proveedores con opción de crear nuevo */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className={`text-sm font-semibold ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                      Proveedor
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={openSupplierDialog}
+                      className={`text-xs ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Nuevo
+                    </Button>
+                  </div>
+                  <Select 
+                    value={state.formData.supplier?.toString() || ''} 
+                    onValueChange={(value) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, supplier: value ? parseInt(value) : undefined }
+                    }))}
+                  >
+                    <SelectTrigger className={`h-12 ${isDarkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-slate-300'}`}>
+                      <SelectValue placeholder="Selecciona un proveedor..." />
+                    </SelectTrigger>
+                    <SelectContent className={isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white'}>
+                      {state.suppliers.map(supplier => (
+                        <SelectItem 
+                          key={supplier.id} 
+                          value={supplier.id.toString()}
+                          className={isDarkMode ? 'text-white hover:bg-gray-600' : 'hover:bg-gray-50'}
+                        >
+                          {supplier.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 
                 <div>
                   <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
@@ -1296,86 +1471,184 @@ const ProductsPage: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        {/* CSV Upload Dialog */}
-        <Dialog open={state.isUploadDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isUploadDialogOpen: open }))}>
-          <DialogContent className={`max-w-3xl ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`}>
+        {/* Category Dialog */}
+        <Dialog open={state.isCategoryDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isCategoryDialogOpen: open, error: null }))}>
+          <DialogContent className={`max-w-2xl ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`}>
             <div className="pb-6">
               <DialogHeader>
                 <DialogTitle>
                   <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>
-                    Importar Productos desde CSV/Excel
+                    Crear Nueva Categoría
                   </span>
                 </DialogTitle>
               </DialogHeader>
             </div>
             
-            <div className="space-y-6">
-              <div className={`border rounded-xl p-6 ${isDarkMode ? 'bg-blue-900/20 border-blue-700' : 'bg-blue-50 border-blue-200'}`}>
-                <h3 className={`font-semibold mb-3 ${isDarkMode ? 'text-blue-300' : 'text-blue-900'}`}>Formato requerido del archivo:</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <ul className="space-y-2">
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <strong>nombre</strong> o <strong>name</strong> (requerido)
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <strong>sku</strong> o <strong>codigo</strong> (requerido)
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <strong>descripcion</strong> o <strong>description</strong>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <strong>precio</strong> o <strong>price</strong>
-                    </li>
-                  </ul>
-                  <ul className="space-y-2">
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <strong>costo</strong> o <strong>cost</strong>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <strong>stock_minimo</strong> o <strong>min_stock</strong>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <strong>stock_maximo</strong> o <strong>max_stock</strong>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
-                      <strong>unidad</strong> o <strong>unit</strong>
-                    </li>
-                  </ul>
-                </div>
+            {state.error && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="font-medium">{state.error}</AlertDescription>
+              </Alert>
+            )}
+            
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                  Nombre de la Categoría *
+                </label>
+                <Input
+                  value={state.categoryFormData.name}
+                  onChange={(e) => setState(prev => ({ 
+                    ...prev, 
+                    categoryFormData: { ...prev.categoryFormData, name: e.target.value },
+                    error: null
+                  }))}
+                  placeholder="Ingresa el nombre de la categoría"
+                  className={`h-12 ${!state.categoryFormData.name?.trim() ? 'border-red-300 focus:border-red-400' : isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
+                />
               </div>
               
-              <CSVUploader
-                onDataLoaded={handleCSVUpload}
-                maxFileSize={10}
-                downloadTemplate={true}
-                templateColumns={[
-                  { key: 'nombre', label: 'Nombre', type: 'string', required: true },
-                  { key: 'sku', label: 'SKU', type: 'string', required: true },
-                  { key: 'descripcion', label: 'Descripción', type: 'string' },
-                  { key: 'precio', label: 'Precio', type: 'number' },
-                  { key: 'costo', label: 'Costo', type: 'number' },
-                  { key: 'stock_minimo', label: 'Stock Mínimo', type: 'number' },
-                  { key: 'stock_maximo', label: 'Stock Máximo', type: 'number' },
-                  { key: 'unidad', label: 'Unidad', type: 'string' }
-                ]}
-              />
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                  Descripción
+                </label>
+                <textarea
+                  value={state.categoryFormData.description}
+                  onChange={(e) => setState(prev => ({ 
+                    ...prev, 
+                    categoryFormData: { ...prev.categoryFormData, description: e.target.value }
+                  }))}
+                  placeholder="Descripción de la categoría"
+                  rows={4}
+                  className={`w-full p-3 border rounded-lg focus:ring-indigo-400 resize-none ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white placeholder-gray-400' : 'border-slate-300 focus:border-indigo-400'}`}
+                />
+              </div>
             </div>
             
-            <div className={`flex justify-end gap-4 mt-8 pt-6 border-t ${isDarkMode ? 'border-gray-600' : 'border-slate-200'}`}>
+            <div className={`flex justify-end gap-4 mt-6 pt-4 border-t ${isDarkMode ? 'border-gray-600' : 'border-slate-200'}`}>
               <Button 
                 variant="outline" 
-                onClick={() => setState(prev => ({ ...prev, isUploadDialogOpen: false }))}
+                onClick={() => setState(prev => ({ ...prev, isCategoryDialogOpen: false }))}
                 className={`px-6 py-2.5 ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
               >
-                Cerrar
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleCreateCategory}
+                disabled={state.loading}
+                className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold min-w-[120px]"
+              >
+                {state.loading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Crear Categoría'
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Supplier Dialog */}
+        <Dialog open={state.isSupplierDialogOpen} onOpenChange={(open) => setState(prev => ({ ...prev, isSupplierDialogOpen: open, error: null }))}>
+          <DialogContent className={`max-w-2xl ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`}>
+            <div className="pb-6">
+              <DialogHeader>
+                <DialogTitle>
+                  <span className={isDarkMode ? 'text-white' : 'text-gray-900'}>
+                    Crear Nuevo Proveedor
+                  </span>
+                </DialogTitle>
+              </DialogHeader>
+            </div>
+            
+            {state.error && (
+              <Alert variant="destructive" className="mb-6">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="font-medium">{state.error}</AlertDescription>
+              </Alert>
+            )}
+            
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                  Nombre del Proveedor *
+                </label>
+                <Input
+                  value={state.supplierFormData.name}
+                  onChange={(e) => setState(prev => ({ 
+                    ...prev, 
+                    supplierFormData: { ...prev.supplierFormData, name: e.target.value },
+                    error: null
+                  }))}
+                  placeholder="Ingresa el nombre del proveedor"
+                  className={`h-12 ${!state.supplierFormData.name?.trim() ? 'border-red-300 focus:border-red-400' : isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                  Persona de Contacto
+                </label>
+                <Input
+                  value={state.supplierFormData.contact_name}
+                  onChange={(e) => setState(prev => ({ 
+                    ...prev, 
+                    supplierFormData: { ...prev.supplierFormData, contact_name: e.target.value }
+                  }))}
+                  placeholder="Nombre del contacto"
+                  className={`h-12 ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                  Email
+                </label>
+                <Input
+                  value={state.supplierFormData.email}
+                  onChange={(e) => setState(prev => ({ 
+                    ...prev, 
+                    supplierFormData: { ...prev.supplierFormData, email: e.target.value }
+                  }))}
+                  placeholder="Email de contacto"
+                  className={`h-12 ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
+                />
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${isDarkMode ? 'text-gray-200' : 'text-slate-700'}`}>
+                  Teléfono
+                </label>
+                <Input
+                  value={state.supplierFormData.phone}
+                  onChange={(e) => setState(prev => ({ 
+                    ...prev, 
+                    supplierFormData: { ...prev.supplierFormData, phone: e.target.value }
+                  }))}
+                  placeholder="Teléfono de contacto"
+                  className={`h-12 ${isDarkMode ? 'border-gray-600 focus:border-indigo-400 bg-gray-700 text-white' : 'border-slate-300 focus:border-indigo-400'}`}
+                />
+              </div>
+            </div>
+            
+            <div className={`flex justify-end gap-4 mt-6 pt-4 border-t ${isDarkMode ? 'border-gray-600' : 'border-slate-200'}`}>
+              <Button 
+                variant="outline" 
+                onClick={() => setState(prev => ({ ...prev, isSupplierDialogOpen: false }))}
+                className={`px-6 py-2.5 ${isDarkMode ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleCreateSupplier}
+                disabled={state.loading}
+                className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold min-w-[120px]"
+              >
+                {state.loading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Crear Proveedor'
+                )}
               </Button>
             </div>
           </DialogContent>

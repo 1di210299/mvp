@@ -23,7 +23,8 @@ import {
   Calendar,
   BarChart3,
   Target,
-  Zap
+  Zap,
+  Users
 } from '../components/ui/icons';
 import { alertService } from '../services/api';
 import { AlertData, DashboardData } from '../types';
@@ -312,9 +313,13 @@ const AlertsPage: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Verificar Alertas
           </Button>
-          <Button variant="outline" className="settings-btn">
-            <Settings className="w-4 h-4" />
-            Configurar
+          <Button 
+            variant="outline" 
+            className="settings-btn"
+            onClick={() => window.location.href = '/app/alerts/recipients'}
+          >
+            <Users className="w-4 h-4" />
+            Gestionar Destinatarios
           </Button>
         </div>
       </div>
