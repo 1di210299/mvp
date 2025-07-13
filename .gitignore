@@ -129,7 +129,6 @@ experiments/logs/
 *.ipynb
 
 # Virtual environments
-.env
 .venv
 env/
 venv/
