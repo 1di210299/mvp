@@ -45,8 +45,9 @@ drf-spectacular==0.26.5
 # Data validation
 jsonschema==4.20.0
 
-# Email
+# Email & Notifications
 django-ses==3.5.2
+twilio==8.10.0
 
 # Report Generation
 reportlab==4.0.7

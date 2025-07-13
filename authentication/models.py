@@ -122,8 +122,9 @@ class User(AbstractUser):
     position = models.CharField(max_length=100, blank=True, verbose_name="Cargo")
     department = models.CharField(max_length=100, blank=True, verbose_name="Departamento")
     
-    # Configuraciones del usuario
+    # Configuraciones de notificaciones
     email_notifications = models.BooleanField(default=True, verbose_name="Notificaciones por email")
+    whatsapp_notifications = models.BooleanField(default=False, verbose_name="Notificaciones por WhatsApp")
     dashboard_preferences = models.JSONField(default=dict, verbose_name="Preferencias del dashboard")
     
     # Metadatos

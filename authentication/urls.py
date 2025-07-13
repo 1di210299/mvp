@@ -1,6 +1,5 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 
 router = DefaultRouter()
@@ -10,7 +9,8 @@ router.register(r'users', views.UserViewSet)
 urlpatterns = [
     # JWT Authentication - using custom login view
     path('login/', views.CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('refresh/', views.CustomTokenRefreshView.as_view(), name='token_refresh'),  # Cambiado a vista personalizada
+    path('validate-token/', views.TokenValidationView.as_view(), name='token_validate'),  # NUEVO
     path('register/', views.RegisterView.as_view(), name='register'),
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('change-password/', views.ChangePasswordView.as_view(), name='change_password'),

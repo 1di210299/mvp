@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, Package, AlertTriangle, Calendar, BarChart3, RefreshCw, LineChart } from '../components/ui/icons';
 import { forecastingService } from '../services/api';
 import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface DemandForecast {
   id: number;
@@ -35,6 +36,9 @@ interface ReorderRecommendation {
 }
 
 const ForecastingPage: React.FC = () => {
+  const { actualTheme } = useTheme();
+  const isDarkMode = actualTheme === 'dark';
+  
   const [state, setState] = useState({
     forecasts: [] as DemandForecast[],
     loading: true,
@@ -206,10 +210,10 @@ const ForecastingPage: React.FC = () => {
     if (!predictions || predictions.length === 0) {
       console.warn('❌ No hay datos válidos para MLVisualization:', { predictions, forecastsCount: state.forecasts.length });
       return (
-        <div className="text-center py-12 text-gray-500">
+        <div className={`text-center py-12 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
           <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>No hay datos de ML disponibles</p>
-          <p className="text-sm text-gray-600 mt-2">
+          <p className={`text-sm mt-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'}`}>
             Pronósticos en BD: {state.forecasts.length} | 
             Total de puntos: {data?.total_points || 'N/A'}
           </p>
@@ -303,15 +307,25 @@ const ForecastingPage: React.FC = () => {
     return (
       <div className="space-y-6">
         {/* Filtro de productos */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+        <div className={`border rounded-lg p-4 ${
+          isDarkMode 
+            ? 'bg-gray-700 border-gray-600' 
+            : 'bg-gray-50 border-gray-200'
+        }`}>
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-gray-700">
+            <label className={`text-sm font-medium ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-700'
+            }`}>
               Filtrar por producto:
             </label>
             <select
               value={selectedProductFilter}
               onChange={(e) => setSelectedProductFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                isDarkMode 
+                  ? 'border-gray-600 bg-gray-800 text-gray-300' 
+                  : 'border-gray-300 bg-white text-gray-900'
+              }`}
             >
               <option value="all">📊 Demanda Total Acumulada (Todos los productos)</option>
               {uniqueProducts.map((product: string) => (
@@ -321,7 +335,7 @@ const ForecastingPage: React.FC = () => {
               ))}
             </select>
           </div>
-          <div className="mt-2 text-xs text-gray-500">
+          <div className={`mt-2 text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
             {selectedProductFilter === 'all' 
               ? `Mostrando suma total de ${uniqueProducts.length} productos por fecha`
               : `Mostrando evolución temporal de "${selectedProductFilter}"`
@@ -330,16 +344,26 @@ const ForecastingPage: React.FC = () => {
         </div>
 
         {/* Gráfico REAL con datos de BD */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
-            <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+        <div className={`border rounded-lg overflow-hidden ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className={`px-6 py-4 border-b ${
+            isDarkMode 
+              ? 'border-gray-700 bg-gradient-to-r from-gray-700 to-gray-800' 
+              : 'border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100'
+          }`}>
+            <h4 className={`font-semibold flex items-center gap-2 ${
+              isDarkMode ? 'text-gray-100' : 'text-gray-900'
+            }`}>
               <LineChart className="h-5 w-5 text-blue-600" />
               {selectedProductFilter === 'all' 
                 ? 'Demanda Total Acumulada - Todos los Productos' 
                 : `Evolución Temporal - ${selectedProductFilter}`
               }
             </h4>
-            <p className="text-sm text-gray-600 mt-1">
+            <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               {predictions.length} pronósticos reales desde modelos Prophet, ARIMA y Random Forest
             </p>
           </div>
@@ -351,32 +375,41 @@ const ForecastingPage: React.FC = () => {
                   data={chartData}
                   margin={{ top: 20, right: 40, left: 60, bottom: 60 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.7} />
+                  <CartesianGrid 
+                    strokeDasharray="3 3" 
+                    stroke={isDarkMode ? "#4b5563" : "#e5e7eb"} 
+                    opacity={0.7} 
+                  />
                   <XAxis 
                     dataKey="date" 
-                    stroke="#374151" 
+                    stroke={isDarkMode ? "#d1d5db" : "#374151"}
                     fontSize={13}
                     fontWeight={500}
                     angle={-45}
                     textAnchor="end"
                     height={80}
-                    tick={{ fill: '#374151' }}
-                    axisLine={{ stroke: '#d1d5db', strokeWidth: 2 }}
-                    tickLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                    tick={{ fill: isDarkMode ? "#d1d5db" : "#374151" }}
+                    axisLine={{ stroke: isDarkMode ? "#6b7280" : "#d1d5db", strokeWidth: 2 }}
+                    tickLine={{ stroke: isDarkMode ? "#6b7280" : "#9ca3af", strokeWidth: 1 }}
                   />
                   <YAxis 
-                    stroke="#374151" 
+                    stroke={isDarkMode ? "#d1d5db" : "#374151"}
                     fontSize={12}
                     fontWeight={500}
                     label={{ 
                       value: selectedProductFilter === 'all' ? 'Demanda Total (unidades)' : 'Demanda (unidades)', 
                       angle: -90, 
                       position: 'insideLeft',
-                      style: { textAnchor: 'middle', fill: '#374151', fontSize: '14px', fontWeight: '600' }
+                      style: { 
+                        textAnchor: 'middle', 
+                        fill: isDarkMode ? "#d1d5db" : "#374151", 
+                        fontSize: '14px', 
+                        fontWeight: '600' 
+                      }
                     }}
-                    tick={{ fill: '#374151' }}
-                    axisLine={{ stroke: '#d1d5db', strokeWidth: 2 }}
-                    tickLine={{ stroke: '#9ca3af', strokeWidth: 1 }}
+                    tick={{ fill: isDarkMode ? "#d1d5db" : "#374151" }}
+                    axisLine={{ stroke: isDarkMode ? "#6b7280" : "#d1d5db", strokeWidth: 2 }}
+                    tickLine={{ stroke: isDarkMode ? "#6b7280" : "#9ca3af", strokeWidth: 1 }}
                     domain={[
                       (dataMin: number) => Math.max(0, dataMin * 0.95),
                       (dataMax: number) => dataMax * 1.05
@@ -389,16 +422,17 @@ const ForecastingPage: React.FC = () => {
                   />
                   <Tooltip 
                     contentStyle={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                      border: '2px solid #e5e7eb',
+                      backgroundColor: isDarkMode ? 'rgba(31, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+                      border: isDarkMode ? '2px solid #4b5563' : '2px solid #e5e7eb',
                       borderRadius: '12px',
                       boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
                       padding: '12px 16px',
                       fontSize: '14px',
-                      fontWeight: '500'
+                      fontWeight: '500',
+                      color: isDarkMode ? '#f8fafc' : '#1f2937'
                     }}
                     labelStyle={{
-                      color: '#1f2937',
+                      color: isDarkMode ? '#f8fafc' : '#1f2937',
                       fontWeight: '600',
                       marginBottom: '8px'
                     }}
@@ -411,13 +445,19 @@ const ForecastingPage: React.FC = () => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
-                          <div className="bg-white/98 backdrop-blur-sm p-4 border-2 border-blue-100 rounded-xl shadow-xl">
-                            <p className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                          <div className={`backdrop-blur-sm p-4 border-2 rounded-xl shadow-xl ${
+                            isDarkMode 
+                              ? 'bg-gray-800/98 border-blue-600' 
+                              : 'bg-white/98 border-blue-100'
+                          }`}>
+                            <p className={`font-bold mb-2 flex items-center gap-2 ${
+                              isDarkMode ? 'text-gray-100' : 'text-gray-800'
+                            }`}>
                               <Calendar className="h-4 w-4 text-blue-600" />
                               {`Fecha: ${label}`}
                             </p>
                             <div className="space-y-2">
-                              <p className="text-blue-700 font-semibold flex items-center gap-2">
+                              <p className="text-blue-400 font-semibold flex items-center gap-2">
                                 <TrendingUp className="h-4 w-4" />
                                 {selectedProductFilter === 'all' 
                                   ? `Demanda Total: ${data.demanda_total.toLocaleString('es-PE')} unidades`
@@ -425,13 +465,15 @@ const ForecastingPage: React.FC = () => {
                                 }
                               </p>
                               {selectedProductFilter === 'all' && (
-                                <p className="text-gray-600 text-sm flex items-center gap-2">
+                                <p className={`text-sm flex items-center gap-2 ${
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                }`}>
                                   <Package className="h-3 w-3" />
                                   {`${data.productos_count} productos incluidos`}
                                 </p>
                               )}
-                              <div className="pt-2 border-t border-gray-200">
-                                <p className="text-xs text-gray-500">
+                              <div className={`pt-2 border-t ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+                                <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
                                   Generado por modelos Prophet, ARIMA y Random Forest
                                 </p>
                               </div>
@@ -446,7 +488,8 @@ const ForecastingPage: React.FC = () => {
                     wrapperStyle={{
                       paddingTop: '20px',
                       fontSize: '14px',
-                      fontWeight: '600'
+                      fontWeight: '600',
+                      color: isDarkMode ? '#f8fafc' : '#1f2937'
                     }}
                     iconType="line"
                   />
@@ -460,13 +503,13 @@ const ForecastingPage: React.FC = () => {
                       fill: '#2563eb', 
                       strokeWidth: 3, 
                       r: 6,
-                      stroke: '#ffffff'
+                      stroke: isDarkMode ? '#1f2937' : '#ffffff'
                     }}
                     activeDot={{ 
                       r: 8, 
                       stroke: '#2563eb', 
                       strokeWidth: 3, 
-                      fill: '#ffffff',
+                      fill: isDarkMode ? '#1f2937' : '#ffffff',
                       filter: 'drop-shadow(0 4px 6px rgba(37, 99, 235, 0.3))'
                     }}
                     name={selectedProductFilter === 'all' ? '📊 Demanda Total' : '📈 Demanda Pronóstico'}
@@ -477,13 +520,21 @@ const ForecastingPage: React.FC = () => {
               </ResponsiveContainer>
             </div>
             
-            <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+            <div className={`mt-6 p-4 rounded-lg border ${
+              isDarkMode 
+                ? 'bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border-blue-700' 
+                : 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200'
+            }`}>
               <div className="text-center">
-                <p className="text-blue-800 text-sm font-semibold mb-2 flex items-center justify-center gap-2">
+                <p className={`text-sm font-semibold mb-2 flex items-center justify-center gap-2 ${
+                  isDarkMode ? 'text-blue-400' : 'text-blue-800'
+                }`}>
                   <BarChart3 className="h-4 w-4" />
                   Gráfico generado con {predictions.length} pronósticos REALES de la base de datos
                 </p>
-                <div className="flex flex-wrap justify-center gap-4 text-xs text-blue-700">
+                <div className={`flex flex-wrap justify-center gap-4 text-xs ${
+                  isDarkMode ? 'text-blue-300' : 'text-blue-700'
+                }`}>
                   <span className="flex items-center gap-1">
                     <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
                     {selectedProductFilter === 'all' 
@@ -506,23 +557,29 @@ const ForecastingPage: React.FC = () => {
         </div>
 
         {/* Información técnica del dataset REAL */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h5 className="font-medium text-blue-900 mb-2">Información REAL del Dataset ML</h5>
+        <div className={`border rounded-lg p-4 ${
+          isDarkMode 
+            ? 'bg-blue-900/30 border-blue-700' 
+            : 'bg-blue-50 border-blue-200'
+        }`}>
+          <h5 className={`font-medium mb-2 ${
+            isDarkMode ? 'text-blue-400' : 'text-blue-900'
+          }`}>Información REAL del Dataset ML</h5>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <span className="text-blue-700">Pronósticos en BD:</span>
+              <span className={isDarkMode ? 'text-blue-300' : 'text-blue-700'}>Pronósticos en BD:</span>
               <div className="font-medium">{state.forecasts.length}</div>
             </div>
             <div>
-              <span className="text-blue-700">Días con datos:</span>
+              <span className={isDarkMode ? 'text-blue-300' : 'text-blue-700'}>Días con datos:</span>
               <div className="font-medium">{chartData.length}</div>
             </div>
             <div>
-              <span className="text-blue-700">Productos únicos:</span>
+              <span className={isDarkMode ? 'text-blue-300' : 'text-blue-700'}>Productos únicos:</span>
               <div className="font-medium">{uniqueProducts.length}</div>
             </div>
             <div>
-              <span className="text-blue-700">
+              <span className={isDarkMode ? 'text-blue-300' : 'text-blue-700'}>
                 {selectedProductFilter === 'all' ? 'Demanda total promedio:' : 'Demanda promedio:'}
               </span>
               <div className="font-medium">{
@@ -532,7 +589,7 @@ const ForecastingPage: React.FC = () => {
               } unidades/día</div>
             </div>
           </div>
-          <div className="mt-3 text-xs text-blue-600">
+          <div className={`mt-3 text-xs ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
             ✅ Fechas dinámicas obtenidas automáticamente de la BD - Sin valores hardcodeados
           </div>
         </div>
@@ -612,7 +669,7 @@ const ForecastingPage: React.FC = () => {
 
   if (state.loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px] text-gray-900">
+      <div className={`flex items-center justify-center min-h-[400px] ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>
         <div className="text-center">
           <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p>Cargando pronósticos desde Django...</p>
@@ -622,14 +679,14 @@ const ForecastingPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 p-6 bg-gray-50 text-gray-900 min-h-screen">
+    <div className={`space-y-6 p-6 min-h-screen ${isDarkMode ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>
             Pronósticos de Demanda
           </h1>
-          <p className="text-gray-600">
+          <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             Sistema ML con análisis visual en tiempo real
           </p>
         </div>
@@ -649,7 +706,11 @@ const ForecastingPage: React.FC = () => {
           <button 
             onClick={generateRecommendations}
             disabled={loadingRecommendations}
-            className="px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 transition-all border border-gray-300 hover:bg-gray-50 text-gray-700"
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 transition-all border ${
+              isDarkMode 
+                ? 'border-gray-600 hover:bg-gray-700 text-gray-300' 
+                : 'border-gray-300 hover:bg-gray-50 text-gray-700'
+            }`}
           >
             {loadingRecommendations ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -663,24 +724,40 @@ const ForecastingPage: React.FC = () => {
 
       {/* Error Display */}
       {(state.error || state.chartsError) && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
+        <div className={`border rounded-lg p-4 flex items-center gap-2 ${
+          isDarkMode 
+            ? 'bg-red-900/20 border-red-800' 
+            : 'bg-red-50 border-red-200'
+        }`}>
           <AlertTriangle className="h-4 w-4 text-red-600" />
-          <span className="text-red-800">{state.error || state.chartsError}</span>
+          <span className={`${isDarkMode ? 'text-red-400' : 'text-red-800'}`}>
+            {state.error || state.chartsError}
+          </span>
         </div>
       )}
 
       {/* Visualización ML siempre visible */}
       {state.forecastData && (
-        <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
+        <div className={`rounded-lg shadow border p-6 ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <h2 className={`text-xl font-bold flex items-center gap-2 ${
+              isDarkMode ? 'text-gray-100' : 'text-gray-900'
+            }`}>
               <BarChart3 className="h-6 w-6 text-blue-600" />
               Análisis Visual de Machine Learning
-              <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full ml-2">
+              <span className={`text-sm px-2 py-1 rounded-full ml-2 ${
+                isDarkMode 
+                  ? 'bg-green-900/50 text-green-400' 
+                  : 'bg-green-100 text-green-800'
+              }`}>
                 En Tiempo Real
               </span>
             </h2>
-            <p className="text-gray-600 mt-1">
+            <p className={`mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
               Pronósticos generados con modelos Prophet, ARIMA y Random Forest
             </p>
           </div>
@@ -688,7 +765,9 @@ const ForecastingPage: React.FC = () => {
           {state.chartsLoading ? (
             <div className="flex items-center justify-center py-12">
               <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
-              <span className="ml-2 text-gray-600">Procesando modelos ML...</span>
+              <span className={`ml-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Procesando modelos ML...
+              </span>
             </div>
           ) : (
             <MLVisualization data={state.forecastData} />
@@ -699,10 +778,20 @@ const ForecastingPage: React.FC = () => {
       {/* Grid de pronósticos y recomendaciones */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pronósticos por Producto */}
-        <div className="rounded-lg shadow border bg-white border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Pronósticos por Producto</h3>
-            <p className="text-sm text-gray-600">
+        <div className={`rounded-lg shadow border ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className={`p-6 border-b ${
+            isDarkMode ? 'border-gray-700' : 'border-gray-200'
+          }`}>
+            <h3 className={`text-lg font-semibold ${
+              isDarkMode ? 'text-gray-100' : 'text-gray-900'
+            }`}>Pronósticos por Producto</h3>
+            <p className={`text-sm ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
               Datos en tiempo real desde Django ({state.forecasts.length} productos)
             </p>
           </div>
@@ -710,38 +799,64 @@ const ForecastingPage: React.FC = () => {
             <div className="space-y-4 max-h-96 overflow-y-auto">
               {state.forecasts.length === 0 ? (
                 <div className="text-center py-8">
-                  <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No hay pronósticos disponibles</p>
-                  <p className="text-sm">Genere pronósticos para ver datos aquí</p>
+                  <Package className={`h-12 w-12 mx-auto mb-4 opacity-50 ${
+                    isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                  }`} />
+                  <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                    No hay pronósticos disponibles
+                  </p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                    Genere pronósticos para ver datos aquí
+                  </p>
                 </div>
               ) : (
                 state.forecasts.slice(0, 10).map((forecast) => {
                   const stockAlert = getStockAlert(forecast);
                   return (
-                    <div key={forecast.id} className="p-4 border rounded-lg transition-colors border-gray-200 hover:bg-gray-50">
+                    <div key={forecast.id} className={`p-4 border rounded-lg transition-colors ${
+                      isDarkMode 
+                        ? 'border-gray-600 hover:bg-gray-700/50' 
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}>
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <h4 className="font-medium text-gray-900">{forecast.product_name}</h4>
-                          <p className="text-sm text-gray-600">SKU: {forecast.product_sku}</p>
+                          <h4 className={`font-medium ${
+                            isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                          }`}>{forecast.product_name}</h4>
+                          <p className={`text-sm ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`}>SKU: {forecast.product_sku}</p>
                         </div>
                         <span className={stockAlert.className}>{stockAlert.message}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <span className="text-gray-600">Demanda proyectada:</span>
-                          <p className="font-medium text-gray-900">
+                          <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                            Demanda proyectada:
+                          </span>
+                          <p className={`font-medium ${
+                            isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                          }`}>
                             {formatDemand(forecast.predicted_demand)} unidades
                           </p>
                         </div>
                         <div>
-                          <span className="text-gray-600">Fecha pronóstico:</span>
-                          <p className="font-medium text-gray-900">{formatDate(forecast.forecast_date)}</p>
+                          <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                            Fecha pronóstico:
+                          </span>
+                          <p className={`font-medium ${
+                            isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                          }`}>{formatDate(forecast.forecast_date)}</p>
                         </div>
                       </div>
                       {forecast.confidence_level && (
                         <div className="mt-2 text-sm">
-                          <span className="text-gray-600">Confianza:</span>
-                          <span className="font-medium ml-1 text-gray-900">
+                          <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                            Confianza:
+                          </span>
+                          <span className={`font-medium ml-1 ${
+                            isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                          }`}>
                             {formatDemand(forecast.confidence_level)}%
                           </span>
                         </div>
@@ -755,10 +870,20 @@ const ForecastingPage: React.FC = () => {
         </div>
 
         {/* Recomendaciones de Reorden */}
-        <div className="rounded-lg shadow border bg-white border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900">Recomendaciones de Reorden</h3>
-            <p className="text-sm text-gray-600">
+        <div className={`rounded-lg shadow border ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-700' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className={`p-6 border-b ${
+            isDarkMode ? 'border-gray-700' : 'border-gray-200'
+          }`}>
+            <h3 className={`text-lg font-semibold ${
+              isDarkMode ? 'text-gray-100' : 'text-gray-900'
+            }`}>Recomendaciones de Reorden</h3>
+            <p className={`text-sm ${
+              isDarkMode ? 'text-gray-400' : 'text-gray-600'
+            }`}>
               Basadas en pronósticos ML ({recommendations.length} recomendaciones)
             </p>
           </div>
@@ -767,51 +892,81 @@ const ForecastingPage: React.FC = () => {
               {loadingRecommendations ? (
                 <div className="text-center py-8">
                   <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-                  <p>Cargando recomendaciones...</p>
+                  <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                    Cargando recomendaciones...
+                  </p>
                 </div>
               ) : recommendations.length === 0 ? (
                 <div className="text-center py-8">
-                  <AlertTriangle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No hay recomendaciones disponibles</p>
-                  <p className="text-sm">Genere recomendaciones para ver sugerencias aquí</p>
+                  <AlertTriangle className={`h-12 w-12 mx-auto mb-4 opacity-50 ${
+                    isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                  }`} />
+                  <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                    No hay recomendaciones disponibles
+                  </p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                    Genere recomendaciones para ver sugerencias aquí
+                  </p>
                 </div>
               ) : (
                 recommendations.slice(0, 10).map((rec) => (
-                  <div key={rec.id} className="p-4 border rounded-lg transition-colors border-gray-200 hover:bg-gray-50">
+                  <div key={rec.id} className={`p-4 border rounded-lg transition-colors ${
+                    isDarkMode 
+                      ? 'border-gray-600 hover:bg-gray-700/50' 
+                      : 'border-gray-200 hover:bg-gray-50'
+                  }`}>
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <h4 className="font-medium text-gray-900">{rec.product_name}</h4>
-                        <p className="text-sm text-gray-600">SKU: {rec.product_sku}</p>
+                        <h4 className={`font-medium ${
+                          isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                        }`}>{rec.product_name}</h4>
+                        <p className={`text-sm ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>SKU: {rec.product_sku}</p>
                       </div>
                       <span className={getPriorityColor(rec.priority)}>{rec.priority_display}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="text-gray-600">Cantidad recomendada:</span>
-                        <p className="font-medium text-gray-900">
+                        <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                          Cantidad recomendada:
+                        </span>
+                        <p className={`font-medium ${
+                          isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                        }`}>
                           {formatDemand(rec.recommended_quantity)} unidades
                         </p>
                       </div>
                       <div>
-                        <span className="text-gray-600">Stock actual:</span>
-                        <p className="font-medium text-gray-900">
+                        <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                          Stock actual:
+                        </span>
+                        <p className={`font-medium ${
+                          isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                        }`}>
                           {formatDemand(rec.current_stock)} unidades
                         </p>
                       </div>
                     </div>
                     <div className="mt-2 text-sm">
-                      <span className="text-gray-600">Fecha recomendada:</span>
-                      <span className="font-medium ml-1 text-gray-900">
+                      <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                        Fecha recomendada:
+                      </span>
+                      <span className={`font-medium ml-1 ${
+                        isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                      }`}>
                         {formatDate(rec.recommended_order_date)}
                       </span>
                     </div>
                     {rec.days_until_stockout !== undefined && rec.days_until_stockout !== null && (
                       <div className="mt-1 text-sm">
-                        <span className="text-gray-600">Días hasta agotamiento:</span>
+                        <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
+                          Días hasta agotamiento:
+                        </span>
                         <span className={`font-medium ml-1 ${
                           rec.days_until_stockout <= 7 
-                            ? 'text-red-600'
-                            : 'text-green-600'
+                            ? 'text-red-400' 
+                            : isDarkMode ? 'text-green-400' : 'text-green-600'
                         }`}>
                           {rec.days_until_stockout} días
                         </span>
@@ -826,8 +981,14 @@ const ForecastingPage: React.FC = () => {
       </div>
 
       {/* Data Source Info */}
-      <div className="border border-l-4 rounded-lg p-4 bg-blue-50 border-blue-200 border-l-blue-500">
-        <div className="flex items-center gap-2 text-sm text-blue-800">
+      <div className={`border border-l-4 rounded-lg p-4 ${
+        isDarkMode 
+          ? 'bg-blue-900/30 border-blue-700 border-l-blue-500' 
+          : 'bg-blue-50 border-blue-200 border-l-blue-500'
+      }`}>
+        <div className={`flex items-center gap-2 text-sm ${
+          isDarkMode ? 'text-blue-400' : 'text-blue-800'
+        }`}>
           <BarChart3 className="h-4 w-4" />
           <span>
             Sistema ML con visualización automática - 

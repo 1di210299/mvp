@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from django.contrib.auth import authenticate
 from django.db import transaction
 from drf_spectacular.utils import extend_schema, OpenApiParameter
@@ -392,3 +393,116 @@ class SystemInfoView(APIView):
         }
         
         return Response(system_info)
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """Vista personalizada para renovación de tokens con información del usuario"""
+    
+    def post(self, request, *args, **kwargs):
+        try:
+            response = super().post(request, *args, **kwargs)
+            
+            # Agregar información del usuario en la respuesta
+            if response.status_code == 200:
+                # Obtener el token de acceso renovado
+                access_token = response.data.get('access')
+                
+                # Decodificar el token para obtener el user_id
+                from rest_framework_simplejwt.tokens import UntypedToken
+                from rest_framework_simplejwt.state import token_backend
+                from django.contrib.auth import get_user_model
+                
+                try:
+                    # Validar y decodificar el token
+                    validated_token = UntypedToken(access_token)
+                    user_id = validated_token.get('user_id')
+                    
+                    # Obtener el usuario
+                    User = get_user_model()
+                    user = User.objects.get(id=user_id)
+                    
+                    # Agregar datos del usuario a la respuesta
+                    response.data.update({
+                        'status': 'success',
+                        'message': 'Token renovado exitosamente',
+                        'user': ProfileSerializer(user).data,
+                        'tokens': {
+                            'access': access_token,
+                            'refresh': response.data.get('refresh')
+                        }
+                    })
+                    
+                except Exception as token_error:
+                    # Si hay error obteniendo el usuario, devolver solo el token
+                    response.data = {
+                        'status': 'success',
+                        'message': 'Token renovado exitosamente',
+                        'tokens': {
+                            'access': access_token,
+                            'refresh': response.data.get('refresh')
+                        }
+                    }
+            
+            return response
+            
+        except TokenError as e:
+            return Response({
+                'status': 'error',
+                'message': 'Token de actualización inválido o expirado',
+                'error': str(e)
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Error al renovar token',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TokenValidationView(APIView):
+    """Vista para validar si un token es válido"""
+    permission_classes = [AllowAny]
+    
+    @extend_schema(
+        summary="Validar token de acceso",
+        description="Verifica si un token JWT es válido y retorna información del usuario"
+    )
+    def post(self, request):
+        token = request.data.get('token')
+        
+        if not token:
+            return Response({
+                'status': 'error',
+                'message': 'Token requerido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            from rest_framework_simplejwt.tokens import UntypedToken
+            from django.contrib.auth import get_user_model
+            
+            # Validar el token
+            validated_token = UntypedToken(token)
+            user_id = validated_token.get('user_id')
+            
+            # Obtener el usuario
+            User = get_user_model()
+            user = User.objects.get(id=user_id)
+            
+            return Response({
+                'status': 'success',
+                'message': 'Token válido',
+                'user': ProfileSerializer(user).data,
+                'expires_at': validated_token.get('exp')
+            })
+            
+        except TokenError:
+            return Response({
+                'status': 'error',
+                'message': 'Token inválido o expirado'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': 'Error al validar token',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)

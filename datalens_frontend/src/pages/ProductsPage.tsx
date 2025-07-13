@@ -357,9 +357,12 @@ const ProductsPage: React.FC = () => {
   };
 
   const getStockStatus = (product: Product) => {
-    const currentStock = product.current_stock || 0;
+    // CORREGIDO: Usar 'stock' en lugar de 'current_stock' para coincidir con la API
+    const currentStock = product.stock || product.current_stock || 0;
     const minStock = typeof product.min_stock === 'string' ? parseFloat(product.min_stock) : (product.min_stock || 0);
     const maxStock = typeof product.max_stock === 'string' ? parseFloat(product.max_stock) : (product.max_stock || 100);
+    
+    console.log(`🔍 Stock Status Debug - ${product.name}: stock=${currentStock}, min=${minStock}, max=${maxStock}`);
     
     if (currentStock <= 0) return { status: 'Sin Stock', color: 'red', severity: 'critical' };
     if (currentStock <= minStock) return { status: 'Bajo', color: 'orange', severity: 'warning' };
@@ -1005,7 +1008,7 @@ const ProductsPage: React.FC = () => {
                                   {stockStatus.status}
                                 </span>
                                 <span className={`text-sm font-mono font-semibold ${isDarkMode ? 'text-gray-300' : 'text-slate-600'}`}>
-                                  {(product.current_stock || 0).toFixed(1)}
+                                  {(product.stock || product.current_stock || 0).toFixed(1)}
                                 </span>
                               </div>
                               

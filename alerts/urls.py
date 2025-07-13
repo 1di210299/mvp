@@ -13,6 +13,10 @@ urlpatterns = [
     path('check-alerts/', views.CheckAlertsView.as_view(), name='check_alerts'),
     path('test-rule/<int:rule_id>/', views.TestAlertRuleView.as_view(), name='test_alert_rule'),
     
+    # Notification endpoints
+    path('test-notifications/', views.TestNotificationServicesView.as_view(), name='test_notifications'),
+    path('notification-settings/', views.NotificationSettingsView.as_view(), name='notification_settings'),
+    
     # ViewSets (incluye los endpoints de acknowledge, resolve, dismiss automáticamente)
     path('', include(router.urls)),
 ]

@@ -27,7 +27,7 @@ const LoginPage: React.FC = () => {
   // Redirigir si ya está autenticado
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      navigate('/app/dashboard');
     }
   }, [isAuthenticated, navigate]);
 
@@ -42,7 +42,7 @@ const LoginPage: React.FC = () => {
 
       if (success) {
         console.log('Login successful, redirecting to dashboard...');
-        navigate('/dashboard');
+        navigate('/app/dashboard');
       } else {
         setState(prev => ({ 
           ...prev, 
@@ -55,7 +55,7 @@ const LoginPage: React.FC = () => {
       console.error('Login error:', error);
       setState(prev => ({ 
         ...prev, 
-        error: 'Error de conexión. Verifica que el servidor esté ejecutándose en puerto 8080.',
+        error: 'Error de conexión. Verifica que el servidor esté ejecutándose en puerto 8081.',
         loading: false 
       }));
     }

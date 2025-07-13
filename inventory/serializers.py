@@ -36,23 +36,82 @@ class SupplierSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    """Serializer para Product"""
+    """Serializer optimizado para Product - eliminando redundancias"""
+    
+    # Campos relacionales (read-only)
     category_name = serializers.CharField(source='category.name', read_only=True)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
-    current_stock = serializers.ReadOnlyField()
-    stock_value = serializers.ReadOnlyField()
-    unit_price = serializers.ReadOnlyField()
+    
+    # Campos calculados (read-only)
+    stock_value = serializers.ReadOnlyField()  # stock * cost_price
+    
+    # **COMPATIBILIDAD: Alias para el frontend**
+    current_stock = serializers.ReadOnlyField(source='stock')  # Alias para compatibilidad
     
     class Meta:
         model = Product
         fields = [
-            'id', 'sku', 'name', 'description', 'category', 'category_name',
-            'supplier', 'supplier_name', 'barcode', 'unit', 'weight', 'dimensions',
-            'cost_price', 'sale_price', 'price', 'unit_price', 'stock', 'current_stock',
-            'min_stock', 'max_stock', 'reorder_point', 'track_batches', 'has_expiration',
-            'shelf_life_days', 'stock_value', 'is_active', 'created_at', 'updated_at'
+            # Identificación básica
+            'id', 'sku', 'name', 'description',
+            
+            # Relaciones (IDs para escritura, nombres para lectura)
+            'category', 'category_name', 
+            'supplier', 'supplier_name',
+            
+            # Precios (solo los esenciales)
+            'cost_price',     # Precio de compra
+            'sale_price',     # Precio de venta
+            
+            # Stock (con compatibilidad)
+            'stock',          # Stock actual (campo real del modelo)
+            'current_stock',  # Alias para compatibilidad con frontend
+            'min_stock',      # Stock mínimo
+            'max_stock',      # Stock máximo  
+            'reorder_point',  # Punto de reorden
+            
+            # Información básica del producto
+            'unit',           # Unidad de medida
+            'barcode',        # Código de barras (útil para ventas)
+            
+            # Campos de control avanzado (solo si se necesitan)
+            'track_batches',  # Si maneja lotes
+            'has_expiration', # Si tiene vencimiento
+            
+            # Metadatos
+            'stock_value',    # Valor total del stock (calculado)
+            'is_active',      # Estado del producto
+            'created_at',     # Fecha de creación
         ]
-        read_only_fields = ['id', 'current_stock', 'stock_value', 'unit_price', 'created_at', 'updated_at']
+        
+        read_only_fields = [
+            'id', 'stock_value', 'current_stock', 'category_name', 'supplier_name', 'created_at'
+        ]
+
+    def validate(self, data):
+        """Validaciones personalizadas"""
+        # Validar que el precio de venta sea mayor al costo
+        if data.get('sale_price', 0) < data.get('cost_price', 0):
+            raise serializers.ValidationError(
+                "El precio de venta no puede ser menor al precio de costo"
+            )
+        
+        # Validar que el stock mínimo sea menor al máximo
+        if data.get('min_stock', 0) >= data.get('max_stock', 100):
+            raise serializers.ValidationError(
+                "El stock mínimo debe ser menor al stock máximo"
+            )
+        
+        # Validar que el punto de reorden esté entre min y max
+        reorder_point = data.get('reorder_point', 0)
+        min_stock = data.get('min_stock', 0)
+        max_stock = data.get('max_stock', 100)
+        
+        if not (min_stock <= reorder_point <= max_stock):
+            raise serializers.ValidationError(
+                "El punto de reorden debe estar entre el stock mínimo y máximo"
+            )
+        
+        return data
 
 
 class SaleSerializer(serializers.ModelSerializer):

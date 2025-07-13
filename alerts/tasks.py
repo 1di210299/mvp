@@ -10,6 +10,7 @@ from decimal import Decimal
 import logging
 
 from .models import AlertRule, Alert, NotificationLog
+from .services import notification_service
 from inventory.models import Product, Transaction, Location
 from authentication.models import User, Company
 from django.db import models
@@ -95,86 +96,100 @@ def check_alert_rule(self, rule_id):
 
 
 @shared_task(bind=True, max_retries=3)
-def send_alert_notification(self, alert_id):
+def send_alert_notification(self, alert_id, notification_type='all'):
     """
-    Envía notificaciones por email para una alerta específica
+    Envía notificaciones para una alerta específica usando el servicio mejorado
     """
     try:
         alert = Alert.objects.get(id=alert_id)
-        rule = alert.rule
+        logger.info(f"Enviando notificaciones para alerta {alert_id}")
         
-        if not rule or not rule.send_email:
-            return "Email notifications disabled for this rule"
+        # Usar el servicio de notificaciones mejorado
+        results = notification_service.send_alert_notification(alert, notification_type)
         
-        # Obtener destinatarios
-        recipients = rule.get_recipient_emails()
-        if not recipients:
-            logger.warning(f"No hay destinatarios para la alerta {alert_id}")
-            return "No recipients found"
+        # Log de resultados
+        for ntype, result in results.items():
+            if result['status'] == 'success':
+                logger.info(f"Notificación {ntype} enviada exitosamente para alerta {alert_id}")
+            elif result['status'] == 'partial':
+                logger.warning(f"Notificación {ntype} enviada parcialmente para alerta {alert_id}: {result['message']}")
+            elif result['status'] == 'disabled':
+                logger.info(f"Notificación {ntype} deshabilitada para alerta {alert_id}")
+            else:
+                logger.error(f"Error en notificación {ntype} para alerta {alert_id}: {result['message']}")
         
-        # Preparar el email
-        subject = f"[DataLens] Alerta: {alert.title}"
-        message = f"""
-        Se ha generado una nueva alerta en el sistema DataLens:
-        
-        Título: {alert.title}
-        Descripción: {alert.message}
-        Tipo: {rule.get_alert_type_display()}
-        Producto: {alert.product.name if alert.product else 'N/A'}
-        Ubicación: {alert.location.name if alert.location else 'N/A'}
-        Severidad: {alert.get_severity_display()}
-        Fecha: {alert.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-        
-        Valor actual: {alert.current_value}
-        Valor umbral: {alert.threshold_value}
-        
-        Por favor, revise el sistema para más detalles.
-        """
-        
-        # Enviar email
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=recipients,
-            fail_silently=False,
-        )
-        
-        # Crear log de notificación
-        NotificationLog.objects.create(
-            alert=alert,
-            notification_type='email',
-            recipient=', '.join(recipients),
-            subject=subject,
-            content=message,
-            status='sent',
-            sent_at=timezone.now()
-        )
-        
-        logger.info(f"Email enviado para alerta {alert_id} a {len(recipients)} destinatarios")
-        return f"Email sent to {len(recipients)} recipients"
+        return results
         
     except Alert.DoesNotExist:
         logger.warning(f"Alerta {alert_id} no encontrada")
-        return f"Alert {alert_id} not found"
+        return {"error": f"Alert {alert_id} not found"}
     except Exception as exc:
-        # Crear log de error
-        try:
-            alert = Alert.objects.get(id=alert_id)
-            NotificationLog.objects.create(
-                alert=alert,
-                notification_type='email',
-                recipient='error',
-                subject=f"Error sending notification for alert {alert_id}",
-                content=str(exc),
-                status='failed',
-                error_message=str(exc)
-            )
-        except:
-            pass
-        
-        logger.error(f"Error enviando notificación {alert_id}: {str(exc)}")
+        logger.error(f"Error enviando notificaciones {alert_id}: {str(exc)}")
         self.retry(countdown=60 * 2, exc=exc)
+
+
+@shared_task(bind=True, max_retries=3)
+def send_whatsapp_notification(self, alert_id):
+    """
+    Envía notificación por WhatsApp específicamente
+    """
+    try:
+        alert = Alert.objects.get(id=alert_id)
+        result = notification_service.send_whatsapp_notification(alert)
+        
+        logger.info(f"WhatsApp notification result for alert {alert_id}: {result}")
+        return result
+        
+    except Alert.DoesNotExist:
+        logger.warning(f"Alerta {alert_id} no encontrada para WhatsApp")
+        return {"error": f"Alert {alert_id} not found"}
+    except Exception as exc:
+        logger.error(f"Error enviando WhatsApp {alert_id}: {str(exc)}")
+        self.retry(countdown=60 * 2, exc=exc)
+
+
+@shared_task(bind=True, max_retries=3)
+def send_email_notification(self, alert_id):
+    """
+    Envía notificación por email específicamente
+    """
+    try:
+        alert = Alert.objects.get(id=alert_id)
+        result = notification_service.send_email_notification(alert)
+        
+        logger.info(f"Email notification result for alert {alert_id}: {result}")
+        return result
+        
+    except Alert.DoesNotExist:
+        logger.warning(f"Alerta {alert_id} no encontrada para email")
+        return {"error": f"Alert {alert_id} not found"}
+    except Exception as exc:
+        logger.error(f"Error enviando email {alert_id}: {str(exc)}")
+        self.retry(countdown=60 * 2, exc=exc)
+
+
+@shared_task
+def test_notification_services():
+    """
+    Tarea para probar los servicios de notificación
+    """
+    try:
+        results = {}
+        
+        # Probar email
+        email_test = notification_service.test_email_connection()
+        results['email'] = email_test
+        
+        # Probar WhatsApp
+        whatsapp_test = notification_service.test_whatsapp_connection()
+        results['whatsapp'] = whatsapp_test
+        
+        logger.info(f"Test notification services results: {results}")
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error testing notification services: {str(e)}")
+        return {"error": str(e)}
 
 
 @shared_task
@@ -190,8 +205,14 @@ def cleanup_old_alerts():
             created_at__lt=cutoff_date
         ).delete()[0]
         
-        logger.info(f"Eliminadas {deleted_count} alertas antigas")
-        return f"Cleaned up {deleted_count} old alerts"
+        # Limpiar logs de notificación más antiguos de 60 días
+        log_cutoff_date = timezone.now() - timedelta(days=60)
+        deleted_logs = NotificationLog.objects.filter(
+            created_at__lt=log_cutoff_date
+        ).delete()[0]
+        
+        logger.info(f"Eliminadas {deleted_count} alertas antigas y {deleted_logs} logs de notificación")
+        return f"Cleaned up {deleted_count} old alerts and {deleted_logs} notification logs"
         
     except Exception as e:
         logger.error(f"Error en cleanup_old_alerts: {str(e)}")
@@ -370,7 +391,7 @@ def check_negative_stock_alert(rule, product, location):
                 description=f"El stock actual es negativo: {current_stock}",
                 current_value=current_stock,
                 threshold_value=0,
-                severity='high'
+                severity='critical'
             )
         
         return False
@@ -391,6 +412,7 @@ def check_high_demand_alert(rule, product, location):
             product=product,
             location=location,
             transaction_type='sale',
+            transaction_date__isnull=False,  # ✅ NUEVA LÍNEA - Excluir transacciones sin fecha
             transaction_date__date__range=[start_date, end_date]
         ).aggregate(
             total_demand=models.Sum('quantity')
@@ -402,6 +424,7 @@ def check_high_demand_alert(rule, product, location):
             product=product,
             location=location,
             transaction_type='sale',
+            transaction_date__isnull=False,  # ✅ NUEVA LÍNEA - Excluir transacciones sin fecha
             transaction_date__date__range=[historical_start, start_date]
         ).aggregate(
             avg_demand=models.Avg('quantity')
@@ -438,6 +461,7 @@ def check_no_movement_alert(rule, product, location):
         recent_transactions = Transaction.objects.filter(
             product=product,
             location=location,
+            transaction_date__isnull=False,  # ✅ NUEVA LÍNEA - Excluir transacciones sin fecha
             transaction_date__date__gte=cutoff_date
         ).exists()
         
@@ -495,7 +519,8 @@ def create_alert(rule, product, location, title, description, current_value, thr
         )
         
         # Programar envío de notificación si está habilitado
-        if rule.send_email and rule.frequency == 'immediate':
+        if rule.frequency == 'immediate':
+            # Enviar notificaciones inmediatamente
             send_alert_notification.delay(alert.id)
         
         logger.info(f"Alerta creada: {title}")

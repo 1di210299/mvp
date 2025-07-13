@@ -43,15 +43,16 @@ const AppContent: React.FC = () => {
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
-        {/* Public routes */}
+        {/* Public routes - Marketing page as default */}
+        <Route path="/" element={<MarketingPage />} />
         <Route path="/marketing" element={<MarketingPage />} />
         <Route path="/login" element={<LoginPage />} />
         
         {/* Protected routes */}
         {isAuthenticated ? (
           <>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={
+            <Route path="/app" element={<Navigate to="/app/dashboard" replace />} />
+            <Route path="/app/dashboard" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -60,7 +61,7 @@ const AppContent: React.FC = () => {
               </>
             } />
             
-            <Route path="/products" element={
+            <Route path="/app/products" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -68,7 +69,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/categories" element={
+            <Route path="/app/categories" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -76,7 +77,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/suppliers" element={
+            <Route path="/app/suppliers" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -84,7 +85,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/inventory" element={
+            <Route path="/app/inventory" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -92,7 +93,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/transactions" element={
+            <Route path="/app/transactions" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -100,7 +101,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/alerts" element={
+            <Route path="/app/alerts" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -108,7 +109,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/forecasting" element={
+            <Route path="/app/forecasting" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -116,7 +117,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/reports" element={
+            <Route path="/app/reports" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -124,7 +125,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/settings" element={
+            <Route path="/app/settings" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -132,7 +133,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/data-import" element={
+            <Route path="/app/data-import" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -142,7 +143,7 @@ const AppContent: React.FC = () => {
             } />
             
             {/* CRM Routes */}
-            <Route path="/customers" element={
+            <Route path="/app/customers" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -150,7 +151,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/leads" element={
+            <Route path="/app/leads" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -158,7 +159,7 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            <Route path="/opportunities" element={
+            <Route path="/app/opportunities" element={
               <>
                 <Navbar user={user} onLogout={logout} />
                 <main className="app-main">
@@ -166,14 +167,25 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
-            
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </>
         ) : (
           <>
-            {/* Redirect to login if not authenticated */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* Redirect authenticated routes to marketing if not logged in */}
+            <Route path="/app/*" element={<Navigate to="/marketing" replace />} />
+            <Route path="/dashboard" element={<Navigate to="/marketing" replace />} />
+            <Route path="/products" element={<Navigate to="/marketing" replace />} />
+            <Route path="/categories" element={<Navigate to="/marketing" replace />} />
+            <Route path="/suppliers" element={<Navigate to="/marketing" replace />} />
+            <Route path="/inventory" element={<Navigate to="/marketing" replace />} />
+            <Route path="/transactions" element={<Navigate to="/marketing" replace />} />
+            <Route path="/alerts" element={<Navigate to="/marketing" replace />} />
+            <Route path="/forecasting" element={<Navigate to="/marketing" replace />} />
+            <Route path="/reports" element={<Navigate to="/marketing" replace />} />
+            <Route path="/settings" element={<Navigate to="/marketing" replace />} />
+            <Route path="/data-import" element={<Navigate to="/marketing" replace />} />
+            <Route path="/customers" element={<Navigate to="/marketing" replace />} />
+            <Route path="/leads" element={<Navigate to="/marketing" replace />} />
+            <Route path="/opportunities" element={<Navigate to="/marketing" replace />} />
           </>
         )}
       </Routes>

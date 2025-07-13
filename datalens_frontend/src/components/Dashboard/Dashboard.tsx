@@ -96,6 +96,8 @@ const Dashboard: React.FC = () => {
       setLoading(true);
       setError('');
       
+      console.log('🔍 Dashboard Principal: Iniciando carga de datos...');
+      
       // Usar servicios de API con autenticación en lugar de fetch directo
       const [statsRes, alertsRes, forecastsRes, transactionsRes] = await Promise.allSettled([
         inventoryService.getInventoryDashboard().catch(() => {
@@ -109,31 +111,56 @@ const Dashboard: React.FC = () => {
             pipeline_value: 0
           };
         }),
-        alertService.getAlertsDashboard().catch(() => ({ results: [] })),
+        // CORREGIDO: Usar getAlertsDashboard para estadísticas y getAlerts para la lista
+        Promise.all([
+          alertService.getAlertsDashboard().catch((err) => {
+            console.error('❌ Dashboard Principal: Error en getAlertsDashboard:', err);
+            return { 
+              total_alerts: 0, 
+              active_alerts: 0, 
+              critical_alerts: 0 
+            };
+          }),
+          alertService.getAlerts().catch((err) => {
+            console.error('❌ Dashboard Principal: Error en getAlerts:', err);
+            return { results: [] };
+          })
+        ]),
         inventoryService.getForecasts().catch(() => ({ results: [] })),
         inventoryService.getTransactions().catch(() => ({ results: [] }))
       ]);
 
       // Procesar estadísticas con validación
       const statsData = statsRes.status === 'fulfilled' ? statsRes.value : {};
+      console.log('📊 Dashboard Principal: Stats data:', statsData);
+      
+      // CORREGIDO: Procesar datos de alertas correctamente
+      const [alertsDashboardData, alertsListData] = alertsRes.status === 'fulfilled' ? alertsRes.value : [{}, { results: [] }];
+      console.log('🚨 Dashboard Principal: Alerts dashboard data:', alertsDashboardData);
+      console.log('📋 Dashboard Principal: Alerts list data:', alertsListData);
+      
       const stats: ExtendedDashboardStats = {
         total_products: statsData.total_products || 0,
         total_value: statsData.total_value || statsData.total_stock_value || 0,
-        low_stock_alerts: statsData.low_stock_alerts || 0,
+        // CORREGIDO: Usar datos del dashboard de alertas en lugar de inventario
+        low_stock_alerts: alertsDashboardData.active_alerts || alertsDashboardData.total_alerts || statsData.low_stock_alerts || 0,
         total_transactions_today: statsData.total_transactions_today || statsData.recent_transactions || 0,
         active_customers: statsData.active_customers || 0,
         pipeline_value: statsData.pipeline_value || 0
       };
 
-      // Procesar alertas
-      const alertsData = alertsRes.status === 'fulfilled' ? alertsRes.value : { results: [] };
-      const alerts: DashboardAlert[] = (alertsData.results || []).map((alert: any) => ({
+      console.log('✅ Dashboard Principal: Stats finales:', stats);
+
+      // CORREGIDO: Procesar alertas de la lista de alertas, no del dashboard
+      const alerts: DashboardAlert[] = (alertsListData.results || []).slice(0, 10).map((alert: any) => ({
         id: alert.id,
         title: alert.title || alert.message,
         message: alert.message,
         severity: alert.severity || 'medium',
         created_at: alert.created_at
       }));
+
+      console.log('🔔 Dashboard Principal: Alertas procesadas:', alerts.length, 'alertas');
 
       // Procesar pronósticos con validación robusta
       const forecastsData = forecastsRes.status === 'fulfilled' ? forecastsRes.value : { results: [] };
@@ -331,10 +358,10 @@ const Dashboard: React.FC = () => {
               <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-800 dark:from-slate-100 dark:via-blue-200 dark:to-indigo-200 bg-clip-text text-transparent">
                 Dashboard Principal
               </h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full animate-pulse"></div>
+              <div className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2 mt-1">
+                <span className="w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full animate-pulse"></span>
                 Vista general en tiempo real
-              </p>
+              </div>
             </div>
 
             {/* Centro: Accesos rápidos */}
@@ -343,7 +370,7 @@ const Dashboard: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="flex flex-col items-center p-3 h-auto bg-slate-50/50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-200 group"
-                  onClick={() => window.location.href = '/products'}
+                  onClick={() => window.location.href = '/app/products'}
                 >
                   <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-800/70 transition-colors mb-1">
                     <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -354,7 +381,7 @@ const Dashboard: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="flex flex-col items-center p-3 h-auto bg-slate-50/50 dark:bg-slate-700/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border-slate-200 dark:border-slate-600 hover:border-emerald-300 dark:hover:border-emerald-500 transition-all duration-200 group"
-                  onClick={() => window.location.href = '/inventory'}
+                  onClick={() => window.location.href = '/app/inventory'}
                 >
                   <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg group-hover:bg-emerald-200 dark:group-hover:bg-emerald-800/70 transition-colors mb-1">
                     <BarChart3 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -365,7 +392,7 @@ const Dashboard: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="flex flex-col items-center p-3 h-auto bg-slate-50/50 dark:bg-slate-700/50 hover:bg-red-50 dark:hover:bg-red-900/20 border-slate-200 dark:border-slate-600 hover:border-red-300 dark:hover:border-red-500 transition-all duration-200 group"
-                  onClick={() => window.location.href = '/alerts'}
+                  onClick={() => window.location.href = '/app/alerts'}
                 >
                   <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg group-hover:bg-red-200 dark:group-hover:bg-red-800/70 transition-colors mb-1">
                     <Bell className="h-4 w-4 text-red-600 dark:text-red-400" />
@@ -376,7 +403,7 @@ const Dashboard: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="flex flex-col items-center p-3 h-auto bg-slate-50/50 dark:bg-slate-700/50 hover:bg-purple-50 dark:hover:bg-purple-900/20 border-slate-200 dark:border-slate-600 hover:border-purple-300 dark:hover:border-purple-500 transition-all duration-200 group"
-                  onClick={() => window.location.href = '/forecasting'}
+                  onClick={() => window.location.href = '/app/forecasting'}
                 >
                   <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-800/70 transition-colors mb-1">
                     <TrendingUp className="h-4 w-4 text-purple-600 dark:text-purple-400" />
@@ -387,7 +414,7 @@ const Dashboard: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="flex flex-col items-center p-3 h-auto bg-slate-50/50 dark:bg-slate-700/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 border-slate-200 dark:border-slate-600 hover:border-indigo-300 dark:hover:border-indigo-500 transition-all duration-200 group"
-                  onClick={() => window.location.href = '/customers'}
+                  onClick={() => window.location.href = '/app/customers'}
                 >
                   <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/70 transition-colors mb-1">
                     <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
@@ -398,7 +425,7 @@ const Dashboard: React.FC = () => {
                 <Button 
                   variant="outline" 
                   className="flex flex-col items-center p-3 h-auto bg-slate-50/50 dark:bg-slate-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 border-slate-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-gray-500 transition-all duration-200 group"
-                  onClick={() => window.location.href = '/reports'}
+                  onClick={() => window.location.href = '/app/reports'}
                 >
                   <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg group-hover:bg-gray-200 dark:group-hover:bg-gray-600 transition-colors mb-1">
                     <Calendar className="h-4 w-4 text-gray-600 dark:text-gray-400" />

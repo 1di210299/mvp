@@ -73,26 +73,26 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   }, []);
 
   const isActive = (path: string) => {
-    if (path === '/dashboard' && location.pathname === '/') return true;
+    if (path === '/app/dashboard' && location.pathname === '/app/dashboard') return true;
     return location.pathname === path;
   };
 
   const inventoryItems = [
-    { path: '/products', label: 'Productos', icon: Package, description: 'Gestión de productos' },
-    { path: '/categories', label: 'Categorías', icon: Layers, description: 'Organización por categorías' },
-    { path: '/suppliers', label: 'Proveedores', icon: Truck, description: 'Gestión de proveedores' },
-    { path: '/inventory', label: 'Stock', icon: BarChart3, description: 'Control de inventario' },
-    { path: '/transactions', label: 'Movimientos', icon: ArrowUpDown, description: 'Historial de movimientos' },
-    { path: '/alerts', label: 'Alertas', icon: AlertTriangle, description: 'Notificaciones de stock' },
-    { path: '/forecasting', label: 'Pronósticos', icon: TrendingUp, description: 'Predicciones AI' },
-    { path: '/reports', label: 'Reportes', icon: FileText, description: 'Informes y análisis' },
-    { path: '/data-import', label: 'Importar Datos', icon: Upload, description: 'Importar desde Excel/CSV' }, // Corregida la ruta
+    { path: '/app/products', label: 'Productos', icon: Package, description: 'Gestión de productos' },
+    { path: '/app/categories', label: 'Categorías', icon: Layers, description: 'Organización por categorías' },
+    { path: '/app/suppliers', label: 'Proveedores', icon: Truck, description: 'Gestión de proveedores' },
+    { path: '/app/inventory', label: 'Stock', icon: BarChart3, description: 'Control de inventario' },
+    { path: '/app/transactions', label: 'Movimientos', icon: ArrowUpDown, description: 'Historial de movimientos' },
+    { path: '/app/alerts', label: 'Alertas', icon: AlertTriangle, description: 'Notificaciones de stock' },
+    { path: '/app/forecasting', label: 'Pronósticos', icon: TrendingUp, description: 'Predicciones AI' },
+    { path: '/app/reports', label: 'Reportes', icon: FileText, description: 'Informes y análisis' },
+    { path: '/app/data-import', label: 'Importar Datos', icon: Upload, description: 'Importar desde Excel/CSV' }, // Corregida la ruta
   ];
 
   const crmItems = [
-    { path: '/customers', label: 'Clientes', icon: Users, description: 'Base de clientes' },
-    { path: '/leads', label: 'Leads', icon: Target, description: 'Prospectos y contactos' },
-    { path: '/opportunities', label: 'Oportunidades', icon: Briefcase, description: 'Negocios en proceso' },
+    { path: '/app/customers', label: 'Clientes', icon: Users, description: 'Base de clientes' },
+    { path: '/app/leads', label: 'Leads', icon: Target, description: 'Prospectos y contactos' },
+    { path: '/app/opportunities', label: 'Oportunidades', icon: Briefcase, description: 'Negocios en proceso' },
   ];
 
   const isInventoryActive = inventoryItems.some(item => location.pathname === item.path);
@@ -103,7 +103,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
       <div className="navbar-container">
         {/* Brand Section */}
         <div className="navbar-brand">
-          <Link to="/dashboard" className="brand-link">
+          <Link to="/app/dashboard" className="brand-link">
             <div className="brand-icon">
               <BarChart3 className="brand-icon-svg" />
             </div>
@@ -115,8 +115,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
         <div className="navbar-nav">
           {/* Dashboard */}
           <Link
-            to="/dashboard"
-            className={`nav-item ${isActive('/dashboard') ? 'active' : ''}`}
+            to="/app/dashboard"
+            className={`nav-item ${isActive('/app/dashboard') ? 'active' : ''}`}
           >
             <div className="nav-icon">
               <Home size={18} />
@@ -218,8 +218,8 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
           {/* Configuraciones */}
           <Link
-            to="/settings"
-            className={`nav-item ${isActive('/settings') ? 'active' : ''}`}
+            to="/app/settings"
+            className={`nav-item ${isActive('/app/settings') ? 'active' : ''}`}
           >
             <div className="nav-icon">
               <Settings size={18} />
@@ -284,7 +284,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                   </div>
                   <div className="user-dropdown-divider"></div>
                   <div className="user-dropdown-actions">
-                    <Link to="/profile" className="user-action">
+                    <Link to="/app/profile" className="user-action">
                       <Settings size={16} />
                       <span>Mi Perfil</span>
                     </Link>
@@ -318,9 +318,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
           <div className="mobile-nav">
             {/* Dashboard Principal */}
             <Link
-              to="/dashboard"
+              to="/app/dashboard"
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`nav-item ${isActive('/dashboard') ? 'active' : ''}`}
+              className={`nav-item ${isActive('/app/dashboard') ? 'active' : ''}`}
             >
               <div className="nav-icon">
                 <Home size={20} />
@@ -378,9 +378,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
             {/* Configuraciones */}
             <Link
-              to="/settings"
+              to="/app/settings"
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`nav-item ${isActive('/settings') ? 'active' : ''}`}
+              className={`nav-item ${isActive('/app/settings') ? 'active' : ''}`}
             >
               <div className="nav-icon">
                 <Settings size={20} />

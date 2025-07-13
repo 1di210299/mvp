@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alerta DataLens</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
+            text-align: center;
+        }
+        .alert-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .severity-low { background-color: #28a745; color: white; }
+        .severity-medium { background-color: #ffc107; color: #212529; }
+        .severity-high { background-color: #fd7e14; color: white; }
+        .severity-critical { background-color: #dc3545; color: white; }
+        .content {
+            background-color: #f8f9fa;
+            padding: 30px;
+            border: 1px solid #dee2e6;
+        }
+        .alert-details {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #667eea;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        .detail-label {
+            font-weight: bold;
+            color: #495057;
+            min-width: 120px;
+        }
+        .detail-value {
+            color: #212529;
+            text-align: right;
+        }
+        .status-values {
+            display: flex;
+            gap: 20px;
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .status-item {
+            flex: 1;
+            text-align: center;
+        }
+        .status-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #495057;
+            display: block;
+        }
+        .status-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+        .forecast-section {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #2196f3;
+        }
+        .action-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            margin: 15px 10px 15px 0;
+            transition: transform 0.2s;
+        }
+        .action-button:hover {
+            transform: translateY(-2px);
+        }
+        .action-button.secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        }
+        .footer {
+            background-color: #343a40;
+            color: white;
+            padding: 20px;
+            border-radius: 0 0 8px 8px;
+            text-align: center;
+            font-size: 12px;
+        }
+        .recommendations-list {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border: 1px solid #ffeaa7;
+        }
+        .recommendations-list ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .critical-actions {
+            background-color: #f8d7da;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border: 1px solid #f5c6cb;
+        }
+        .forecast-chart {
+            background-color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .content { padding: 15px; }
+            .status-values { flex-direction: column; gap: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚨 DataLens - Alerta de Inventario</h1>
+        <div class="alert-badge severity-{{ alert.severity }}">
+            {{ alert.get_severity_display|upper }}
+        </div>
+        {% if alert.source == 'forecast' %}
+        <div style="font-size: 14px; margin-top: 10px;">
+            📈 Alerta basada en predicciones
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="content">
+        <h2>{{ alert.title }}</h2>
+        <p>Se ha detectado una situación que requiere su atención en el sistema de inventario.</p>
+        
+        <div class="alert-details">
+            <div class="detail-row">
+                <span class="detail-label">📦 Producto:</span>
+                <span class="detail-value">{{ product.name|default:"N/A" }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">🏢 Ubicación:</span>
+                <span class="detail-value">{{ location.name|default:"N/A" }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">⚡ Tipo de alerta:</span>
+                <span class="detail-value">{{ rule.get_alert_type_display|default:alert.get_source_display }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">📅 Fecha:</span>
+                <span class="detail-value">{{ alert.created_at|date:"d/m/Y H:i" }}</span>
+            </div>
+            {% if product.sku %}
+            <div class="detail-row">
+                <span class="detail-label">🏷️ SKU:</span>
+                <span class="detail-value">{{ product.sku }}</span>
+            </div>
+            {% endif %}
+            {% if alert.priority_score %}
+            <div class="detail-row">
+                <span class="detail-label">🎯 Prioridad:</span>
+                <span class="detail-value">{{ alert.priority_score }}/100</span>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if alert.current_value is not None or alert.threshold_value is not None %}
+        <div class="status-values">
+            {% if alert.current_value is not None %}
+            <div class="status-item">
+                <span class="status-number">{{ alert.current_value }}</span>
+                <span class="status-label">Valor Actual</span>
+            </div>
+            {% endif %}
+            {% if alert.threshold_value is not None %}
+            <div class="status-item">
+                <span class="status-number">{{ alert.threshold_value }}</span>
+                <span class="status-label">Umbral</span>
+            </div>
+            {% endif %}
+            {% if alert.demand_forecast %}
+            <div class="status-item">
+                <span class="status-number">{{ alert.demand_forecast.predicted_demand }}</span>
+                <span class="status-label">Demanda Proyectada</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Forecasting Information Section -->
+        {% if alert.demand_forecast or alert.reorder_recommendation or alert.forecast_model %}
+        <div class="forecast-section">
+            <h3>📈 Información de Predicciones</h3>
+            
+            {% if alert.demand_forecast %}
+            <div class="forecast-chart">
+                <h4>Pronóstico de Demanda</h4>
+                <div style="display: flex; justify-content: space-around; margin: 15px 0;">
+                    <div>
+                        <strong>{{ alert.demand_forecast.predicted_demand }}</strong><br>
+                        <small>Demanda Esperada</small>
+                    </div>
+                    <div>
+                        <strong>{{ alert.demand_forecast.lower_bound }} - {{ alert.demand_forecast.upper_bound }}</strong><br>
+                        <small>Rango de Confianza</small>
+                    </div>
+                    <div>
+                        <strong>{{ alert.demand_forecast.confidence_level }}%</strong><br>
+                        <small>Nivel de Confianza</small>
+                    </div>
+                </div>
+                <p><small>Fecha del pronóstico: {{ alert.demand_forecast.forecast_date|date:"d/m/Y" }}</small></p>
+            </div>
+            {% endif %}
+
+            {% if alert.reorder_recommendation %}
+            <div style="background-color: white; padding: 15px; border-radius: 6px; margin: 10px 0;">
+                <h4>📋 Recomendación de Reorden</h4>
+                <div style="display: flex; justify-content: space-around; margin: 15px 0;">
+                    <div>
+                        <strong>{{ alert.reorder_recommendation.recommended_quantity }}</strong><br>
+                        <small>Cantidad Recomendada</small>
+                    </div>
+                    <div>
+                        <strong>{{ alert.reorder_recommendation.recommended_order_date|date:"d/m/Y" }}</strong><br>
+                        <small>Fecha Recomendada</small>
+                    </div>
+                    <div>
+                        <strong>{{ alert.reorder_recommendation.get_priority_display }}</strong><br>
+                        <small>Prioridad</small>
+                    </div>
+                </div>
+                {% if alert.reorder_recommendation.estimated_cost %}
+                <p><strong>Costo estimado:</strong> S/ {{ alert.reorder_recommendation.estimated_cost }}</p>
+                {% endif %}
+                {% if alert.reorder_recommendation.expected_stockout_date %}
+                <p><strong>⚠️ Agotamiento esperado:</strong> {{ alert.reorder_recommendation.expected_stockout_date|date:"d/m/Y" }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if alert.forecast_model %}
+            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                <small><strong>Modelo utilizado:</strong> {{ alert.forecast_model.name }} ({{ alert.forecast_model.get_model_type_display }})</small>
+                {% if alert.forecast_model.accuracy_score %}
+                <br><small><strong>Precisión del modelo:</strong> {{ alert.forecast_model.accuracy_score|floatformat:1 }}%</small>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div style="background-color: white; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 3px solid #dc3545;">
+            <strong>Descripción:</strong><br>
+            {{ alert.message }}
+        </div>
+
+        <!-- Context Data -->
+        {% if alert.context_data %}
+        <div style="background-color: #e9ecef; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            <strong>📊 Información Adicional:</strong><br>
+            {% for key, value in alert.context_data.items %}
+                <div style="margin: 5px 0;">
+                    <strong>{{ key|title }}:</strong> {{ value }}
+                </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Recommended Actions -->
+        {% if alert.recommended_actions %}
+        <div class="recommendations-list">
+            <strong>🎯 Acciones Recomendadas:</strong>
+            <ul>
+                {% for action in alert.get_recommended_actions_display %}
+                <li>{{ action }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- Type-specific recommendations -->
+        {% if rule.alert_type == 'low_stock' or alert.severity == 'critical' %}
+        <div class="{% if alert.severity == 'critical' %}critical-actions{% else %}recommendations-list{% endif %}">
+            <strong>{% if alert.severity == 'critical' %}🚨 Acciones Urgentes{% else %}⚠️ Recomendaciones{% endif %}:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px;">
+                {% if rule.alert_type == 'low_stock' %}
+                <li>Revisar el inventario físico del producto</li>
+                <li>Considerar realizar un pedido de reposición inmediato</li>
+                <li>Verificar la demanda reciente y proyectada del producto</li>
+                <li>Evaluar proveedores alternativos si es necesario</li>
+                {% if alert.reorder_recommendation %}
+                <li>Seguir la recomendación de reorden del sistema</li>
+                {% endif %}
+                {% elif rule.alert_type == 'expiration' %}
+                <li>Implementar estrategia FIFO (First In, First Out)</li>
+                <li>Considerar promociones para productos próximos a vencer</li>
+                <li>Revisar política de rotación de inventario</li>
+                <li>Contactar clientes para ofertas especiales</li>
+                {% elif rule.alert_type == 'high_demand' %}
+                <li>Preparar inventario adicional para la demanda proyectada</li>
+                <li>Revisar capacidad de producción o compra</li>
+                <li>Coordinar con proveedores para entregas urgentes</li>
+                <li>Considerar ajustar precios según la demanda</li>
+                {% elif rule.alert_type == 'negative_stock' %}
+                <li><strong>URGENTE:</strong> Corregir el stock negativo inmediatamente</li>
+                <li>Realizar un conteo físico del inventario</li>
+                <li>Investigar las transacciones recientes</li>
+                <li>Actualizar el sistema con los valores correctos</li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div style="text-align: center; margin: 25px 0;">
+            <a href="{{ frontend_url }}/app/alerts" class="action-button">
+                Ver Alertas en el Sistema
+            </a>
+            <a href="{{ frontend_url }}/app/inventory" class="action-button">
+                Revisar Inventario
+            </a>
+            {% if alert.demand_forecast or alert.reorder_recommendation %}
+            <a href="{{ frontend_url }}/app/forecasting" class="action-button secondary">
+                Ver Predicciones
+            </a>
+            {% endif %}
+        </div>
+
+        <div style="background-color: #e9ecef; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <strong>Información de la empresa:</strong><br>
+            {{ company.name }}<br>
+            {% if company.email %}Email: {{ company.email }}{% endif %}
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>Este es un mensaje automático del sistema DataLens de {{ company.name }}.</p>
+        <p>Para cambiar sus preferencias de notificación, visite la configuración de su cuenta.</p>
+        <p>© {% now "Y" %} DataLens. Todos los derechos reservados.</p>
+    </div>
+</body>
+</html>

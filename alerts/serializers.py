@@ -15,16 +15,23 @@ class AlertRuleSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'alert_type', 'threshold_value',
             'threshold_percentage', 'days_before_expiration', 'send_email',
-            'send_notification', 'frequency', 'additional_emails', 'is_active',
-            'created_at', 'updated_at', 'recipients', 'categories', 'products',
-            'locations', 'recipients_data', 'categories_data', 'products_data',
-            'locations_data'
+            'send_whatsapp', 'send_notification', 'frequency', 'additional_emails', 
+            'additional_phones', 'is_active', 'created_at', 'updated_at', 
+            'recipients', 'categories', 'products', 'locations', 'recipients_data', 
+            'categories_data', 'products_data', 'locations_data'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_recipients_data(self, obj):
         return [
-            {'id': user.id, 'full_name': user.get_full_name(), 'email': user.email}
+            {
+                'id': user.id, 
+                'full_name': user.get_full_name(), 
+                'email': user.email,
+                'phone': user.phone,
+                'email_notifications': user.email_notifications,
+                'whatsapp_notifications': user.whatsapp_notifications
+            }
             for user in obj.recipients.all()
         ]
     
@@ -60,6 +67,8 @@ class AlertSerializer(serializers.ModelSerializer):
     rule_data = serializers.SerializerMethodField()
     acknowledged_by_data = serializers.SerializerMethodField()
     resolved_by_data = serializers.SerializerMethodField()
+    whatsapp_message = serializers.SerializerMethodField()
+    rule_name = serializers.CharField(source='rule.name', read_only=True)
     
     class Meta:
         model = Alert
@@ -68,11 +77,12 @@ class AlertSerializer(serializers.ModelSerializer):
             'threshold_value', 'context_data', 'created_at', 'acknowledged_at',
             'resolved_at', 'product', 'location', 'rule', 'acknowledged_by',
             'resolved_by', 'product_data', 'location_data', 'rule_data',
-            'acknowledged_by_data', 'resolved_by_data'
+            'acknowledged_by_data', 'resolved_by_data', 'whatsapp_message',
+            'rule_name'
         ]
         read_only_fields = [
             'id', 'created_at', 'acknowledged_at', 'resolved_at',
-            'acknowledged_by', 'resolved_by'
+            'acknowledged_by', 'resolved_by', 'dismissed_by'
         ]
     
     def get_product_data(self, obj):
@@ -116,19 +126,24 @@ class AlertSerializer(serializers.ModelSerializer):
                 'full_name': obj.resolved_by.get_full_name()
             }
         return None
+    
+    def get_whatsapp_message(self, obj):
+        """Obtener el mensaje optimizado para WhatsApp"""
+        return obj.get_whatsapp_message()
 
 
 class NotificationLogSerializer(serializers.ModelSerializer):
     alert_data = serializers.SerializerMethodField()
+    alert_title = serializers.CharField(source='alert.title', read_only=True)
     
     class Meta:
         model = NotificationLog
         fields = [
             'id', 'notification_type', 'recipient', 'subject', 'content',
             'status', 'sent_at', 'delivered_at', 'error_message',
-            'created_at', 'updated_at', 'alert', 'alert_data'
+            'whatsapp_message_id', 'created_at', 'updated_at', 'alert', 'alert_data'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'sent_at']
     
     def get_alert_data(self, obj):
         return {
@@ -146,9 +161,20 @@ class AlertDashboardSerializer(serializers.Serializer):
     resolved_alerts = serializers.IntegerField()
     alerts_by_severity = serializers.DictField()
     alerts_by_type = serializers.DictField()
+    notification_stats = serializers.DictField()
     recent_alerts = AlertSerializer(many=True)
     alert_trends = serializers.DictField()
 
 
 class AlertActionSerializer(serializers.Serializer):
     note = serializers.CharField(required=False, allow_blank=True)
+
+
+class NotificationTestSerializer(serializers.Serializer):
+    """Serializer para probar notificaciones"""
+    notification_type = serializers.ChoiceField(
+        choices=['email', 'whatsapp', 'all'],
+        default='all'
+    )
+    test_phone = serializers.CharField(required=False, allow_blank=True)
+    test_email = serializers.EmailField(required=False, allow_blank=True)

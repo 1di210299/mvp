@@ -35,6 +35,10 @@ const MarketingPage: React.FC = () => {
     navigate('/login');
   };
 
+  const handleDashboardRedirect = () => {
+    navigate('/app/dashboard');
+  };
+
   const handleDemoRequest = () => {
     setShowDemoModal(true);
   };

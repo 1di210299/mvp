@@ -645,7 +645,7 @@ export const Phone: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -661,7 +661,7 @@ export const MapPin: React.FC<IconProps> = ({ className = '', size = 20, color }
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -678,7 +678,7 @@ export const Download: React.FC<IconProps> = ({ className = '', size = 20, color
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -696,7 +696,7 @@ export const Building2: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -717,7 +717,7 @@ export const ArrowUp: React.FC<IconProps> = ({ className = '', size = 20, color 
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #10b981)'}
     strokeWidth="2"
@@ -734,7 +734,7 @@ export const ArrowDown: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #ef4444)'}
     strokeWidth="2"
@@ -751,7 +751,7 @@ export const ArrowRight: React.FC<IconProps> = ({ className = '', size = 20, col
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -768,7 +768,7 @@ export const Filter: React.FC<IconProps> = ({ className = '', size = 20, color }
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -929,7 +929,7 @@ export const Truck: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -948,7 +948,7 @@ export const Users: React.FC<IconProps> = ({ className = '', size = 20, color })
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -967,7 +967,7 @@ export const Warehouse: React.FC<IconProps> = ({ className = '', size = 20, colo
   <svg
     width={size}
     height={size}
-    viewBox="0 0 24 24"
+    viewBox="0 24 24"
     fill="none"
     stroke={color || 'var(--icon-stroke, #374151)'}
     strokeWidth="2"
@@ -1162,5 +1162,23 @@ export const PieChart: React.FC<IconProps> = ({ className = '', size = 20, color
   >
     <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
     <path d="M22 12A10 10 0 0 0 12 2v10z" />
+  </svg>
+);
+
+export const ExternalLink: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #374151)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg external-link-icon ${className}`}
+  >
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    <polyline points="15,3 21,3 21,9" />
+    <line x1="10" y1="14" x2="21" y2="3" />
   </svg>
 );

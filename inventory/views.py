@@ -66,12 +66,31 @@ class ProductViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         try:
-            # Obtener todos los productos activos sin filtrar por empresa
+            user = self.request.user
+            
+            # Si es superadmin, mostrar TODOS los productos sin filtro de empresa
+            if hasattr(user, 'role') and user.role == 'superadmin':
+                return Product.objects.filter(
+                    is_active=True
+                ).select_related('category', 'supplier').order_by('name')
+            
+            # Para otros usuarios, filtrar por empresa si tienen una
+            if hasattr(user, 'company') and user.company:
+                return Product.objects.filter(
+                    is_active=True,
+                    company=user.company
+                ).select_related('category', 'supplier').order_by('name')
+            
+            # Fallback: mostrar todos los productos si no hay empresa definida
             return Product.objects.filter(
                 is_active=True
             ).select_related('category', 'supplier').order_by('name')
+            
         except Exception as e:
             print(f"Error in ProductViewSet.get_queryset: {e}")
+            # En caso de error, superadmin ve todo, otros ven productos sin empresa
+            if hasattr(self.request.user, 'role') and self.request.user.role == 'superadmin':
+                return Product.objects.filter(is_active=True)
             return Product.objects.none()
     
     def list(self, request, *args, **kwargs):

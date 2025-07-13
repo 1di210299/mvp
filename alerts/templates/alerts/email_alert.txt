@@ -1,0 +1,100 @@
+ALERTA DATALENS - {{ alert.get_severity_display|upper }}
+=========================================
+{% if alert.source == 'forecast' %}📈 ALERTA BASADA EN PREDICCIONES{% endif %}
+
+{{ alert.title }}
+
+Se ha detectado una situación que requiere su atención inmediata en el sistema de inventario.
+
+DETALLES DE LA ALERTA:
+- Producto: {{ product.name|default:"N/A" }}
+- Ubicación: {{ location.name|default:"N/A" }}
+- Tipo de alerta: {{ rule.get_alert_type_display|default:alert.get_source_display }}
+- Fecha: {{ alert.created_at|date:"d/m/Y H:i" }}
+{% if product.sku %}- SKU: {{ product.sku }}{% endif %}
+{% if alert.priority_score %}- Prioridad: {{ alert.priority_score }}/100{% endif %}
+
+VALORES:
+{% if alert.current_value is not None %}VALOR ACTUAL: {{ alert.current_value }}{% endif %}
+{% if alert.threshold_value is not None %}VALOR UMBRAL: {{ alert.threshold_value }}{% endif %}
+{% if alert.demand_forecast %}DEMANDA PROYECTADA: {{ alert.demand_forecast.predicted_demand }}{% endif %}
+
+{% if alert.demand_forecast or alert.reorder_recommendation or alert.forecast_model %}
+INFORMACIÓN DE PREDICCIONES:
+{% if alert.demand_forecast %}
+- Pronóstico de Demanda: {{ alert.demand_forecast.predicted_demand }} ({{ alert.demand_forecast.forecast_date|date:"d/m/Y" }})
+- Rango de Confianza: {{ alert.demand_forecast.lower_bound }} - {{ alert.demand_forecast.upper_bound }}
+- Nivel de Confianza: {{ alert.demand_forecast.confidence_level }}%
+{% endif %}
+
+{% if alert.reorder_recommendation %}
+- Recomendación de Reorden: {{ alert.reorder_recommendation.recommended_quantity }} unidades
+- Fecha Recomendada: {{ alert.reorder_recommendation.recommended_order_date|date:"d/m/Y" }}
+- Prioridad: {{ alert.reorder_recommendation.get_priority_display }}
+{% if alert.reorder_recommendation.estimated_cost %}- Costo Estimado: S/ {{ alert.reorder_recommendation.estimated_cost }}{% endif %}
+{% if alert.reorder_recommendation.expected_stockout_date %}- Agotamiento Esperado: {{ alert.reorder_recommendation.expected_stockout_date|date:"d/m/Y" }}{% endif %}
+{% endif %}
+
+{% if alert.forecast_model %}
+- Modelo Utilizado: {{ alert.forecast_model.name }} ({{ alert.forecast_model.get_model_type_display }})
+{% if alert.forecast_model.accuracy_score %}- Precisión del Modelo: {{ alert.forecast_model.accuracy_score|floatformat:1 }}%{% endif %}
+{% endif %}
+{% endif %}
+
+DESCRIPCIÓN:
+{{ alert.message }}
+
+{% if alert.context_data %}
+INFORMACIÓN ADICIONAL:
+{% for key, value in alert.context_data.items %}
+- {{ key|title }}: {{ value }}
+{% endfor %}
+{% endif %}
+
+{% if alert.recommended_actions %}
+ACCIONES RECOMENDADAS:
+{% for action in alert.get_recommended_actions_display %}
+- {{ action }}
+{% endfor %}
+{% endif %}
+
+{% if rule.alert_type == 'low_stock' or alert.severity == 'critical' %}
+{% if alert.severity == 'critical' %}ACCIONES URGENTES:{% else %}RECOMENDACIONES:{% endif %}
+{% if rule.alert_type == 'low_stock' %}
+- Revisar el inventario físico del producto
+- Considerar realizar un pedido de reposición inmediato
+- Verificar la demanda reciente y proyectada del producto
+- Evaluar proveedores alternativos si es necesario
+{% if alert.reorder_recommendation %}- Seguir la recomendación de reorden del sistema{% endif %}
+{% elif rule.alert_type == 'expiration' %}
+- Implementar estrategia FIFO (First In, First Out)
+- Considerar promociones para productos próximos a vencer
+- Revisar política de rotación de inventario
+- Contactar clientes para ofertas especiales
+{% elif rule.alert_type == 'high_demand' %}
+- Preparar inventario adicional para la demanda proyectada
+- Revisar capacidad de producción o compra
+- Coordinar con proveedores para entregas urgentes
+- Considerar ajustar precios según la demanda
+{% elif rule.alert_type == 'negative_stock' %}
+- URGENTE: Corregir el stock negativo inmediatamente
+- Realizar un conteo físico del inventario
+- Investigar las transacciones recientes
+- Actualizar el sistema con los valores correctos
+{% endif %}
+{% endif %}
+
+ENLACES ÚTILES:
+- Ver Alertas: {{ frontend_url }}/app/alerts
+- Revisar Inventario: {{ frontend_url }}/app/inventory
+{% if alert.demand_forecast or alert.reorder_recommendation %}- Ver Predicciones: {{ frontend_url }}/app/forecasting{% endif %}
+
+INFORMACIÓN DE LA EMPRESA:
+{{ company.name }}
+{% if company.email %}Email: {{ company.email }}{% endif %}
+
+---
+Este es un mensaje automático del sistema DataLens de {{ company.name }}.
+Para cambiar sus preferencias de notificación, visite la configuración de su cuenta.
+
+© {% now "Y" %} DataLens. Todos los derechos reservados.

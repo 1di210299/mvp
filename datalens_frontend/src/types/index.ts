@@ -11,6 +11,8 @@ export interface User {
   position?: string;
   department?: string;
   is_active: boolean;
+  email_notifications?: boolean;
+  whatsapp_notifications?: boolean;
   created_at: string;
 }
 
@@ -63,6 +65,7 @@ export interface Product {
   track_batches: boolean;
   has_expiration: boolean;
   shelf_life_days?: number;
+  stock?: number;
   current_stock?: number;
   stock_value?: number;
   is_active: boolean;
@@ -116,9 +119,9 @@ export interface Location {
 
 export interface Transaction {
   id: number;
-  product: Product; // Always a complete Product object for display purposes
-  warehouse?: number | Warehouse; // Puede ser ID o objeto completo
-  location?: number; // Para ubicaciones específicas
+  product: Product;
+  warehouse?: number | Warehouse;
+  location?: number;
   transaction_type: 'IN' | 'OUT' | 'PURCHASE' | 'SALE' | 'TRANSFER' | 'ADJUSTMENT' | 'RETURN';
   quantity: number;
   unit_cost?: number;
@@ -128,7 +131,80 @@ export interface Transaction {
   created_at: string;
 }
 
-// Tipos para alertas
+// Tipos para forecasting
+export interface ForecastModel {
+  id: number;
+  name: string;
+  model_type: 'prophet' | 'arima' | 'linear_regression' | 'random_forest' | 'lstm';
+  status: 'training' | 'active' | 'deprecated' | 'failed';
+  accuracy_score?: number;
+  mae?: number;
+  mape?: number;
+  rmse?: number;
+  r2_score?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DemandForecast {
+  id: number;
+  product: number;
+  forecast_date: string;
+  forecast_type: 'daily' | 'weekly' | 'monthly';
+  predicted_demand: number;
+  lower_bound: number;
+  upper_bound: number;
+  confidence_level: number;
+  seasonality_factor?: number;
+  trend_factor?: number;
+  external_factors?: Record<string, any>;
+  created_at: string;
+}
+
+export interface ReorderRecommendation {
+  id: number;
+  product: number;
+  recommended_quantity: number;
+  current_stock: number;
+  projected_demand: number;
+  recommended_order_date: string;
+  expected_stockout_date?: string;
+  lead_time_days: number;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'pending' | 'approved' | 'ordered' | 'received' | 'cancelled';
+  estimated_cost: number;
+  potential_lost_sales?: number;
+  notes?: string;
+  created_at: string;
+}
+
+// Tipos para alertas mejoradas
+export interface AlertRule {
+  id: number;
+  name: string;
+  description?: string;
+  alert_type: 'low_stock' | 'high_stock' | 'expiration' | 'expired' | 'high_demand' | 
+              'demand_vs_stock' | 'stockout_risk' | 'reorder_urgent' | 'forecast_accuracy' | 
+              'seasonal_demand' | 'no_movement' | 'negative_stock' | 'inventory_value' | 
+              'supplier_delay' | 'abc_analysis';
+  threshold_value?: number;
+  threshold_percentage?: number;
+  days_before_expiration?: number;
+  forecast_horizon_days?: number;
+  accuracy_threshold?: number;
+  seasonal_factor_threshold?: number;
+  send_email: boolean;
+  send_whatsapp: boolean;
+  send_notification: boolean;
+  frequency: 'immediate' | 'daily' | 'weekly' | 'monthly';
+  recipients: User[];
+  additional_emails?: string;
+  additional_phones?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Alert {
   id: number;
   title: string;
@@ -148,8 +224,12 @@ export interface AlertData {
   message: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   status: 'active' | 'acknowledged' | 'resolved' | 'dismissed';
-  current_value: number;
-  threshold_value: number;
+  source: 'rule' | 'system' | 'forecast' | 'manual';
+  current_value?: number;
+  threshold_value?: number;
+  priority_score?: number;
+  context_data?: Record<string, any>;
+  recommended_actions?: string[];
   created_at: string;
   acknowledged_at?: string;
   resolved_at?: string;
@@ -166,6 +246,30 @@ export interface AlertData {
     id: number;
     name: string;
     alert_type: string;
+  };
+  // Forecasting related fields
+  demand_forecast?: {
+    id: number;
+    predicted_demand: number;
+    lower_bound: number;
+    upper_bound: number;
+    confidence_level: number;
+    forecast_date: string;
+  };
+  reorder_recommendation?: {
+    id: number;
+    recommended_quantity: number;
+    recommended_order_date: string;
+    priority: string;
+    estimated_cost?: number;
+    expected_stockout_date?: string;
+    lead_time_days?: number;
+  };
+  forecast_model?: {
+    id: number;
+    name: string;
+    model_type: string;
+    accuracy_score?: number;
   };
 }
 
@@ -207,6 +311,7 @@ export interface DashboardData {
   resolved_alerts: number;
   alerts_by_severity: Record<string, number>;
   alerts_by_type: Record<string, number>;
+  notification_stats?: Record<string, number>;
   recent_alerts: AlertData[];
   alert_trends: Record<string, number>;
 }
@@ -214,12 +319,15 @@ export interface DashboardData {
 export interface NotificationLog {
   id: number;
   alert: AlertData;
-  channel: 'email' | 'sms' | 'push' | 'webhook';
+  notification_type: 'email' | 'whatsapp' | 'in_app' | 'sms' | 'webhook';
   recipient: string;
+  subject?: string;
+  content: string;
   status: 'pending' | 'sent' | 'failed' | 'delivered';
   sent_at?: string;
   delivered_at?: string;
   error_message?: string;
+  whatsapp_message_id?: string;
   created_at: string;
 }
 
@@ -247,4 +355,29 @@ export interface ApiResponse<T> {
 export interface ApiError {
   message: string;
   errors?: Record<string, string[]>;
+}
+
+// Tipos para filtros de alertas
+export interface AlertFilters {
+  severity?: string;
+  status?: string;
+  alert_type?: string;
+  source?: string;
+  product_id?: number;
+  location_id?: number;
+  created_after?: string;
+  created_before?: string;
+}
+
+// Tipos para métricas de alertas
+export interface AlertMetrics {
+  total_alerts: number;
+  active_alerts: number;
+  resolved_alerts: number;
+  critical_alerts: number;
+  avg_resolution_time: number;
+  alerts_by_type: Record<string, number>;
+  alerts_by_severity: Record<string, number>;
+  forecasting_alerts: number;
+  notification_success_rate: number;
 }
