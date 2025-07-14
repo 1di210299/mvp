@@ -54,7 +54,13 @@ export const Select: React.FC<SelectProps> = ({ value, onValueChange, children }
   }, [isOpen]);
 
   return (
-    <div className="relative select-container">
+    <div 
+      className="relative select-container" 
+      style={{ 
+        zIndex: isOpen ? 999998 : 'auto',
+        overflow: 'visible'
+      }}
+    >
       {React.Children.map(children, child => {
         if (React.isValidElement(child)) {
           if (child.type === SelectTrigger) {
@@ -67,7 +73,8 @@ export const Select: React.FC<SelectProps> = ({ value, onValueChange, children }
           if (child.type === SelectContent && isOpen) {
             return React.cloneElement(child as any, {
               onValueChange: handleValueChange,
-              selectedValue
+              selectedValue,
+              key: 'select-content' // Forzar re-render cuando se abre
             });
           }
         }
@@ -94,7 +101,10 @@ export const SelectTrigger: React.FC<SelectTriggerProps & { onClick?: () => void
         hover:border-indigo-300 hover:bg-white hover:shadow-md
         focus:outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400 focus:bg-white
         disabled:cursor-not-allowed disabled:opacity-50
-        ${isOpen ? 'border-indigo-400 bg-white shadow-md ring-4 ring-indigo-100' : ''}
+        dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200
+        dark:hover:border-indigo-400 dark:hover:bg-gray-600 dark:hover:shadow-md
+        dark:focus:ring-indigo-500/20 dark:focus:border-indigo-400 dark:focus:bg-gray-600
+        ${isOpen ? 'border-indigo-400 bg-white shadow-md ring-4 ring-indigo-100 dark:border-indigo-400 dark:bg-gray-600 dark:ring-indigo-500/20' : ''}
         ${className}
       `}
       onClick={onClick}
@@ -118,15 +128,75 @@ export const SelectContent: React.FC<SelectContentProps & {
   onValueChange?: (value: string) => void;
   selectedValue?: string;
 }> = ({ children, onValueChange, selectedValue, className = '' }) => {
+  const [position, setPosition] = React.useState<'bottom' | 'top'>('bottom');
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const [triggerRect, setTriggerRect] = React.useState<DOMRect | null>(null);
+  
+  React.useEffect(() => {
+    // Recalcular la posición del trigger cada vez que se abre el dropdown
+    const updateTriggerPosition = () => {
+      const triggerElement = contentRef.current?.parentElement?.querySelector('button');
+      if (triggerElement) {
+        const rect = triggerElement.getBoundingClientRect();
+        setTriggerRect(rect);
+        
+        const viewportHeight = window.innerHeight;
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        
+        // Si hay más espacio arriba que abajo y no hay suficiente espacio abajo
+        if (spaceBelow < 300 && spaceAbove > spaceBelow) {
+          setPosition('top');
+        } else {
+          setPosition('bottom');
+        }
+      }
+    };
+
+    // Actualizar inmediatamente
+    updateTriggerPosition();
+    
+    // También actualizar cuando se haga scroll o resize
+    window.addEventListener('scroll', updateTriggerPosition);
+    window.addEventListener('resize', updateTriggerPosition);
+    
+    return () => {
+      window.removeEventListener('scroll', updateTriggerPosition);
+      window.removeEventListener('resize', updateTriggerPosition);
+    };
+  }, []);
+
+  // CORREGIDO: Calcular posición fija basada en la posición del trigger
+  const getFixedPosition = () => {
+    if (!triggerRect) return {};
+    
+    return {
+      position: 'fixed' as const,
+      top: position === 'bottom' ? triggerRect.bottom + 4 : 'auto',
+      bottom: position === 'top' ? window.innerHeight - triggerRect.top + 4 : 'auto',
+      left: triggerRect.left,
+      width: triggerRect.width,
+      zIndex: 999999,
+      maxHeight: position === 'top' ? 
+        Math.min(triggerRect.top - 16, 300) + 'px' : 
+        Math.min(window.innerHeight - triggerRect.bottom - 16, 300) + 'px'
+    };
+  };
+
   return (
-    <div className={`
-      absolute top-full left-0 z-50 w-full min-w-[12rem] 
-      mt-2 overflow-hidden rounded-xl border-2 border-slate-200 
-      bg-white shadow-2xl backdrop-blur-sm
-      animate-in fade-in-0 zoom-in-95 duration-200
-      ${className}
-    `}>
-      <div className="max-h-[300px] overflow-auto p-2">
+    <div 
+      ref={contentRef}
+      className={`
+        min-w-[12rem] 
+        overflow-visible rounded-xl border-2 border-slate-200 
+        bg-white shadow-2xl backdrop-blur-sm
+        ${position === 'bottom' ? 'select-content-bottom' : 'select-content-top'}
+        dark:border-gray-600 dark:bg-gray-700 dark:shadow-2xl
+        ${className}
+      `}
+      style={getFixedPosition()}
+    >
+      <div className="select-content-scroll max-h-full p-2" style={{ maxHeight: 'inherit' }}>
         {React.Children.map(children, child => {
           if (React.isValidElement(child) && child.type === SelectItem) {
             return React.cloneElement(child as any, {
@@ -153,7 +223,9 @@ export const SelectItem: React.FC<SelectItemProps & {
         transition-all duration-150
         hover:bg-indigo-50 hover:text-indigo-700 hover:shadow-sm
         focus:bg-indigo-50 focus:text-indigo-700 focus:outline-none
-        ${isSelected ? 'bg-indigo-100 text-indigo-800 shadow-sm' : ''}
+        dark:text-gray-200 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300
+        dark:focus:bg-indigo-900/30 dark:focus:text-indigo-300
+        ${isSelected ? 'bg-indigo-100 text-indigo-800 shadow-sm dark:bg-indigo-900/40 dark:text-indigo-200' : ''}
         ${className}
       `}
       onClick={() => onSelect?.(value)}
@@ -177,5 +249,5 @@ export const SelectItem: React.FC<SelectItemProps & {
 };
 
 export const SelectValue: React.FC<SelectValueProps> = ({ placeholder }) => {
-  return <span className="text-slate-500 font-normal">{placeholder}</span>;
+  return <span className="text-slate-500 font-normal dark:text-gray-400">{placeholder}</span>;
 };

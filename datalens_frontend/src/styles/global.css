@@ -568,6 +568,25 @@ code {
   overflow: hidden;
 }
 
+/* Permitir dropdowns visibles en cards de filtros */
+.card[style*="overflow: visible"] {
+  overflow: visible !important;
+}
+
+/* Asegurar que los dropdowns se muestren por encima de otros elementos */
+.select-container {
+  position: relative;
+}
+
+.select-container[style*="z-index: 9999"] {
+  z-index: 9999 !important;
+}
+
+/* Mejorar el posicionamiento de los dropdowns */
+.select-container div[class*="z-[9999]"] {
+  z-index: 9999 !important;
+}
+
 .card::before {
   content: '';
   position: absolute;
@@ -802,6 +821,105 @@ code {
 
 .dark .modal-overlay {
   background: rgba(0, 0, 0, 0.7);
+}
+
+/* Diálogos específicos con soporte para dark mode */
+.dialog-content {
+  background: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .dialog-content {
+  background: #1e293b !important;
+  border-color: #374151 !important;
+  color: #f8fafc !important;
+}
+
+/* Inputs dentro de diálogos en modo oscuro */
+.dark .dialog-content input {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #f8fafc !important;
+}
+
+.dark .dialog-content input:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+.dark .dialog-content textarea {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #f8fafc !important;
+}
+
+.dark .dialog-content textarea:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+.dark .dialog-content label {
+  color: #cbd5e1 !important;
+}
+
+/* Placeholders en modo oscuro */
+.dark .dialog-content input::placeholder,
+.dark .dialog-content textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Botones dentro de diálogos en modo oscuro */
+.dark .dialog-content .btn-secondary,
+.dark .dialog-content button[class*="outline"] {
+  background: #475569 !important;
+  border-color: #64748b !important;
+  color: #f8fafc !important;
+}
+
+.dark .dialog-content .btn-secondary:hover,
+.dark .dialog-content button[class*="outline"]:hover {
+  background: #64748b !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Checkbox en modo oscuro */
+.dark .dialog-content input[type="checkbox"] {
+  background: #334155 !important;
+  border-color: #475569 !important;
+}
+
+.dark .dialog-content input[type="checkbox"]:checked {
+  background: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+}
+
+/* Select elements dentro de diálogos en modo oscuro */
+.dark .dialog-content button[class*="select"],
+.dark .dialog-content div[class*="select"] button {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  color: #f8fafc !important;
+}
+
+.dark .dialog-content button[class*="select"]:hover,
+.dark .dialog-content div[class*="select"] button:hover {
+  background: #475569 !important;
+  border-color: #64748b !important;
+}
+
+.dark .dialog-content div[class*="select"][class*="content"] {
+  background: #334155 !important;
+  border-color: #475569 !important;
+}
+
+.dark .dialog-content div[class*="select"] div[class*="item"] {
+  color: #f8fafc !important;
+}
+
+.dark .dialog-content div[class*="select"] div[class*="item"]:hover {
+  background: #475569 !important;
+  color: #f8fafc !important;
 }
 
 .modal {

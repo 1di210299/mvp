@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -15,6 +15,7 @@ import {
   SelectValue,
   Input
 } from '../ui';
+import { IntelligentBriefing } from './IntelligentBriefing';
 import {
   BarChart3,
   Package,
@@ -54,10 +55,12 @@ import {
 } from 'recharts';
 import {
   inventoryService,
-  alertService
+  alertService,
+  filterService
 } from '../../services/api';
 import { forecastingService } from '../../services/forecastingService';
 import { Transaction, Product, AlertData } from '../../types';
+import { useTheme } from '../../contexts/ThemeContext';
 import './Dashboard.css';
 
 interface ExtendedDashboardStats {
@@ -67,6 +70,12 @@ interface ExtendedDashboardStats {
   total_transactions_today: number;
   active_customers: number;
   pipeline_value: number;
+  // NUEVO: Métricas de ventas y compras
+  sales_value: number;
+  sales_count: number;
+  purchases_value: number;
+  purchases_count: number;
+  net_profit: number;
 }
 
 interface DashboardAlert {
@@ -105,7 +114,26 @@ interface DashboardData {
   };
 }
 
+// **NUEVO: Hook personalizado para debounce**
+const useDebounce = (value: any, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 const Dashboard: React.FC = () => {
+  const { actualTheme } = useTheme();
+  const isDarkMode = actualTheme === 'dark';
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -124,237 +152,313 @@ const Dashboard: React.FC = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [originalData, setOriginalData] = useState<DashboardData | null>(null);
+  const [filterOptions, setFilterOptions] = useState({
+    categories: [],
+    locations: [],
+    warehouses: [],
+    statuses: [],
+    transaction_types: [],
+    suppliers: []
+  });
 
+  // **NUEVO: Cache para evitar llamadas duplicadas**
+  const [dataCache, setDataCache] = useState<Map<string, {data: DashboardData, timestamp: number}>>(new Map());
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
+
+  // **NUEVO: Debounce para filtros**
+  const debouncedFilters = useDebounce(filters, 500);
+
+  // **NUEVO: Memoizar parámetros de filtros para backend**
+  const backendFilters = useMemo(() => {
+    const today = new Date();
+    let startDate = '', endDate = '';
+
+    switch (debouncedFilters.dateRange) {
+      case '7days':
+        startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        endDate = today.toISOString().split('T')[0];
+        break;
+      case '30days':
+        startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        endDate = today.toISOString().split('T')[0];
+        break;
+      case '90days':
+        startDate = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        endDate = today.toISOString().split('T')[0];
+        break;
+      case 'all':
+        // Para "all", no enviar filtros de fecha al backend
+        startDate = '';
+        endDate = '';
+        break;
+      case 'custom':
+        if (debouncedFilters.customStartDate && debouncedFilters.customEndDate) {
+          startDate = debouncedFilters.customStartDate;
+          endDate = debouncedFilters.customEndDate;
+        } else {
+          // Si no hay fechas personalizadas, usar últimos 7 días por defecto
+          startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          endDate = today.toISOString().split('T')[0];
+        }
+        break;
+      default:
+        startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        endDate = today.toISOString().split('T')[0];
+    }
+
+    return {
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+      category: debouncedFilters.category !== 'all' ? debouncedFilters.category : undefined,
+      warehouse: debouncedFilters.warehouse !== 'all' ? debouncedFilters.warehouse : undefined,
+      status: debouncedFilters.status !== 'all' ? debouncedFilters.status : undefined,
+    };
+  }, [debouncedFilters]);
+
+  // **OPTIMIZADO: useEffect inicial solo para filtros**
   useEffect(() => {
+    if (!optionsLoaded) {
+      loadFilterOptions();
+    }
     loadDashboardData();
   }, []);
 
-  const loadDashboardData = async () => {
+  // **OPTIMIZADO: useCallback para funciones que se usan en dependencias**
+  const loadFilterOptions = useCallback(async () => {
+    if (optionsLoaded) return; // Evitar cargas duplicadas
+
     try {
+      console.log('📊 Dashboard: Iniciando carga de opciones de filtros...');
+      const options = await filterService.getFilterOptions();
+      console.log('📊 Dashboard: Opciones recibidas:', options);
+      
+      const safeOptions = {
+        categories: Array.isArray(options?.categories) ? options.categories : [],
+        locations: Array.isArray(options?.locations) ? options.locations : [],
+        warehouses: Array.isArray(options?.warehouses) ? options.warehouses : [],
+        statuses: Array.isArray(options?.statuses) ? options.statuses : [],
+        transaction_types: Array.isArray(options?.transaction_types) ? options.transaction_types : [],
+        suppliers: Array.isArray(options?.suppliers) ? options.suppliers : []
+      };
+      
+      setFilterOptions(safeOptions);
+      setOptionsLoaded(true);
+      console.log('📊 Dashboard: Estado de filtros actualizado con datos seguros');
+    } catch (error) {
+      console.error('❌ Dashboard: Error cargando opciones de filtros:', error);
+      const fallbackOptions = {
+        categories: [],
+        locations: [],
+        warehouses: [],
+        statuses: [],
+        transaction_types: [],
+        suppliers: []
+      };
+      setFilterOptions(fallbackOptions);
+      setOptionsLoaded(true);
+    }
+  }, [optionsLoaded]);
+
+  const loadDashboardData = useCallback(async () => {
+    // **NUEVO: Verificar cache primero (reducir tiempo de cache para filtros de fecha)**
+    const cacheKey = JSON.stringify(backendFilters);
+    const cached = dataCache.get(cacheKey);
+    const now = Date.now();
+    
+    // Reducir tiempo de cache cuando hay filtros aplicados (10 segundos) vs sin filtros (1 minuto)
+    const hasFilters = backendFilters.start_date || backendFilters.end_date || backendFilters.warehouse || backendFilters.category || backendFilters.status;
+    const cacheTimeout = hasFilters ? 10000 : 60000;
+    
+    // Si hay datos en cache y son recientes, usarlos
+    if (cached && (now - cached.timestamp) < cacheTimeout) {
+      console.log(`📊 Dashboard: Usando datos del cache (${cacheTimeout/1000}s timeout)`);
+      setData(cached.data);
+      setOriginalData(cached.data);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      console.log('🔍 Dashboard Principal: Iniciando carga de datos con filtros:', backendFilters);
       setLoading(true);
       setError('');
-      
-      console.log('🔍 Dashboard Principal: Iniciando carga de datos con filtros:', filters);
-      
-      // NUEVO: Construir parámetros de filtro para el backend
-      const filterParams: any = {};
-      
-      // Agregar filtros de fecha
-      if (filters.dateRange && filters.dateRange !== 'all') {
-        const now = new Date();
-        let startDate = new Date();
-        let endDate = new Date();
 
-        switch (filters.dateRange) {
-          case '7days':
-            startDate.setDate(now.getDate() - 7);
-            break;
-          case '30days':
-            startDate.setDate(now.getDate() - 30);
-            break;
-          case '90days':
-            startDate.setDate(now.getDate() - 90);
-            break;
-          case 'custom':
-            if (filters.customStartDate) {
-              startDate = new Date(filters.customStartDate);
-            }
-            if (filters.customEndDate) {
-              endDate = new Date(filters.customEndDate);
-            }
-            break;
-        }
-        
-        filterParams.start_date = startDate.toISOString().split('T')[0];
-        filterParams.end_date = endDate.toISOString().split('T')[0];
-      }
-
-      // Agregar otros filtros
-      if (filters.category && filters.category !== 'all') {
-        filterParams.category = filters.category;
-      }
-      if (filters.warehouse && filters.warehouse !== 'all') {
-        filterParams.warehouse = filters.warehouse;
-      }
-      if (filters.status && filters.status !== 'all') {
-        filterParams.status = filters.status;
-      }
-      if (filters.searchTerm) {
-        filterParams.search = filters.searchTerm;
-      }
-
+      const filterParams = Object.fromEntries(
+        Object.entries(backendFilters).filter(([_, value]) => value !== undefined)
+      );
+      
       console.log('📋 Parámetros de filtro para backend:', filterParams);
-      
-      // Usar servicios de API con autenticación y filtros
-      const [statsRes, alertsRes, forecastsRes, transactionsRes] = await Promise.allSettled([
-        inventoryService.getInventoryDashboard(filterParams).catch(() => {
-          // Fallback con datos mínimos
-          return {
-            total_products: 0,
-            total_value: 0,
-            low_stock_alerts: 0,
-            total_transactions_today: 0,
-            active_customers: 0,
-            pipeline_value: 0
-          };
-        }),
-        // CORREGIDO: Usar getAlertsDashboard para estadísticas y getAlerts para la lista
-        Promise.all([
-          alertService.getAlertsDashboard(filterParams).catch((err) => {
-            console.error('❌ Dashboard Principal: Error en getAlertsDashboard:', err);
-            return { 
-              total_alerts: 0, 
-              active_alerts: 0, 
-              critical_alerts: 0 
-            };
-          }),
-          alertService.getAlerts(filterParams).catch((err) => {
-            console.error('❌ Dashboard Principal: Error en getAlerts:', err);
-            return { results: [] };
-          })
-        ]),
-        inventoryService.getForecasts(filterParams).catch(() => ({ results: [] })),
-        inventoryService.getTransactions(filterParams).catch(() => ({ results: [] }))
+
+      // **OPTIMIZADO: Llamadas paralelas en lugar de secuenciales**
+      const [statsData, alertsDashboard, alertsList, forecasts, transactions] = await Promise.all([
+        inventoryService.getInventoryDashboard(filterParams),
+        alertService.getAlertsDashboard(filterParams),
+        alertService.getAlerts(filterParams),
+        forecastingService.getForecasts(),
+        inventoryService.getTransactions(filterParams)
       ]);
+      
+      // NUEVO: Log para verificar métricas de ventas/compras
+      if (statsData?.sales_value !== undefined || statsData?.purchases_value !== undefined) {
+        console.log('💰 Dashboard: Métricas de ventas/compras recibidas:', {
+          sales_value: statsData.sales_value,
+          sales_count: statsData.sales_count,
+          purchases_value: statsData.purchases_value,
+          purchases_count: statsData.purchases_count,
+          net_profit: statsData.net_profit
+        });
+      }
 
-      // Procesar estadísticas con validación
-      const statsData = statsRes.status === 'fulfilled' ? statsRes.value : {};
       console.log('📊 Dashboard Principal: Stats data:', statsData);
-      
-      // CORREGIDO: Procesar datos de alertas correctamente
-      const [alertsDashboardData, alertsListData] = alertsRes.status === 'fulfilled' ? alertsRes.value : [{}, { results: [] }];
-      console.log('🚨 Dashboard Principal: Alerts dashboard data:', alertsDashboardData);
-      console.log('📋 Dashboard Principal: Alerts list data:', alertsListData);
-      
-      const stats: ExtendedDashboardStats = {
-        total_products: statsData.total_products || 0,
-        total_value: statsData.total_value || statsData.total_stock_value || 0,
-        // CORREGIDO: Usar datos del dashboard de alertas en lugar de inventario
-        low_stock_alerts: alertsDashboardData.active_alerts || alertsDashboardData.total_alerts || statsData.low_stock_alerts || 0,
-        total_transactions_today: statsData.total_transactions_today || statsData.recent_transactions || 0,
-        active_customers: statsData.active_customers || 0,
-        pipeline_value: statsData.pipeline_value || 0
+      console.log('🚨 Dashboard Principal: Alerts dashboard data:', alertsDashboard);
+      console.log('📋 Dashboard Principal: Alerts list data:', alertsList);
+
+      const finalStats = {
+        total_products: statsData?.total_products || 0,
+        total_value: statsData?.total_value || 0,
+        low_stock_alerts: statsData?.critical_stock_count || 0,
+        total_transactions_today: statsData?.transactions_today || 0,
+        active_customers: statsData?.active_customers || 0,
+        pipeline_value: statsData?.pipeline_value || 0,
+        sales_value: statsData?.sales_value || 0,
+        sales_count: statsData?.sales_count || 0,
+        purchases_value: statsData?.purchases_value || 0,
+        purchases_count: statsData?.purchases_count || 0,
+        net_profit: statsData?.net_profit || 0,
       };
-
-      console.log('✅ Dashboard Principal: Stats finales:', stats);
-
-      // CORREGIDO: Procesar alertas de la lista de alertas, no del dashboard
-      const alerts: DashboardAlert[] = (alertsListData.results || []).slice(0, 10).map((alert: any) => ({
-        id: alert.id,
-        title: alert.title || alert.message,
-        message: alert.message,
-        severity: alert.severity || 'medium',
-        created_at: alert.created_at
-      }));
-
-      console.log('🔔 Dashboard Principal: Alertas procesadas:', alerts.length, 'alertas');
-
-      // Procesar pronósticos con validación robusta
-      const forecastsData = forecastsRes.status === 'fulfilled' ? forecastsRes.value : { results: [] };
-      const forecasts: DashboardForecast[] = (forecastsData.results || []).slice(0, 10).map((forecast: any) => ({
-        product_name: forecast.product_name || forecast.product || 'Producto desconocido',
-        predicted_demand: Number(forecast.predicted_demand) || 0,
-        confidence: Number(forecast.confidence_level) || Number(forecast.confidence) || 0,
-        period: forecast.period || forecast.forecast_date || 'Próximo mes'
-      }));
-
-      // Procesar transacciones con validación
-      const transactionsData = transactionsRes.status === 'fulfilled' ? transactionsRes.value : { results: [] };
-      const transactions: DashboardTransaction[] = (transactionsData.results || []).slice(0, 10).map((transaction: any) => ({
-        id: transaction.id,
-        product_name: transaction.product_name || transaction.product || 'Producto desconocido',
-        quantity: transaction.quantity || 0,
-        transaction_type: transaction.transaction_type || 'unknown',
-        created_at: transaction.created_at
-      }));
-
-      // Generar datos de gráficos con validación
-      const chartData = {
-        stockLevels: generateStockLevelsChart(statsData),
-        salesTrend: generateSalesTrendChart(transactionsData.results || []),
-        categoryDistribution: generateCategoryChart(statsData),
-        alertTrends: generateAlertTrendsChart(alerts)
-      };
-
-      setData({
-        stats,
-        alerts,
-        forecasts,
-        transactions,
-        chartData
+      
+      console.log('✅ Dashboard: Stats finales con ventas/compras:', {
+        sales_value: finalStats.sales_value,
+        purchases_value: finalStats.purchases_value,
+        net_profit: finalStats.net_profit,
+        filtros_aplicados: filterParams
       });
+
+      console.log('✅ Dashboard Principal: Stats finales:', finalStats);
+
+      const processedAlerts = Array.isArray(alertsList?.results) ? alertsList.results : [];
+      console.log('🔔 Dashboard Principal: Alertas procesadas:', processedAlerts.length, 'alertas');
+
+      // **CORREGIDO: Mapear datos de forecasts al formato correcto**
+      const processedForecasts: DashboardForecast[] = Array.isArray(forecasts) 
+        ? forecasts.slice(0, 10).map((forecast: any) => ({
+            product_name: forecast.product_name || forecast.product || 'Producto desconocido',
+            predicted_demand: Number(forecast.predicted_demand) || 0,
+            confidence: Number(forecast.confidence_level) || Number(forecast.confidence) || 0,
+            period: forecast.period || forecast.forecast_date || 'Próximo mes'
+          }))
+        : [];
+
+      const dashboardData: DashboardData = {
+        stats: finalStats,
+        alerts: processedAlerts,
+        forecasts: processedForecasts,
+        transactions: Array.isArray(transactions?.results) ? transactions.results : [],
+        chartData: {
+          stockLevels: generateStockLevelsChart(statsData),
+          salesTrend: generateSalesTrendChart(statsData.sales_trend_data || []),
+          categoryDistribution: generateCategoryChart(statsData),
+          alertTrends: generateAlertTrendsChart(processedAlerts)
+        }
+      };
+
+      // **NUEVO: Guardar en cache**
+      const newCache = new Map(dataCache);
+      newCache.set(cacheKey, { data: dashboardData, timestamp: now });
+      setDataCache(newCache);
+
+      setData(dashboardData);
+      setOriginalData(dashboardData);
+      setLoading(false);
 
     } catch (error) {
-      console.error('Error cargando datos del dashboard:', error);
-      setError('No se pudieron cargar algunos datos. Verifique que el servidor Django esté ejecutándose en puerto 8080.');
-      
-      // Proporcionar datos mínimos para evitar crashs
-      setData({
-        stats: {
-          total_products: 0, total_value: 0, low_stock_alerts: 0, 
-          total_transactions_today: 0, active_customers: 0, pipeline_value: 0
-        },
-        alerts: [],
-        forecasts: [],
-        transactions: [],
-        chartData: {
-          stockLevels: [],
-          salesTrend: [],
-          categoryDistribution: [],
-          alertTrends: []
-        }
-      });
-    } finally {
+      console.error('❌ Dashboard Principal: Error cargando datos:', error);
+      setError('Error cargando datos del dashboard');
       setLoading(false);
     }
-  };
+  }, [backendFilters, dataCache]);
 
-  const refreshDashboard = async () => {
+  // **OPTIMIZADO: useEffect para cambios en filtros (con debounce)**
+  useEffect(() => {
+    if (optionsLoaded) {
+      loadDashboardData();
+    }
+  }, [backendFilters, optionsLoaded]); // Cambiar dependencia para evitar loops
+
+  // **OPTIMIZADO: Auto-refresh solo si está habilitado**
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        // Limpiar cache en auto-refresh para obtener datos frescos
+        setDataCache(new Map());
+        loadDashboardData();
+      }, 30000); // 30 segundos
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh, loadDashboardData]);
+
+  const refreshDashboard = useCallback(async () => {
     setRefreshing(true);
+    // **NUEVO: Limpiar cache al hacer refresh manual**
+    setDataCache(new Map());
     await loadDashboardData();
     setRefreshing(false);
-  };
+  }, [loadDashboardData]);
 
   // Funciones auxiliares para generar datos de gráficos
   const generateStockLevelsChart = (statsData: any) => {
-    if (!statsData.stock_by_warehouse) return [];
+    if (!statsData.stock_by_warehouse || !Array.isArray(statsData.stock_by_warehouse)) return [];
+    
+    console.log('📊 Generando gráfico de stock por almacén:', statsData.stock_by_warehouse);
+    
     return statsData.stock_by_warehouse.map((item: any) => ({
       warehouse: item.warehouse || item.name,
-      current_stock: item.current_stock || item.stock || 0,
-      min_stock: item.min_stock || 0,
-      max_stock: item.max_stock || 0
+      current_stock: Number(item.current_stock || item.stock || 0),
+      min_stock: Number(item.min_stock || 0),
+      max_stock: Number(item.max_stock || 0)
     }));
   };
 
-  const generateSalesTrendChart = (transactions: any[]) => {
-    if (!transactions.length) return [];
+  const generateSalesTrendChart = (salesTrendData: any[]) => {
+    if (!salesTrendData || !salesTrendData.length) {
+      console.log('📊 No hay datos de ventas para generar gráfico de tendencia');
+      return [];
+    }
     
-    // Agrupar transacciones por fecha
-    const salesByDate: Record<string, { sales: number; forecast: number }> = {};
+    console.log('📊 Generando gráfico de tendencia de ventas con', salesTrendData.length, 'días de datos');
     
-    transactions.forEach(transaction => {
-      if (transaction.transaction_type === 'sale') {
-        const date = new Date(transaction.created_at).toLocaleDateString();
-        if (!salesByDate[date]) {
-          salesByDate[date] = { sales: 0, forecast: 0 };
-        }
-        salesByDate[date].sales += Math.abs(transaction.quantity || 0);
-      }
-    });
-
-    return Object.entries(salesByDate).map(([date, data]) => ({
-      date,
-      sales: data.sales,
-      forecast: data.sales * 1.1 // Estimación simple
+    const chartData = salesTrendData.map(item => ({
+      date: new Date(item.date).toLocaleDateString('es-ES', { 
+        day: '2-digit', 
+        month: '2-digit'
+      }),
+      sales: item.sales,
+      forecast: item.sales * 1.1 // Estimación simple
     }));
+    
+    console.log('📊 Datos del gráfico de ventas generados:', chartData);
+    return chartData;
   };
 
   const generateCategoryChart = (statsData: any) => {
-    if (!statsData.products_by_category) return [];
-    return statsData.products_by_category.map((item: any) => ({
-      category: item.category,
-      value: item.count || item.value || 0
-    }));
+    if (!statsData.products_by_category && !statsData.stock_by_category) return [];
+    
+    const categoryData = statsData.products_by_category || statsData.stock_by_category || [];
+    console.log('📊 Datos de categorías recibidos:', categoryData);
+    
+    const formattedData = categoryData.map((item: any) => {
+      const value = Number(item.count || item.total_products || item.total_stock || item.value || 0);
+      const category = (item.category || item.name || 'Sin categoría').toString();
+      console.log(`📊 Categoría: ${category}, Valor: ${value}`);
+      return {
+        category: category,
+        value: value
+      };
+    }).filter((item: any) => item.value > 0); // Filtrar categorías sin productos
+    
+    console.log('📊 Datos formateados para gráfico:', formattedData);
+    return formattedData;
   };
 
   const generateAlertTrendsChart = (alerts: DashboardAlert[]) => {
@@ -374,8 +478,26 @@ const Dashboard: React.FC = () => {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-PE', {
       style: 'currency',
-      currency: 'PEN'
+      currency: 'PEN',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(value);
+  };
+
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('es-PE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+
+  const formatShortNumber = (value: number) => {
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`;
+    } else if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}K`;
+    }
+    return value.toString();
   };
 
   const getSeverityColor = (severity: string) => {
@@ -400,7 +522,11 @@ const Dashboard: React.FC = () => {
 
   // NUEVO: Manejo de filtros
   const handleFilterChange = (key: string, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters(prev => {
+      const newFilters = { ...prev, [key]: value };
+      console.log(`🔄 Dashboard: Filtro ${key} = ${value}`);
+      return newFilters;
+    });
   };
 
   // NUEVO: Aplicar filtros a los datos
@@ -460,32 +586,18 @@ const Dashboard: React.FC = () => {
     return filteredData;
   };
 
-  // CORREGIDO: Eliminar el useEffect que causaba loop infinito
-  // Los filtros ahora se aplican en el backend, no en el frontend
 
-  // NUEVO: Cargar datos cuando cambian filtros principales
-  useEffect(() => {
-    loadDashboardData();
-  }, [filters.dateRange, filters.category, filters.warehouse, filters.status]);
-
-  // NUEVO: Auto-refresh con filtros
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(() => {
-        loadDashboardData();
-      }, 30000); // 30 segundos
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh]);
 
   // NUEVO: Aplicar filtro de búsqueda en tiempo real (solo frontend)
   useEffect(() => {
-    if (filters.searchTerm && data) {
+    if (!originalData) return;
+
+    if (filters.searchTerm) {
       const searchTerm = filters.searchTerm.toLowerCase();
-      const filteredTransactions = data.transactions.filter(transaction => 
+      const filteredTransactions = originalData.transactions.filter(transaction => 
         transaction.product_name.toLowerCase().includes(searchTerm)
       );
-      const filteredAlerts = data.alerts.filter(alert => 
+      const filteredAlerts = originalData.alerts.filter(alert => 
         alert.message.toLowerCase().includes(searchTerm) ||
         alert.title.toLowerCase().includes(searchTerm)
       );
@@ -496,22 +608,38 @@ const Dashboard: React.FC = () => {
         transactions: filteredTransactions,
         alerts: filteredAlerts
       } : null);
-    } else if (!filters.searchTerm && data) {
-      // Si no hay término de búsqueda, recargar datos completos
-      loadDashboardData();
+    } else {
+      // Si no hay término de búsqueda, restaurar datos originales
+      setData(originalData);
     }
-  }, [filters.searchTerm]);
+  }, [filters.searchTerm, originalData]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center transition-colors duration-300">
+      <div className={`min-h-screen bg-gradient-to-br transition-colors duration-300 flex items-center justify-center ${
+        isDarkMode 
+          ? 'from-slate-900 via-slate-800 to-slate-900' 
+          : 'from-slate-50 via-blue-50 to-indigo-50'
+      }`}>
         <div className="text-center">
           <div className="relative">
-            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 dark:border-t-blue-400 mx-auto mb-6"></div>
-            <div className="absolute inset-0 rounded-full h-16 w-16 border-4 border-transparent border-t-blue-400 dark:border-t-blue-500 animate-ping mx-auto"></div>
+            <div className={`animate-spin rounded-full h-16 w-16 border-4 mx-auto mb-6 ${
+              isDarkMode 
+                ? 'border-blue-800 border-t-blue-400' 
+                : 'border-blue-200 border-t-blue-600'
+            }`}></div>
+            <div className={`absolute inset-0 rounded-full h-16 w-16 border-4 border-transparent animate-ping mx-auto ${
+              isDarkMode 
+                ? 'border-t-blue-500' 
+                : 'border-t-blue-400'
+            }`}></div>
           </div>
-          <p className="text-lg font-medium text-slate-700 dark:text-slate-300">Cargando dashboard...</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">Obteniendo datos en tiempo real</p>
+          <p className={`text-lg font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
+            Cargando dashboard...
+          </p>
+          <p className={`text-sm mt-2 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+            Obteniendo datos en tiempo real
+          </p>
         </div>
       </div>
     );
@@ -519,15 +647,33 @@ const Dashboard: React.FC = () => {
 
   if (error && !data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 dark:from-slate-900 dark:via-red-900/20 dark:to-orange-900/20 flex items-center justify-center transition-colors duration-300">
+      <div className={`min-h-screen bg-gradient-to-br flex items-center justify-center transition-colors duration-300 ${
+        isDarkMode 
+          ? 'from-slate-900 via-red-900/20 to-orange-900/20' 
+          : 'from-red-50 via-orange-50 to-yellow-50'
+      }`}>
         <div className="text-center max-w-md mx-auto p-8">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 border border-red-100 dark:border-red-800/50">
-            <AlertTriangle className="h-16 w-16 text-red-500 dark:text-red-400 mx-auto mb-6" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Error de Conexión</h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">{error}</p>
+          <div className={`rounded-2xl shadow-xl p-8 border ${
+            isDarkMode 
+              ? 'bg-slate-800 border-red-800/50' 
+              : 'bg-white border-red-100'
+          }`}>
+            <AlertTriangle className={`h-16 w-16 mx-auto mb-6 ${
+              isDarkMode ? 'text-red-400' : 'text-red-500'
+            }`} />
+            <h2 className={`text-xl font-semibold mb-4 ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>Error de Conexión</h2>
+            <p className={`mb-6 ${
+              isDarkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>{error}</p>
             <Button 
               onClick={loadDashboardData}
-              className="bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+              className={`text-white px-6 py-3 rounded-lg font-medium transition-colors ${
+                isDarkMode 
+                  ? 'bg-red-600 hover:bg-red-700' 
+                  : 'bg-red-500 hover:bg-red-600'
+              }`}
             >
               Reintentar Conexión
             </Button>
@@ -538,12 +684,20 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors duration-300">
+    <div className={`min-h-screen bg-gradient-to-br transition-colors duration-300 ${
+      isDarkMode 
+        ? 'from-slate-900 via-slate-800 to-slate-900' 
+        : 'from-slate-50 via-blue-50 to-indigo-50'
+    }`}>
       {/* Header compacto horizontal */}
-      <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="max-w-7xl mx-auto px-8 py-6">
+      <div className={`border-b shadow-sm ${
+        isDarkMode 
+          ? 'bg-slate-800 border-slate-700' 
+          : 'bg-white border-slate-200'
+      }`}>
+        <div className="max-w-full mx-auto px-4 py-6">
           {/* Todo en una sola fila horizontal */}
-          <div className="flex items-center justify-between gap-8">
+          <div className="flex items-center justify-between gap-4">
             {/* Lado izquierdo: Título */}
             <div className="flex-shrink-0">
               <h1 className="text-3xl font-bold bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-800 dark:from-slate-100 dark:via-blue-200 dark:to-indigo-200 bg-clip-text text-transparent">
@@ -556,8 +710,8 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Centro: Accesos rápidos */}
-            <div className="flex-1 max-w-3xl">
-              <div className="grid grid-cols-6 gap-3">
+            <div className="flex-1 max-w-5xl">
+              <div className="grid grid-cols-6 gap-2">
                 <Button 
                   variant="outline" 
                   className="flex flex-col items-center p-3 h-auto bg-slate-50/50 dark:bg-slate-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-slate-200 dark:border-slate-600 hover:border-blue-300 dark:hover:border-blue-500 transition-all duration-200 group"
@@ -645,9 +799,12 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-8 py-12">
+      <div className="max-w-full mx-auto px-4 py-8">
         {/* NUEVO: Panel de filtros avanzado con fechas */}
-        <Card className="mb-8 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-slate-200 dark:border-slate-700 shadow-lg">
+        <Card 
+          className="mb-8 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-slate-200 dark:border-slate-700 shadow-lg card-filters dashboard-filters" 
+          style={{ transform: 'none', willChange: 'auto' }}
+        >
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -668,10 +825,10 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           
           {showFilters && (
-            <CardContent className="pt-0">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <CardContent className="pt-0 dashboard-filters-content" style={{ transform: 'none', willChange: 'auto' }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 dashboard-filters-grid" style={{ transform: 'none', willChange: 'auto' }}>
                 {/* Rango de fechas */}
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Período
                   </label>
@@ -679,9 +836,9 @@ const Dashboard: React.FC = () => {
                     value={filters.dateRange} 
                     onValueChange={(value) => handleFilterChange('dateRange', value)}
                   >
-                    <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      <SelectValue />
+                    <SelectTrigger className="w-full min-w-[140px] bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
+                      <Calendar className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <SelectValue placeholder="Seleccionar período" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los datos</SelectItem>
@@ -693,10 +850,10 @@ const Dashboard: React.FC = () => {
                   </Select>
                 </div>
 
-                {/* Fechas personalizadas */}
+                {/* Fechas personalizadas - solo mostrar si está activo */}
                 {filters.dateRange === 'custom' && (
                   <>
-                    <div className="space-y-2">
+                    <div className="space-y-2 min-w-0">
                       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         Fecha inicio
                       </label>
@@ -704,10 +861,10 @@ const Dashboard: React.FC = () => {
                         type="date"
                         value={filters.customStartDate}
                         onChange={(e) => handleFilterChange('customStartDate', e.target.value)}
-                        className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
+                        className="w-full min-w-[140px] bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
                       />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 min-w-0">
                       <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                         Fecha fin
                       </label>
@@ -715,14 +872,14 @@ const Dashboard: React.FC = () => {
                         type="date"
                         value={filters.customEndDate}
                         onChange={(e) => handleFilterChange('customEndDate', e.target.value)}
-                        className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
+                        className="w-full min-w-[140px] bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
                       />
                     </div>
                   </>
                 )}
 
                 {/* Categoría */}
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Categoría
                   </label>
@@ -730,23 +887,25 @@ const Dashboard: React.FC = () => {
                     value={filters.category} 
                     onValueChange={(value) => handleFilterChange('category', value)}
                   >
-                    <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
-                      <Package className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Todas" />
+                    <SelectTrigger className="w-full min-w-[140px] bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
+                      <Package className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <SelectValue placeholder="Todas las categorías" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todas las categorías</SelectItem>
-                      <SelectItem value="electronics">Electrónicos</SelectItem>
-                      <SelectItem value="clothing">Ropa</SelectItem>
-                      <SelectItem value="food">Alimentos</SelectItem>
-                      <SelectItem value="books">Libros</SelectItem>
-                      <SelectItem value="home">Hogar</SelectItem>
+                      {filterOptions?.categories && Array.isArray(filterOptions.categories) ? 
+                        filterOptions.categories.map((category: any) => (
+                          <SelectItem key={category.id} value={category.id.toString()}>
+                            {category.name}
+                          </SelectItem>
+                        )) : null
+                      }
                     </SelectContent>
                   </Select>
                 </div>
 
                 {/* Almacén */}
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Almacén
                   </label>
@@ -754,22 +913,25 @@ const Dashboard: React.FC = () => {
                     value={filters.warehouse} 
                     onValueChange={(value) => handleFilterChange('warehouse', value)}
                   >
-                    <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
-                      <Package className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Todos" />
+                    <SelectTrigger className="w-full min-w-[140px] bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
+                      <Package className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <SelectValue placeholder="Todos los almacenes" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los almacenes</SelectItem>
-                      <SelectItem value="main">Almacén Principal</SelectItem>
-                      <SelectItem value="secondary">Almacén Secundario</SelectItem>
-                      <SelectItem value="warehouse_a">Almacén A</SelectItem>
-                      <SelectItem value="warehouse_b">Almacén B</SelectItem>
+                      {filterOptions?.warehouses && Array.isArray(filterOptions.warehouses) ? 
+                        filterOptions.warehouses.map((warehouse: any) => (
+                          <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                            {warehouse.name || warehouse.warehouse}
+                          </SelectItem>
+                        )) : null
+                      }
                     </SelectContent>
                   </Select>
                 </div>
 
                 {/* Estado */}
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Estado
                   </label>
@@ -777,40 +939,47 @@ const Dashboard: React.FC = () => {
                     value={filters.status} 
                     onValueChange={(value) => handleFilterChange('status', value)}
                   >
-                    <SelectTrigger className="bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
-                      <Activity className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Todos" />
+                    <SelectTrigger className="w-full min-w-[140px] bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600">
+                      <Activity className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <SelectValue placeholder="Todos los estados" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos los estados</SelectItem>
-                      <SelectItem value="active">Activo</SelectItem>
-                      <SelectItem value="inactive">Inactivo</SelectItem>
-                      <SelectItem value="pending">Pendiente</SelectItem>
-                      <SelectItem value="completed">Completado</SelectItem>
+                      {filterOptions?.statuses && Array.isArray(filterOptions.statuses) ? 
+                        filterOptions.statuses.map((status: any) => (
+                          <SelectItem key={status.id} value={status.id}>
+                            {status.name}
+                          </SelectItem>
+                        )) : [
+                          <SelectItem key="in_stock" value="in_stock">Con stock</SelectItem>,
+                          <SelectItem key="low_stock" value="low_stock">Stock bajo</SelectItem>,
+                          <SelectItem key="out_of_stock" value="out_of_stock">Sin stock</SelectItem>
+                        ]
+                      }
                     </SelectContent>
                   </Select>
                 </div>
 
                 {/* Búsqueda */}
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                     Buscar
                   </label>
                   <div className="relative">
-                    <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+                    <Search className="h-4 w-4 absolute left-3 top-3 text-slate-400 flex-shrink-0" />
                     <Input
                       placeholder="Buscar productos..."
                       value={filters.searchTerm}
                       onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-                      className="pl-10 bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
+                      className="w-full min-w-[140px] pl-10 bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Controles adicionales */}
-              <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200 dark:border-slate-600">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mt-6 pt-4 border-t border-slate-200 dark:border-slate-600 gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -831,19 +1000,23 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setFilters({
-                      dateRange: '7days',
-                      category: 'all',
-                      warehouse: 'all',
-                      status: 'all',
-                      searchTerm: '',
-                      customStartDate: '',
-                      customEndDate: ''
-                    })}
+                    onClick={() => {
+                      setFilters({
+                        dateRange: '7days',
+                        category: 'all',
+                        warehouse: 'all',
+                        status: 'all',
+                        searchTerm: '',
+                        customStartDate: '',
+                        customEndDate: ''
+                      });
+                      // Recargar datos para aplicar los filtros reseteados
+                      loadDashboardData();
+                    }}
                   >
                     Limpiar filtros
                   </Button>
@@ -880,14 +1053,19 @@ const Dashboard: React.FC = () => {
 
         {data && (
           <>
+            {/* Intelligence Briefing - Conversación Matutina */}
+            <div className="mb-8">
+              <IntelligentBriefing />
+            </div>
+
             {/* Métricas Principales con diseño mejorado */}
             <div 
-              className="grid gap-12 mb-20" 
+              className="grid gap-8 mb-16" 
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                gap: '3rem',
-                marginBottom: '5rem'
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '2rem',
+                marginBottom: '3rem'
               }}
             >
               {/* Productos Totales */}
@@ -989,33 +1167,130 @@ const Dashboard: React.FC = () => {
                 </CardContent>
               </Card>
 
-              {/* Movimientos Hoy */}
-              <Card className="group relative overflow-hidden bg-gradient-to-br from-slate-50 via-purple-50/40 to-pink-50/30 dark:from-slate-800 dark:via-purple-900/40 dark:to-pink-900/30 border-slate-200/60 dark:border-slate-700/60 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/3 to-rose-500/5 dark:from-purple-400/10 dark:via-pink-400/6 dark:to-rose-400/10"></div>
+              {/* Ventas */}
+              <Card className="group relative overflow-hidden bg-gradient-to-br from-green-50 via-emerald-50/40 to-teal-50/30 dark:from-green-900 dark:via-emerald-900/40 dark:to-teal-900/30 border-green-200/60 dark:border-green-700/60 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-emerald-500/3 to-teal-500/5 dark:from-green-400/10 dark:via-emerald-400/6 dark:to-teal-400/10"></div>
                 <CardContent className="relative p-8">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-4 mb-6">
-                        <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 dark:from-purple-400 dark:to-pink-400 rounded-xl group-hover:shadow-lg group-hover:shadow-purple-500/25 dark:group-hover:shadow-purple-400/25 transition-all">
-                          <Activity className="h-6 w-6 text-white" />
+                        <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 dark:from-green-400 dark:to-emerald-400 rounded-xl group-hover:shadow-lg group-hover:shadow-green-500/25 dark:group-hover:shadow-green-400/25 transition-all">
+                          <TrendingUp className="h-6 w-6 text-white" />
                         </div>
                         <div>
-                          <span className="text-base font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Movimientos</span>
-                          <div className="w-16 h-0.5 bg-gradient-to-r from-purple-300 to-pink-300 dark:from-purple-400 dark:to-pink-400 mt-2"></div>
+                          <span className="text-base font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Ventas</span>
+                          <div className="w-16 h-0.5 bg-gradient-to-r from-green-300 to-emerald-300 dark:from-green-400 dark:to-emerald-400 mt-2"></div>
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">{data.stats.total_transactions_today}</p>
-                        <p className="text-base text-slate-600 dark:text-slate-400">transacciones hoy</p>
+                        <p className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">{formatCurrency(data.stats.sales_value)}</p>
+                        <p className="text-base text-slate-600 dark:text-slate-400">{data.stats.sales_count} transacciones</p>
                       </div>
                     </div>
                   </div>
                   <div className="mt-6 pt-6 border-t border-slate-200/50 dark:border-slate-700/50">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">Últimas 24h</span>
-                      <span className="text-purple-600 dark:text-purple-400 font-medium bg-purple-50 dark:bg-purple-900/50 px-3 py-2 rounded-full flex items-center gap-2">
-                        <Activity className="h-4 w-4" />
-                        Activo
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {filters.dateRange === 'all' ? 'Todos los períodos' : 
+                         filters.dateRange === '7days' ? 'Últimos 7 días' :
+                         filters.dateRange === '30days' ? 'Últimos 30 días' :
+                         filters.dateRange === '90days' ? 'Últimos 90 días' :
+                         filters.dateRange === 'custom' ? 'Período personalizado' : 'Período filtrado'}
+                      </span>
+                      <span className="text-green-600 dark:text-green-400 font-medium bg-green-50 dark:bg-green-900/50 px-3 py-2 rounded-full flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Ingresos
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Compras */}
+              <Card className="group relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50/40 to-purple-50/30 dark:from-blue-900 dark:via-indigo-900/40 dark:to-purple-900/30 border-blue-200/60 dark:border-blue-700/60 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-indigo-500/3 to-purple-500/5 dark:from-blue-400/10 dark:via-indigo-400/6 dark:to-purple-400/10"></div>
+                <CardContent className="relative p-8">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400 rounded-xl group-hover:shadow-lg group-hover:shadow-blue-500/25 dark:group-hover:shadow-blue-400/25 transition-all">
+                          <Package className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                          <span className="text-base font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Compras</span>
+                          <div className="w-16 h-0.5 bg-gradient-to-r from-blue-300 to-indigo-300 dark:from-blue-400 dark:to-indigo-400 mt-2"></div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">{formatCurrency(data.stats.purchases_value)}</p>
+                        <p className="text-base text-slate-600 dark:text-slate-400">{data.stats.purchases_count} transacciones</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 pt-6 border-t border-slate-200/50 dark:border-slate-700/50">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {filters.dateRange === 'all' ? 'Todos los períodos' : 
+                         filters.dateRange === '7days' ? 'Últimos 7 días' :
+                         filters.dateRange === '30days' ? 'Últimos 30 días' :
+                         filters.dateRange === '90days' ? 'Últimos 90 días' :
+                         filters.dateRange === 'custom' ? 'Período personalizado' : 'Período filtrado'}
+                      </span>
+                      <span className="text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/50 px-3 py-2 rounded-full flex items-center gap-2">
+                        <Package className="h-4 w-4" />
+                        Gastos
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Ganancia Neta */}
+              <Card className={`group relative overflow-hidden ${data.stats.net_profit >= 0 
+                ? 'bg-gradient-to-br from-emerald-50 via-green-50/40 to-teal-50/30 dark:from-emerald-900 dark:via-green-900/40 dark:to-teal-900/30 border-emerald-200/60 dark:border-emerald-700/60'
+                : 'bg-gradient-to-br from-red-50 via-rose-50/40 to-pink-50/30 dark:from-red-900 dark:via-rose-900/40 dark:to-pink-900/30 border-red-200/60 dark:border-red-700/60'
+              } hover:shadow-xl transition-all duration-300 hover:-translate-y-1`}>
+                <div className={`absolute inset-0 ${data.stats.net_profit >= 0
+                  ? 'bg-gradient-to-br from-emerald-500/5 via-green-500/3 to-teal-500/5 dark:from-emerald-400/10 dark:via-green-400/6 dark:to-teal-400/10'
+                  : 'bg-gradient-to-br from-red-500/5 via-rose-500/3 to-pink-500/5 dark:from-red-400/10 dark:via-rose-400/6 dark:to-pink-400/10'
+                }`}></div>
+                <CardContent className="relative p-8">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className={`p-3 rounded-xl group-hover:shadow-lg transition-all ${data.stats.net_profit >= 0
+                          ? 'bg-gradient-to-r from-emerald-500 to-green-500 dark:from-emerald-400 dark:to-green-400 group-hover:shadow-emerald-500/25 dark:group-hover:shadow-emerald-400/25'
+                          : 'bg-gradient-to-r from-red-500 to-rose-500 dark:from-red-400 dark:to-rose-400 group-hover:shadow-red-500/25 dark:group-hover:shadow-red-400/25'
+                        }`}>
+                          <Target className="h-6 w-6 text-white" />
+                        </div>
+                        <div>
+                          <span className="text-base font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Ganancia Neta</span>
+                          <div className={`w-16 h-0.5 mt-2 ${data.stats.net_profit >= 0
+                            ? 'bg-gradient-to-r from-emerald-300 to-green-300 dark:from-emerald-400 dark:to-green-400'
+                            : 'bg-gradient-to-r from-red-300 to-rose-300 dark:from-red-400 dark:to-rose-400'
+                          }`}></div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+                          {formatCurrency(data.stats.net_profit)}
+                        </p>
+                        <p className="text-base text-slate-600 dark:text-slate-400">
+                          {data.stats.net_profit >= 0 ? 'Rentabilidad positiva' : 'Pérdida en período'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 pt-6 border-t border-slate-200/50 dark:border-slate-700/50">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400">Período seleccionado</span>
+                      <span className={`font-medium px-3 py-2 rounded-full flex items-center gap-2 ${data.stats.net_profit >= 0
+                        ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/50'
+                        : 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/50'
+                      }`}>
+                        <Target className="h-4 w-4" />
+                        {data.stats.net_profit >= 0 ? 'Ganancia' : 'Pérdida'}
                       </span>
                     </div>
                   </div>
@@ -1024,7 +1299,7 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Panel Secundario mejorado */}
-            <Card className="mb-16 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-slate-200 dark:border-slate-700 shadow-lg">
+            <Card className="mb-8 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-slate-200 dark:border-slate-700 shadow-lg">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1052,12 +1327,12 @@ const Dashboard: React.FC = () => {
                 </div>
               </CardHeader>
               {showSecondaryMetrics && (
-                <CardContent className="pt-0 pb-8">
+                <CardContent className="pt-0 pb-4">
                   <div 
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                      gap: '1.5rem'
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                      gap: '1rem'
                     }}
                   >
                     {/* Clientes Activos */}
@@ -1103,15 +1378,7 @@ const Dashboard: React.FC = () => {
             </Card>
 
             {/* Gráficos Principales mejorados */}
-            <div 
-              className="grid gap-12 mb-16" 
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
-                gap: '3rem',
-                marginBottom: '4rem'
-              }}
-            >
+            <div className="charts-grid">
               {/* Tendencia de Ventas */}
               <Card className="chart-container shadow-lg hover:shadow-xl transition-all duration-300 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
                 <CardHeader className="pb-4">
@@ -1139,50 +1406,110 @@ const Dashboard: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="relative">
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={data.chartData.salesTrend} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                    <ResponsiveContainer width="100%" height={320}>
+                      <AreaChart 
+                        data={data.chartData.salesTrend} 
+                        margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
+                      >
+                        <defs>
+                          <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                          </linearGradient>
+                          <linearGradient id="forecastGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.6}/>
+                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0.1}/>
+                          </linearGradient>
+                        </defs>
+                        
+                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+                        
                         <XAxis 
                           dataKey="date" 
-                          stroke="#6b7280"
+                          stroke="currentColor"
                           fontSize={11}
-                          tick={{ fill: '#6b7280' }}
-                          axisLine={{ stroke: '#d1d5db' }}
+                          tick={{ fill: 'currentColor' }}
+                          axisLine={{ stroke: 'currentColor', opacity: 0.3 }}
                         />
+                        
                         <YAxis 
-                          stroke="#6b7280"
+                          stroke="currentColor"
                           fontSize={11}
-                          tick={{ fill: '#6b7280' }}
-                          axisLine={{ stroke: '#d1d5db' }}
+                          tick={{ fill: 'currentColor' }}
+                          axisLine={{ stroke: 'currentColor', opacity: 0.3 }}
+                          tickFormatter={(value) => formatCurrency(value)}
                         />
+                        
                         <Tooltip 
                           contentStyle={{
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                            backgroundColor: 'var(--background)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '12px',
+                            boxShadow: '0 8px 25px -5px rgba(0, 0, 0, 0.3)',
+                            fontSize: '12px',
+                            color: 'var(--foreground)'
+                          }}
+                          formatter={(value, name) => [
+                            formatCurrency(value as number),
+                            name
+                          ]}
+                          labelFormatter={(label) => `Fecha: ${label}`}
+                        />
+                        
+                        <Legend 
+                          wrapperStyle={{
+                            paddingTop: '20px',
+                            fontSize: '12px'
                           }}
                         />
-                        <Legend />
-                        <Line 
+                        
+                        <Area 
                           type="monotone" 
                           dataKey="sales" 
                           stroke="#3b82f6" 
-                          strokeWidth={3}
-                          dot={{ fill: '#3b82f6', strokeWidth: 2, r: 5 }}
-                          activeDot={{ r: 8, fill: '#3b82f6' }}
+                          fillOpacity={1} 
+                          fill="url(#salesGradient)"
+                          strokeWidth={2.5}
+                          dot={{ 
+                            fill: '#3b82f6', 
+                            strokeWidth: 1.5, 
+                            r: 3,
+                            stroke: '#ffffff',
+                            filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3))'
+                          }}
+                          activeDot={{ 
+                            r: 6, 
+                            fill: '#3b82f6', 
+                            stroke: '#ffffff', 
+                            strokeWidth: 2,
+                            filter: 'drop-shadow(0 4px 8px rgba(59, 130, 246, 0.4))'
+                          }}
                           name="Ventas Reales"
                         />
+                        
                         <Line 
                           type="monotone" 
                           dataKey="forecast" 
                           stroke="#6366f1" 
                           strokeWidth={2}
-                          strokeDasharray="5 5"
-                          dot={{ fill: '#6366f1', strokeWidth: 2, r: 4 }}
+                          strokeDasharray="8 4"
+                          dot={{ 
+                            fill: '#6366f1', 
+                            strokeWidth: 1, 
+                            r: 2.5,
+                            stroke: '#ffffff',
+                            opacity: 0.8
+                          }}
+                          activeDot={{ 
+                            r: 5, 
+                            fill: '#6366f1', 
+                            stroke: '#ffffff', 
+                            strokeWidth: 2,
+                            filter: 'drop-shadow(0 3px 6px rgba(99, 102, 241, 0.4))'
+                          }}
                           name="Pronóstico IA"
                         />
-                      </LineChart>
+                                              </AreaChart>
                     </ResponsiveContainer>
                     <div className="absolute top-2 right-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-1 border border-slate-200 dark:border-slate-600">
                       <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Filtrado por: {filters.dateRange}</span>
@@ -1197,7 +1524,7 @@ const Dashboard: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-3">
                       <div className="p-2 bg-gradient-to-r from-emerald-500 to-green-500 dark:from-emerald-400 dark:to-green-400 rounded-lg">
-                        <BarChart3 className="h-5 w-5 text-white" />
+                        <Activity className="h-5 w-5 text-white" />
                       </div>
                       <div>
                         <span className="text-lg font-semibold text-slate-800 dark:text-slate-200">Categorías</span>
@@ -1210,39 +1537,87 @@ const Dashboard: React.FC = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {data.chartData.categoryDistribution.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
+                  {data.chartData.categoryDistribution && data.chartData.categoryDistribution.length > 0 && data.chartData.categoryDistribution.some((item: any) => item.value > 0) ? (
+                    <ResponsiveContainer width="100%" height={320}>
                       <PieChart>
+                        <defs>
+                          {data.chartData.categoryDistribution.map((entry, index) => {
+                            const colors = [
+                              { start: '#3b82f6', end: '#1e40af' },
+                              { start: '#10b981', end: '#047857' },
+                              { start: '#f59e0b', end: '#d97706' },
+                              { start: '#ef4444', end: '#dc2626' },
+                              { start: '#8b5cf6', end: '#7c3aed' },
+                              { start: '#06b6d4', end: '#0891b2' },
+                              { start: '#84cc16', end: '#65a30d' },
+                              { start: '#f97316', end: '#ea580c' },
+                              { start: '#ec4899', end: '#db2777' },
+                              { start: '#6366f1', end: '#4f46e5' },
+                            ];
+                            const colorSet = colors[index % colors.length];
+                            return (
+                              <radialGradient key={`gradient-${index}`} id={`categoryGradient-${index}`} cx="50%" cy="50%" r="50%">
+                                <stop offset="0%" stopColor={colorSet.start} stopOpacity={0.9} />
+                                <stop offset="100%" stopColor={colorSet.end} stopOpacity={0.8} />
+                              </radialGradient>
+                            );
+                          })}
+                        </defs>
+                        
                         <Pie
-                          data={data.chartData.categoryDistribution}
+                          data={data.chartData.categoryDistribution.sort((a: any, b: any) => b.value - a.value)}
                           cx="50%"
                           cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                           outerRadius={100}
-                          innerRadius={40}
+                          fill="#8884d8"
                           dataKey="value"
-                          label={({ category, value }) => `${category}: ${value}`}
+                          nameKey="category"
+                          stroke="rgba(255, 255, 255, 0.3)"
+                          strokeWidth={2}
                         >
                           {data.chartData.categoryDistribution.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} />
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={`url(#categoryGradient-${index})`}
+                              className="hover:brightness-110 transition-all duration-300 cursor-pointer"
+                            />
                           ))}
                         </Pie>
+                        
                         <Tooltip 
                           contentStyle={{
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                            backgroundColor: 'var(--background)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '12px',
+                            boxShadow: '0 8px 25px -5px rgba(0, 0, 0, 0.3)',
+                            fontSize: '12px',
+                            color: 'var(--foreground)'
+                          }}
+                          formatter={(value, name) => [
+                            `${formatNumber(value as number)} productos`,
+                            'Cantidad'
+                          ]}
+                          labelFormatter={(label) => `Categoría: ${label}`}
+                        />
+                        
+                        <Legend 
+                          verticalAlign="bottom" 
+                          height={36}
+                          iconType="circle"
+                          wrapperStyle={{
+                            fontSize: '12px',
+                            color: 'var(--foreground)'
                           }}
                         />
-                        <Legend />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="h-[300px] flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-600 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-500">
+                    <div className="flex items-center justify-center h-[300px] text-slate-500 dark:text-slate-400">
                       <div className="text-center">
-                        <BarChart3 className="h-12 w-12 text-slate-400 dark:text-slate-500 mx-auto mb-4" />
-                        <p className="text-slate-600 dark:text-slate-300 font-medium">No hay datos de categorías</p>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Los gráficos aparecerán cuando haya datos disponibles</p>
+                        <Activity className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                        <p>No hay datos de categorías disponibles</p>
                       </div>
                     </div>
                   )}
@@ -1280,34 +1655,95 @@ const Dashboard: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   {data.chartData.stockLevels.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={data.chartData.stockLevels} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart 
+                        data={data.chartData.stockLevels} 
+                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                        barCategoryGap="20%"
+                      >
+                        <defs>
+                          <linearGradient id="stockActual" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.6}/>
+                          </linearGradient>
+                          <linearGradient id="stockMin" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.6}/>
+                          </linearGradient>
+                          <linearGradient id="stockMax" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.6}/>
+                          </linearGradient>
+                        </defs>
+                        
+                        <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+                        
                         <XAxis 
                           dataKey="warehouse" 
-                          stroke="#6b7280"
+                          stroke="currentColor"
                           fontSize={11}
-                          tick={{ fill: '#6b7280' }}
-                          axisLine={{ stroke: '#d1d5db' }}
+                          tick={{ fill: 'currentColor' }}
+                          axisLine={{ stroke: 'currentColor', opacity: 0.3 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={80}
                         />
+                        
                         <YAxis 
-                          stroke="#6b7280"
+                          stroke="currentColor"
                           fontSize={11}
-                          tick={{ fill: '#6b7280' }}
-                          axisLine={{ stroke: '#d1d5db' }}
+                          tick={{ fill: 'currentColor' }}
+                          axisLine={{ stroke: 'currentColor', opacity: 0.3 }}
+                          tickFormatter={(value) => formatShortNumber(value)}
                         />
+                        
                         <Tooltip 
                           contentStyle={{
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                            backgroundColor: 'var(--background)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '12px',
+                            boxShadow: '0 8px 25px -5px rgba(0, 0, 0, 0.3)',
+                            fontSize: '12px',
+                            color: 'var(--foreground)'
+                          }}
+                          formatter={(value, name) => [
+                            `${formatNumber(value as number)} unidades`,
+                            name
+                          ]}
+                          labelFormatter={(label) => `Almacén: ${label}`}
+                        />
+                        
+                        <Legend 
+                          wrapperStyle={{
+                            paddingTop: '20px',
+                            fontSize: '12px'
                           }}
                         />
-                        <Legend />
-                        <Bar dataKey="current_stock" fill="#8b5cf6" name="Stock Actual" />
-                        <Bar dataKey="min_stock" fill="#ef4444" name="Stock Mínimo" />
-                        <Bar dataKey="max_stock" fill="#10b981" name="Stock Máximo" />
+                        
+                        <Bar 
+                          dataKey="current_stock" 
+                          fill="url(#stockActual)"
+                          name="Stock Actual"
+                          radius={[4, 4, 0, 0]}
+                          stroke="#8b5cf6"
+                          strokeWidth={1}
+                        />
+                        <Bar 
+                          dataKey="min_stock" 
+                          fill="url(#stockMin)"
+                          name="Stock Mínimo"
+                          radius={[4, 4, 0, 0]}
+                          stroke="#ef4444"
+                          strokeWidth={1}
+                        />
+                        <Bar 
+                          dataKey="max_stock" 
+                          fill="url(#stockMax)"
+                          name="Stock Máximo"
+                          radius={[4, 4, 0, 0]}
+                          stroke="#10b981"
+                          strokeWidth={1}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -1349,26 +1785,28 @@ const Dashboard: React.FC = () => {
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={data.chartData.alertTrends} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
                       <XAxis 
                         dataKey="date" 
-                        stroke="#6b7280"
+                        stroke="currentColor"
                         fontSize={11}
-                        tick={{ fill: '#6b7280' }}
-                        axisLine={{ stroke: '#d1d5db' }}
+                        tick={{ fill: 'currentColor' }}
+                        axisLine={{ stroke: 'currentColor', opacity: 0.3 }}
                       />
                       <YAxis 
-                        stroke="#6b7280"
+                        stroke="currentColor"
                         fontSize={11}
-                        tick={{ fill: '#6b7280' }}
-                        axisLine={{ stroke: '#d1d5db' }}
+                        tick={{ fill: 'currentColor' }}
+                        axisLine={{ stroke: 'currentColor', opacity: 0.3 }}
                       />
                       <Tooltip 
                         contentStyle={{
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          backgroundColor: 'var(--background)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '12px',
+                          boxShadow: '0 8px 25px -5px rgba(0, 0, 0, 0.3)',
+                          fontSize: '12px',
+                          color: 'var(--foreground)'
                         }}
                       />
                       <Legend />
@@ -1381,12 +1819,12 @@ const Dashboard: React.FC = () => {
 
             {/* Secciones de Información mejoradas */}
             <div 
-              className="grid gap-6 mb-8" 
+              className="grid gap-4 mb-6" 
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-                gap: '1.5rem',
-                marginBottom: '2rem'
+                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                gap: '1rem',
+                marginBottom: '1.5rem'
               }}
             >
               {/* Alertas Recientes */}

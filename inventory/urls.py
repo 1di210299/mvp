@@ -26,4 +26,5 @@ urlpatterns = [
     path('upload/', views.FileUploadView.as_view(), name='file-upload'),
     path('low-stock/', views.LowStockView.as_view(), name='low-stock'),
     path('stock-movements/', views.StockMovementsView.as_view(), name='stock-movements'),
+    path('filter-options/', views.FilterOptionsView.as_view(), name='filter-options'),
 ]

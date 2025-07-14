@@ -18,7 +18,44 @@ class OpenAIAnalyticsService:
     """Servicio para análisis de inventario usando OpenAI"""
     
     def __init__(self):
-        self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+        """Inicializar el servicio de análisis OpenAI"""
+        self.client = None
+        
+        try:
+            # Obtener API key
+            api_key = getattr(settings, 'OPENAI_API_KEY', None)
+            
+            if not api_key:
+                logger.warning("OpenAI API key no configurada")
+                return
+                
+            # Crear cliente OpenAI con manejo de errores
+            try:
+                # Versión 1.0+ requiere solo api_key
+                self.client = openai.OpenAI(api_key=api_key)
+                logger.info("Cliente OpenAI Analytics inicializado correctamente")
+                
+            except TypeError as type_error:
+                logger.error(f"Error TypeError inicializando cliente OpenAI Analytics: {str(type_error)}")
+                if "proxies" in str(type_error):
+                    logger.info("Intentando inicialización simplificada de OpenAI Analytics")
+                    try:
+                        # Intentar inicialización más simple
+                        self.client = openai.OpenAI(api_key=api_key)
+                        logger.info("Cliente OpenAI Analytics inicializado con método simplificado")
+                    except Exception as simple_error:
+                        logger.error(f"Error en inicialización simplificada: {str(simple_error)}")
+                        self.client = None
+                else:
+                    self.client = None
+                    
+            except Exception as e:
+                logger.error(f"Error general inicializando cliente OpenAI Analytics: {str(e)}")
+                self.client = None
+                
+        except Exception as e:
+            logger.error(f"Error configurando OpenAI Analytics Service: {str(e)}")
+            self.client = None
     
     def analyze_inventory_trends(self, company_id: int, custom_fields_data: Dict = None) -> Dict:
         """

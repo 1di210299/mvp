@@ -1,7 +1,27 @@
 /* Dashboard Styles */
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --border: #e2e8f0;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --border: #334155;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+}
+
 .dashboard-container {
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
   min-height: 100vh;
+}
+
+.dark .dashboard-container {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
 }
 
 .dashboard-header {
@@ -21,9 +41,16 @@
 
 .dashboard-chart-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 3rem;
 }
 
 .dashboard-info-grid {
@@ -93,6 +120,231 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.chart-content {
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.chart-empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.chart-empty-state svg {
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto 1rem;
+  opacity: 0.5;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.chart-legend-color {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+}
+
+/* Mejoras específicas para gráficos */
+.recharts-pie-sector {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  transition: all 0.3s ease;
+}
+
+.recharts-pie-sector:hover {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+  transform: scale(1.05);
+}
+
+.recharts-bar {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  transition: all 0.3s ease;
+}
+
+.recharts-bar:hover {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+  transform: translateY(-2px);
+}
+
+/* Mejoras específicas para barras horizontales */
+.recharts-bar-rectangle {
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.recharts-bar-rectangle:hover {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+  transform: scaleY(1.05);
+  transform-origin: center;
+}
+
+/* Dark mode para barras horizontales */
+.dark .recharts-bar-rectangle {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+
+.dark .recharts-bar-rectangle:hover {
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.4));
+}
+
+/* Mejoras para líneas y áreas */
+.recharts-area {
+  filter: drop-shadow(0 2px 8px rgba(59, 130, 246, 0.2));
+}
+
+.recharts-line {
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.1));
+}
+
+.recharts-dot {
+  transition: all 0.2s ease;
+}
+
+.recharts-dot:hover {
+  transform: scale(1.2);
+  filter: brightness(1.1);
+}
+
+.recharts-active-dot {
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.recharts-tooltip-wrapper {
+  z-index: 1000;
+}
+
+.recharts-legend-wrapper {
+  padding-top: 1rem !important;
+}
+
+.recharts-default-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.recharts-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+/* Dark mode improvements for charts */
+.dark .recharts-pie-sector {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.dark .recharts-pie-sector:hover {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.dark .recharts-bar {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.dark .recharts-bar:hover {
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.dark .recharts-cartesian-grid line {
+  stroke: var(--border);
+  opacity: 0.3;
+}
+
+.dark .recharts-legend-item {
+  color: var(--muted-foreground);
+}
+
+/* Chart container improvements for dark mode */
+.dark .chart-container {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.dark .chart-container:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.2);
+}
+
+/* Recharts specific improvements for dark mode */
+.dark .recharts-surface {
+  background: transparent;
+}
+
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--background) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .recharts-tooltip-wrapper .recharts-tooltip-label {
+  color: var(--foreground) !important;
+}
+
+.dark .recharts-tooltip-wrapper .recharts-tooltip-item {
+  color: var(--foreground) !important;
+}
+
+.dark .recharts-text {
+  fill: var(--muted-foreground) !important;
+}
+
+.dark .recharts-cartesian-axis-tick-value {
+  fill: var(--muted-foreground) !important;
+}
+
+.dark .recharts-cartesian-axis-line {
+  stroke: var(--border) !important;
+}
+
+.dark .recharts-cartesian-grid-vertical line,
+.dark .recharts-cartesian-grid-horizontal line {
+  stroke: var(--border) !important;
+  opacity: 0.2;
 }
 
 .info-card {
@@ -387,11 +639,23 @@
   border-radius: 16px;
   border: 1px solid rgba(226, 232, 240, 0.8);
   transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.chart-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
 }
 
 .chart-container:hover {
   border-color: rgba(59, 130, 246, 0.3);
   box-shadow: 0 10px 30px rgba(59, 130, 246, 0.1);
+  transform: translateY(-2px);
 }
 
 .quick-action-btn {
@@ -452,6 +716,11 @@
     grid-template-columns: 1fr;
   }
   
+  .charts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  
   .dashboard-info-grid {
     grid-template-columns: 1fr;
   }
@@ -467,11 +736,69 @@
   .chart-container {
     margin-bottom: 1.5rem;
   }
+  
+  /* Filtros responsive */
+  .dashboard-filters-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  
+  .dashboard-filters-grid > div {
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  .dashboard-filters-content {
+    padding: 0.75rem !important;
+  }
 }
 
 @media (max-width: 480px) {
   .quick-links {
     grid-template-columns: 1fr;
+  }
+  
+  /* Filtros en móvil */
+  .dashboard-filters-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+  
+  .dashboard-filters-grid > div {
+    min-width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  .dashboard-filters-content {
+    padding: 0.5rem !important;
+  }
+}
+
+/* Estilos específicos para mejorar la alineación de filtros */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .dashboard-filters-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+  
+  /* En tablets, mantener 2 columnas para los gráficos */
+  .charts-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 1rem !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .dashboard-filters-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 1.25rem !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dashboard-filters-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 1.5rem !important;
   }
 }
 
@@ -495,4 +822,171 @@
     background: rgba(30, 41, 59, 0.95);
     border-color: rgba(71, 85, 105, 0.6);
   }
+  
+  /* Ensure chart backgrounds are transparent in dark mode */
+  .recharts-wrapper {
+    background: transparent !important;
+  }
+
+  .recharts-responsive-container {
+    background: transparent !important;
+  }
+
+  .recharts-surface {
+    background: transparent !important;
+  }
+}
+
+/* Estilos para asegurar que los dropdowns de filtros se muestren correctamente */
+.select-container {
+  overflow: visible !important;
+  position: relative !important;
+  isolation: isolate !important;
+}
+
+.select-container[style*="z-index"] {
+  z-index: 999998 !important;
+}
+
+/* Estilos específicos para el contenido de los dropdowns */
+.select-container > div[style*="position: fixed"] {
+  z-index: 999999 !important;
+  overflow: visible !important;
+  max-height: 300px !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+/* Asegurar que los dropdowns no sean afectados por transforms del contenedor */
+.dashboard-filters .select-container > div[style*="position: fixed"] {
+  position: fixed !important;
+  transform: none !important;
+  top: auto !important;
+  left: auto !important;
+}
+
+/* Asegurar que los contenedores padre no corten los dropdowns */
+.dashboard-filters {
+  overflow: visible !important;
+  position: relative !important;
+  z-index: 1 !important;
+  margin-bottom: 2rem !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+.dashboard-filters-content {
+  overflow: visible !important;
+  position: relative !important;
+  z-index: 2 !important;
+  padding: 1rem !important;
+}
+
+/* Estilos específicos para elementos de filtro */
+.dashboard-filters-grid > div {
+  min-width: 160px !important;
+  max-width: 220px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+}
+
+.dashboard-filters-grid label {
+  margin-bottom: 0.5rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-filters-grid .relative {
+  width: 100% !important;
+}
+
+.dashboard-filters-grid {
+  overflow: visible !important;
+  position: relative !important;
+  display: grid !important;
+  align-items: start !important;
+  gap: 1rem !important;
+}
+
+/* Corregir z-index en cards y contenedores */
+.card-filters {
+  overflow: visible !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Animaciones mejoradas para dropdowns */
+@keyframes dropdown-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dropdown-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.select-content-bottom {
+  animation: dropdown-slide-down 0.15s ease-out;
+}
+
+.select-content-top {
+  animation: dropdown-slide-up 0.15s ease-out;
+}
+
+/* Asegurar que no haya scroll horizontal en dropdowns pequeños */
+.select-content-scroll {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.select-content-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.select-content-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.select-content-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 2px;
+}
+
+.select-content-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* Estilos responsivos para dropdowns en pantallas pequeñas */
+@media (max-width: 768px) {
+  .select-container > div[style*="position: fixed"] {
+    max-height: 250px !important;
+    min-width: 200px !important;
+  }
+}
+
+/* Dark mode adjustments para dropdowns */
+.dark .select-content-scroll::-webkit-scrollbar-thumb {
+  background-color: #475569;
+}
+
+.dark .select-content-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b;
 }

@@ -167,8 +167,8 @@ const ProductsPage: React.FC = () => {
     } catch (err) {
       console.error('Error loading suppliers:', err);
       const fallbackSuppliers: Supplier[] = [
-        { id: 1, name: 'Proveedor 1', contact_name: 'Contacto 1', email: 'contacto1@ejemplo.com', phone: '123456789' },
-        { id: 2, name: 'Proveedor 2', contact_name: 'Contacto 2', email: 'contacto2@ejemplo.com', phone: '987654321' },
+        { id: 1, name: 'Proveedor 1', contact_name: 'Contacto 1', email: 'contacto1@ejemplo.com', phone: '123456789', is_active: true },
+        { id: 2, name: 'Proveedor 2', contact_name: 'Contacto 2', email: 'contacto2@ejemplo.com', phone: '987654321', is_active: true },
       ];
       setState(prev => ({ ...prev, suppliers: fallbackSuppliers }));
     }
@@ -1254,28 +1254,33 @@ const ProductsPage: React.FC = () => {
                       Nueva
                     </Button>
                   </div>
-                  <Select 
-                    value={state.formData.category?.toString() || ''} 
-                    onValueChange={(value) => setState(prev => ({ 
+                  {/* Temporary native select for debugging */}
+                  <select
+                    value={state.formData.category?.toString() || ''}
+                    onChange={(e) => setState(prev => ({ 
                       ...prev, 
-                      formData: { ...prev.formData, category: value ? parseInt(value) : undefined }
+                      formData: { ...prev.formData, category: e.target.value ? parseInt(e.target.value) : undefined }
                     }))}
+                    className={`h-12 w-full px-4 border rounded-xl ${isDarkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-slate-300 bg-white'}`}
                   >
-                    <SelectTrigger className={`h-12 ${isDarkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-slate-300'}`}>
-                      <SelectValue placeholder="Selecciona una categoría..." />
-                    </SelectTrigger>
-                    <SelectContent className={isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white'}>
-                      {state.categories.map(category => (
-                        <SelectItem 
-                          key={category.id} 
-                          value={category.id.toString()}
-                          className={isDarkMode ? 'text-white hover:bg-gray-600' : 'hover:bg-gray-50'}
-                        >
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <option value="">Selecciona una categoría...</option>
+                    {state.categories.map(category => (
+                      <option key={category.id} value={category.id.toString()}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Debug info */}
+                  {state.categories.length === 0 && (
+                    <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      ⚠️ No hay categorías cargadas. Total: {state.categories.length}
+                    </div>
+                  )}
+                  {state.categories.length > 0 && (
+                    <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      ✅ {state.categories.length} categorías cargadas
+                    </div>
+                  )}
                 </div>
 
                 {/* FIX: Agregar dropdown de proveedores con opción de crear nuevo */}
@@ -1295,28 +1300,33 @@ const ProductsPage: React.FC = () => {
                       Nuevo
                     </Button>
                   </div>
-                  <Select 
-                    value={state.formData.supplier?.toString() || ''} 
-                    onValueChange={(value) => setState(prev => ({ 
+                  {/* Temporary native select for debugging */}
+                  <select
+                    value={state.formData.supplier?.toString() || ''}
+                    onChange={(e) => setState(prev => ({ 
                       ...prev, 
-                      formData: { ...prev.formData, supplier: value ? parseInt(value) : undefined }
+                      formData: { ...prev.formData, supplier: e.target.value ? parseInt(e.target.value) : undefined }
                     }))}
+                    className={`h-12 w-full px-4 border rounded-xl ${isDarkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-slate-300 bg-white'}`}
                   >
-                    <SelectTrigger className={`h-12 ${isDarkMode ? 'border-gray-600 bg-gray-700 text-white' : 'border-slate-300'}`}>
-                      <SelectValue placeholder="Selecciona un proveedor..." />
-                    </SelectTrigger>
-                    <SelectContent className={isDarkMode ? 'bg-gray-700 border-gray-600' : 'bg-white'}>
-                      {state.suppliers.map(supplier => (
-                        <SelectItem 
-                          key={supplier.id} 
-                          value={supplier.id.toString()}
-                          className={isDarkMode ? 'text-white hover:bg-gray-600' : 'hover:bg-gray-50'}
-                        >
-                          {supplier.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <option value="">Selecciona un proveedor...</option>
+                    {state.suppliers.map(supplier => (
+                      <option key={supplier.id} value={supplier.id.toString()}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Debug info */}
+                  {state.suppliers.length === 0 && (
+                    <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      ⚠️ No hay proveedores cargados. Total: {state.suppliers.length}
+                    </div>
+                  )}
+                  {state.suppliers.length > 0 && (
+                    <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      ✅ {state.suppliers.length} proveedores cargados
+                    </div>
+                  )}
                 </div>
                 
                 <div>

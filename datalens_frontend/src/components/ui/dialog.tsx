@@ -30,7 +30,7 @@ export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div 
-        className="fixed inset-0 bg-black/50"
+        className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm"
         onClick={() => onOpenChange?.(false)}
       />
       <div className="relative z-50">{children}</div>
@@ -40,7 +40,7 @@ export const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children }) 
 
 export const DialogContent: React.FC<DialogContentProps> = ({ className = '', children }) => {
   return (
-    <div className={`fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg transform -translate-x-1/2 -translate-y-1/2 gap-4 border border-gray-200 bg-white p-6 shadow-lg rounded-lg sm:rounded-lg ${className}`}>
+    <div className={`dialog-content fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg transform -translate-x-1/2 -translate-y-1/2 gap-4 border p-6 shadow-lg rounded-lg sm:rounded-lg ${className}`}>
       {children}
     </div>
   );

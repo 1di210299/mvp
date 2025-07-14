@@ -56,6 +56,7 @@ urlpatterns = [
     path('api/alerts/', include('alerts.urls')),
     path('api/reports/', include('reports.urls')),
     path('api/data-import/', include('data_import.urls')),
+    path('api/intelligence/', include('intelligence.urls')),
     
     # Dashboard API
     path('api/dashboard/stats/', dashboard_stats, name='dashboard_stats'),

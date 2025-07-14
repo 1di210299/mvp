@@ -12,7 +12,7 @@ import {
   ApiResponse 
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:8080/api';  // REVERT: Volver a 8080 como estaba originalmente
+const API_BASE_URL = 'http://localhost:8080/api';  // FIX: Cambiado a 8080 donde está corriendo Django
 
 // **NUEVO: Función para crear headers optimizados**
 const createOptimizedHeaders = (includeAuth: boolean = true): Record<string, string> => {
@@ -473,7 +473,7 @@ export const inventoryService = {
   // Dashboard de inventario
   getInventoryDashboard: async (params?: any): Promise<any> => {
     try {
-      const response = await api.get('/inventory/dashboard/', { params });
+      const response = await api.get('/inventory/dashboard-fixed/', { params });
       return response.data;
     } catch (error) {
       console.error('Error fetching inventory dashboard:', error);
@@ -1231,6 +1231,27 @@ export const extendedInventoryService = {
         total_today: 0,
         total_week: 0,
         recent: []
+      };
+    }
+  }
+};
+
+export const filterService = {
+  getFilterOptions: async () => {
+    try {
+      console.log('🔧 Llamando al endpoint de filtros...');
+      const response = await api.get('/inventory/filter-options/');
+      console.log('✅ Filtros obtenidos exitosamente:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error obteniendo opciones de filtros:', error);
+      return {
+        categories: [],
+        locations: [],
+        warehouses: [],
+        statuses: [],
+        transaction_types: [],
+        suppliers: []
       };
     }
   }

@@ -4,11 +4,12 @@ interface CardProps {
   children: React.ReactNode;
   className?: string;
   hover?: boolean;
+  style?: React.CSSProperties;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', hover = true }) => {
+export const Card: React.FC<CardProps> = ({ children, className = '', hover = true, style }) => {
   return (
-    <div className={`card animate-fade-in ${hover ? 'hover-lift' : ''} ${className}`}>
+    <div className={`card animate-fade-in ${hover ? 'hover-lift' : ''} ${className}`} style={style}>
       {children}
     </div>
   );
@@ -43,11 +44,12 @@ export const CardTitle: React.FC<CardTitleProps> = ({ children, className = '' }
 interface CardContentProps {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export const CardContent: React.FC<CardContentProps> = ({ children, className = '' }) => {
+export const CardContent: React.FC<CardContentProps> = ({ children, className = '', style }) => {
   return (
-    <div className={`card-content ${className}`}>
+    <div className={`card-content ${className}`} style={style}>
       {children}
     </div>
   );

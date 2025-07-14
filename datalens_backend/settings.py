@@ -73,6 +73,7 @@ LOCAL_APPS = [
     'alerts',
     'reports',
     'data_import',  # Nueva app para importación de datos
+    'intelligence',  # Nueva app para inteligencia con OpenAI
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

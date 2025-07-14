@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.db.models import Sum, Count, Q, F
+from django.db.models import Sum, Count, Q, F, DecimalField, Case, When, Value
+from django.db.models.functions import TruncDate
 from django.db import transaction
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -406,21 +407,49 @@ class TransactionViewSet(viewsets.ModelViewSet):
 
 
 class DashboardView(APIView):
-    """Vista para el dashboard principal de inventario"""
+    """Vista para el dashboard principal de inventario con soporte para filtros"""
     permission_classes = [IsAuthenticated]
     
     @extend_schema(
         summary="Obtener estadísticas del dashboard",
-        description="Retorna métricas y estadísticas principales del inventario"
+        description="Retorna métricas y estadísticas principales del inventario con soporte para filtros"
     )
     def get(self, request):
         print(f"🔍 DashboardView.get() - Iniciando cálculo de estadísticas...")
         try:
-            # FIX: Usar InventoryItem en lugar de Product para stocks reales
+            # Obtener filtros de la request
+            start_date = request.query_params.get('start_date')
+            end_date = request.query_params.get('end_date')
+            category = request.query_params.get('category')
+            warehouse = request.query_params.get('warehouse')
+            
+            # Procesar filtros de fecha
+            date_filter = {}
+            if start_date:
+                try:
+                    date_filter['transaction_date__gte'] = datetime.strptime(start_date, '%Y-%m-%d')
+                except ValueError:
+                    pass
+            if end_date:
+                try:
+                    date_filter['transaction_date__lte'] = datetime.strptime(end_date, '%Y-%m-%d')
+                except ValueError:
+                    pass
+            
+            # Filtros para productos
+            product_filter = {'is_active': True}
+            if category and category != 'all':
+                product_filter['category__name__icontains'] = category
+            
+            # Filtros para inventory items
+            inventory_filter = {'product__is_active': True}
+            if warehouse and warehouse != 'all':
+                inventory_filter['location__name__icontains'] = warehouse
+            
             from inventory.models import InventoryItem
             
-            # Estadísticas básicas
-            total_products = Product.objects.filter(is_active=True).count()
+            # Estadísticas básicas con filtros
+            total_products = Product.objects.filter(**product_filter).count()
             total_categories = Category.objects.filter(is_active=True).count()
             total_suppliers = Supplier.objects.filter(is_active=True).count()
             
@@ -428,41 +457,59 @@ class DashboardView(APIView):
             print(f"📊 Categorías activas: {total_categories}")
             print(f"📊 Proveedores activos: {total_suppliers}")
             
-            # FIX: Calcular valor total usando InventoryItem
-            total_stock_value = InventoryItem.objects.aggregate(
-                total_value=Sum(F('quantity') * F('unit_cost'))
+            # Calcular valor total con filtros - CORREGIDO CON CAST
+            total_stock_value = InventoryItem.objects.filter(**inventory_filter).aggregate(
+                total_value=Sum(
+                    Case(
+                        When(quantity__isnull=False,
+                             then=F('quantity') * F('unit_cost')),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )
             )['total_value'] or 0
             
             print(f"💰 Valor total de inventario: {total_stock_value}")
             
-            # FIX: Calcular stock crítico usando InventoryItem y los datos reales
-            # Productos con stock bajo (menos de 30 unidades en cualquier ubicación)
+            # Stock crítico con filtros
             low_stock_items = InventoryItem.objects.filter(
                 quantity__lt=30,
-                product__is_active=True
+                **inventory_filter
             )
             low_stock_products = low_stock_items.count()
             
             print(f"⚠️ Items con stock crítico (<30): {low_stock_products}")
             
-            # Productos completamente sin stock
+            # Productos sin stock con filtros
             out_of_stock_products = InventoryItem.objects.filter(
                 quantity__lte=0,
-                product__is_active=True
+                **inventory_filter
             ).count()
             
             print(f"❌ Items sin stock: {out_of_stock_products}")
             
-            # Transacciones recientes
-            seven_days_ago = timezone.now() - timedelta(days=7)
+            # Transacciones con filtros de fecha
+            transaction_filter = {}
+            if not date_filter:
+                # Por defecto, últimos 7 días
+                seven_days_ago = timezone.now() - timedelta(days=7)
+                transaction_filter['transaction_date__gte'] = seven_days_ago
+            else:
+                transaction_filter.update(date_filter)
+            
             try:
-                recent_transactions = Transaction.objects.filter(
-                    transaction_date__gte=seven_days_ago
+                recent_transactions = Transaction.objects.filter(**transaction_filter).count()
+                # Transacciones de hoy específicamente
+                today = timezone.now().date()
+                today_transactions = Transaction.objects.filter(
+                    transaction_date__date=today
                 ).count()
             except Exception:
                 recent_transactions = 0
+                today_transactions = 0
             
-            print(f"📈 Transacciones últimos 7 días: {recent_transactions}")
+            print(f"📈 Transacciones filtradas: {recent_transactions}")
+            print(f"📈 Transacciones hoy: {today_transactions}")
             
             # Alertas activas
             try:
@@ -473,10 +520,17 @@ class DashboardView(APIView):
             
             print(f"🚨 Alertas activas: {active_alerts}")
             
-            # Top 5 productos por valor de inventario
+            # Top productos por valor con filtros - CORREGIDO CON CAST
             try:
-                top_products = list(InventoryItem.objects.select_related('product').annotate(
-                    total_value=F('quantity') * F('unit_cost')
+                top_products = list(InventoryItem.objects.select_related('product').filter(
+                    **inventory_filter
+                ).annotate(
+                    total_value=Case(
+                        When(quantity__isnull=False,
+                             then=F('quantity') * F('unit_cost')),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
                 ).order_by('-total_value')[:5].values(
                     'product__id', 'product__name', 'product__sku', 
                     'quantity', 'total_value', 'location__name'
@@ -485,23 +539,128 @@ class DashboardView(APIView):
                 print(f"❌ Error obteniendo top productos: {e}")
                 top_products = []
             
-            # Stock por categoría usando datos reales
+            # DATOS PARA GRÁFICOS (CORREGIDOS)
             try:
-                stock_by_category = list(Category.objects.filter(
+                # Stock por categoría (para gráfico de distribución) - CORREGIDO CON CAST
+                products_by_category = list(Category.objects.filter(
                     is_active=True,
                     products__is_active=True
                 ).annotate(
-                    total_products=Count('products', distinct=True),
-                    total_items=Count('products__inventoryitem'),
-                    total_stock=Sum('products__inventoryitem__quantity'),
-                    total_value=Sum(F('products__inventoryitem__quantity') * F('products__inventoryitem__unit_cost'))
-                ).values('name', 'total_products', 'total_stock', 'total_value'))
+                    count=Count('products', distinct=True),
+                    total_stock=Sum('products__inventory_items__quantity'),
+                    total_value=Sum(
+                        Case(
+                            When(products__inventory_items__quantity__isnull=False,
+                                 then=F('products__inventory_items__quantity') * F('products__inventory_items__unit_cost')),
+                            default=Value(0),
+                            output_field=DecimalField(max_digits=15, decimal_places=2)
+                        )
+                    )
+                ).values('name', 'count', 'total_stock', 'total_value'))
+                
+                # Formatear para frontend
+                products_by_category = [
+                    {
+                        'category': cat['name'],
+                        'value': cat['count'] or 0,
+                        'stock': cat['total_stock'] or 0,
+                        'total_value': float(cat['total_value'] or 0)
+                    }
+                    for cat in products_by_category
+                ]
+                
+                # Stock por ubicación (para gráfico de almacenes) - CORREGIDO CON CAST
+                stock_by_warehouse = list(Location.objects.annotate(
+                    current_stock=Sum('inventory_items__quantity'),
+                    total_items=Count('inventory_items'),
+                    total_value=Sum(
+                        Case(
+                            When(inventory_items__quantity__isnull=False,
+                                 then=F('inventory_items__quantity') * F('inventory_items__unit_cost')),
+                            default=Value(0),
+                            output_field=DecimalField(max_digits=15, decimal_places=2)
+                        )
+                    )
+                ).values('name', 'current_stock', 'total_items', 'total_value'))
+                
+                # Formatear para frontend
+                stock_by_warehouse = [
+                    {
+                        'warehouse': loc['name'],
+                        'current_stock': loc['current_stock'] or 0,
+                        'min_stock': 50,  # Valor por defecto
+                        'max_stock': 500,  # Valor por defecto
+                        'total_items': loc['total_items'] or 0,
+                        'total_value': float(loc['total_value'] or 0)
+                    }
+                    for loc in stock_by_warehouse
+                ]
+                
+                # Tendencia de transacciones (últimos 30 días)
+                thirty_days_ago = timezone.now() - timedelta(days=30)
+                transactions_trend = Transaction.objects.filter(
+                    transaction_date__gte=thirty_days_ago
+                ).extra(
+                    select={'date': 'DATE(transaction_date)'}
+                ).values('date').annotate(
+                    sales=Sum('quantity', filter=Q(transaction_type='sale')),
+                    purchases=Sum('quantity', filter=Q(transaction_type='purchase'))
+                ).order_by('date')
+                
+                # Formatear para frontend
+                # CORREGIDO: Usar abs() para ventas ya que están en negativo en la BD
+                sales_trend = [
+                    {
+                        'date': str(item['date']),
+                        'sales': abs(item['sales']) if item['sales'] else 0,
+                        'forecast': float(abs(item['sales'])) * 1.05 if item['sales'] else 0 # Estimación simple
+                    }
+                    for item in transactions_trend
+                ]
+                
             except Exception as e:
-                print(f"❌ Error obteniendo stock por categoría: {e}")
-                stock_by_category = []
+                import traceback
+                print(f"❌ Error generando datos para gráficos: {e}")
+                print(f"🔍 TRACEBACK COMPLETO:")
+                traceback.print_exc()
+                products_by_category = []
+                stock_by_warehouse = []
+                sales_trend = []
             
-            # FIX: Respuesta corregida con campos que el frontend espera
+            # NUEVO: Métricas temporales con comparación
+            try:
+                # Comparar con período anterior
+                if date_filter:
+                    # Si hay filtros de fecha, comparar con período anterior de igual duración
+                    period_days = (datetime.strptime(end_date, '%Y-%m-%d') - datetime.strptime(start_date, '%Y-%m-%d')).days if start_date and end_date else 30
+                else:
+                    period_days = 30
+                
+                previous_period_start = timezone.now() - timedelta(days=period_days*2)
+                previous_period_end = timezone.now() - timedelta(days=period_days)
+                
+                previous_transactions = Transaction.objects.filter(
+                    transaction_date__gte=previous_period_start,
+                    transaction_date__lte=previous_period_end
+                ).count()
+                
+                # Calcular cambio porcentual
+                if previous_transactions > 0:
+                    transaction_change = ((recent_transactions - previous_transactions) / previous_transactions) * 100
+                else:
+                    transaction_change = 0
+                
+                # Calcular cambio en valor de inventario (estimado)
+                inventory_change = 5.2  # Placeholder - se puede calcular con historical data
+                
+            except Exception as e:
+                transaction_change = 0
+                inventory_change = 0
+                print(f"❌ Error calculando cambios: {e}")
+            
+            # Respuesta completa con todos los datos
             dashboard_data = {
+                # Métricas principales
                 'total_products': total_products,
                 'total_categories': total_categories,
                 'total_suppliers': total_suppliers,
@@ -510,22 +669,38 @@ class DashboardView(APIView):
                 'out_of_stock_products': out_of_stock_products,
                 'recent_transactions': recent_transactions,
                 'active_alerts': active_alerts,
+                
+                # Aliases para compatibilidad con frontend
+                'total_value': float(total_stock_value),
+                'low_stock_alerts': low_stock_products,
+                'total_transactions_today': today_transactions,
+                'active_customers': 0,
+                'pipeline_value': 0,
+                
+                # DATOS PARA GRÁFICOS (CORREGIDOS)
+                'products_by_category': products_by_category,
+                'stock_by_warehouse': stock_by_warehouse,
+                'sales_trend': sales_trend,
+                
+                # NUEVO: Métricas temporales con contexto
+                'period_info': {
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'period_days': period_days if 'period_days' in locals() else 30,
+                    'transaction_change': round(transaction_change, 1),
+                    'inventory_change': round(inventory_change, 1),
+                    'timeframe': f"últimos {period_days if 'period_days' in locals() else 30} días"
+                },
+                
+                # Productos destacados
                 'top_products': top_products,
-                'stock_by_category': stock_by_category,
-                'recent_sales': [],  # Placeholder
                 
-                # FIX: Campos adicionales que el frontend espera específicamente
-                'total_value': float(total_stock_value),  # Alias para frontend
-                'low_stock_alerts': low_stock_products,  # Alias para frontend
-                'total_transactions_today': recent_transactions,
-                'active_customers': 0,  # Placeholder
-                'pipeline_value': 0,   # Placeholder
-                
-                # Debug info
-                'debug_info': {
-                    'inventory_items_total': InventoryItem.objects.count(),
-                    'inventory_items_low_stock': low_stock_products,
-                    'calculation_method': 'InventoryItem-based'
+                # Filtros aplicados
+                'applied_filters': {
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'category': category,
+                    'warehouse': warehouse
                 }
             }
             
@@ -533,11 +708,14 @@ class DashboardView(APIView):
             print(f"   📦 Total productos: {total_products}")
             print(f"   ⚠️ Stock crítico: {low_stock_products}")
             print(f"   💰 Valor total: {total_stock_value}")
+            print(f"   📊 Gráficos: {len(products_by_category)} categorías, {len(stock_by_warehouse)} almacenes")
             
             return Response(dashboard_data)
             
         except Exception as e:
             print(f"❌ Error en dashboard: {str(e)}")
+            import logging
+            logger = logging.getLogger(__name__)
             logger.error(f"Error en dashboard view: {str(e)}")
             # En caso de error completo, devolver datos mínimos
             return Response({
@@ -550,14 +728,29 @@ class DashboardView(APIView):
                 'recent_transactions': 0,
                 'active_alerts': 0,
                 'top_products': [],
-                'stock_by_category': [],
-                'recent_sales': [],
+                'products_by_category': [],
+                'stock_by_warehouse': [],
+                'sales_trend': [],
                 # Campos adicionales que el frontend espera
                 'low_stock_alerts': 0,
                 'total_value': 0,
                 'total_transactions_today': 0,
                 'active_customers': 0,
                 'pipeline_value': 0,
+                'period_info': {
+                    'start_date': None,
+                    'end_date': None,
+                    'period_days': 30,
+                    'transaction_change': 0,
+                    'inventory_change': 0,
+                    'timeframe': 'últimos 30 días'
+                },
+                'applied_filters': {
+                    'start_date': None,
+                    'end_date': None,
+                    'category': None,
+                    'warehouse': None
+                },
                 'error': f'Dashboard temporarily unavailable: {str(e)}'
             })
 
@@ -567,53 +760,205 @@ class InventoryDashboardView(APIView):
     
     def get(self, request):
         print(f"🔍 InventoryDashboardView.get() - Iniciando cálculo de estadísticas...")
+        
+        # NUEVO: Procesar filtros del frontend
+        filters = {}
+        category_filter = request.GET.get('category')
+        warehouse_filter = request.GET.get('warehouse')
+        status_filter = request.GET.get('status')
+        search_filter = request.GET.get('search')
+        start_date = request.GET.get('start_date')
+        end_date = request.GET.get('end_date')
+        
+        print(f"🔍 Filtros recibidos: category={category_filter}, warehouse={warehouse_filter}, status={status_filter}, search={search_filter}, start_date={start_date}, end_date={end_date}")
+        
         try:
             # FIX: Recalcular stocks agregados desde InventoryItem hacia Product
             self._update_product_stocks_from_inventory_items()
             
-            # Estadísticas básicas
-            total_products = Product.objects.filter(is_active=True).count()
+            # NUEVO: Construir queryset base de productos con filtros (SIN FECHA)
+            products_queryset = Product.objects.filter(is_active=True)
+            
+            # Aplicar filtro de categoría
+            if category_filter and category_filter != 'all':
+                products_queryset = products_queryset.filter(category_id=category_filter)
+                print(f"🔍 Aplicando filtro de categoría: {category_filter}")
+            
+            # Aplicar filtro de almacén (a través de InventoryItem)
+            if warehouse_filter and warehouse_filter != 'all':
+                # Obtener el nombre del almacén a partir del ID
+                try:
+                    location = Location.objects.get(id=warehouse_filter)
+                    warehouse_name = location.warehouse
+                    products_queryset = products_queryset.filter(inventory_items__location__warehouse=warehouse_name)
+                    print(f"🔍 Aplicando filtro de almacén: {warehouse_name} (ID: {warehouse_filter})")
+                except Location.DoesNotExist:
+                    print(f"❌ Almacén con ID {warehouse_filter} no encontrado")
+                    pass
+            
+            # Aplicar filtro de búsqueda
+            if search_filter:
+                products_queryset = products_queryset.filter(
+                    Q(name__icontains=search_filter) |
+                    Q(sku__icontains=search_filter) |
+                    Q(description__icontains=search_filter)
+                )
+                print(f"🔍 Aplicando filtro de búsqueda: {search_filter}")
+                
+            # CORREGIDO: Aplicar filtro de estado al final para tener queryset completo
+            if status_filter and status_filter != 'all':
+                if status_filter == 'low_stock':
+                    products_queryset = products_queryset.filter(stock__lt=F('min_stock'), stock__gt=0)
+                elif status_filter == 'out_of_stock':
+                    products_queryset = products_queryset.filter(stock__lte=0)
+                elif status_filter == 'in_stock':
+                    products_queryset = products_queryset.filter(stock__gt=0)
+                print(f"🔍 Aplicando filtro de estado: {status_filter}")
+            
+            # Estadísticas básicas con filtros aplicados
+            total_products = products_queryset.count()
             total_categories = Category.objects.filter(is_active=True).count()
             total_suppliers = Supplier.objects.filter(is_active=True).count()
             
-            print(f"📊 Productos activos: {total_products}")
+            print(f"📊 Productos activos (filtrados): {total_products}")
             
-            # FIX: Calcular valor total usando InventoryItem real
-            total_stock_value = InventoryItem.objects.aggregate(
-                total_value=Sum(F('quantity') * F('unit_cost'))
+            # NUEVO: Construir queryset de InventoryItem con filtros (SIN FECHA)
+            inventory_items_queryset = InventoryItem.objects.filter(product__in=products_queryset)
+            
+            # Aplicar filtro de almacén a inventory items
+            if warehouse_filter and warehouse_filter != 'all':
+                try:
+                    location = Location.objects.get(id=warehouse_filter)
+                    warehouse_name = location.warehouse
+                    inventory_items_queryset = inventory_items_queryset.filter(location__warehouse=warehouse_name)
+                    print(f"🔍 Aplicando filtro de almacén a inventory items: {warehouse_name}")
+                except Location.DoesNotExist:
+                    print(f"❌ Almacén con ID {warehouse_filter} no encontrado para inventory items")
+                    pass
+            
+            # FIX: Calcular valor total usando InventoryItem filtrado - CORREGIDO CON CAST
+            total_stock_value = inventory_items_queryset.aggregate(
+                total_value=Sum(
+                    Case(
+                        When(quantity__isnull=False,
+                             then=F('quantity') * F('unit_cost')),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )
             )['total_value'] or 0
             
-            print(f"💰 Valor total de inventario: {total_stock_value}")
+            print(f"💰 Valor total de inventario (filtrado): {total_stock_value}")
             
-            # FIX: Calcular stock crítico usando los stocks agregados en Product
-            # Productos con stock por debajo del mínimo
-            low_stock_products = Product.objects.filter(
-                is_active=True,
-                stock__lt=F('min_stock')  # Stock actual menor que el mínimo
+            # FIX: Calcular stock crítico usando los stocks agregados en Product filtrado
+            # Productos con stock por debajo del mínimo - USANDO QUERYSET FILTRADO
+            low_stock_products = products_queryset.filter(
+                stock__lt=F('min_stock'),
+                stock__gt=0  # Excluir productos sin stock
             ).count()
             
-            print(f"⚠️ Productos con stock crítico: {low_stock_products}")
+            print(f"⚠️ Productos con stock crítico (filtrados): {low_stock_products}")
             
-            # Productos completamente sin stock
-            out_of_stock_products = Product.objects.filter(
-                is_active=True,
+            # Productos completamente sin stock - USANDO QUERYSET FILTRADO
+            out_of_stock_products = products_queryset.filter(
                 stock__lte=0
             ).count()
             
-            print(f"❌ Productos sin stock: {out_of_stock_products}")
+            print(f"❌ Productos sin stock (filtrados): {out_of_stock_products}")
             
-            # Transacciones recientes
-            seven_days_ago = timezone.now() - timedelta(days=7)
-            recent_transactions = Transaction.objects.filter(
-                transaction_date__gte=seven_days_ago
-            ).count()
+            # CORREGIDO: Transacciones con filtros de fecha SOLAMENTE
+            transactions_queryset = Transaction.objects.all()
             
-            # Top 5 productos por valor total
+            # Aplicar filtros de fecha SOLO a transacciones
+            if start_date:
+                transactions_queryset = transactions_queryset.filter(transaction_date__gte=start_date)
+                print(f"🔍 Aplicando filtro de fecha inicio a transacciones: {start_date}")
+            if end_date:
+                transactions_queryset = transactions_queryset.filter(transaction_date__lte=end_date)
+                print(f"🔍 Aplicando filtro de fecha fin a transacciones: {end_date}")
+            
+            # CORREGIDO: Solo aplicar filtro de 7 días si no hay ningún filtro de fecha explícito
+            # Si el usuario selecciona "all", no aplicar ningún filtro de fecha
+            if not start_date and not end_date:
+                # No aplicar filtro de fecha por defecto - mostrar todas las transacciones
+                print("🔍 No hay filtros de fecha - mostrando todas las transacciones")
+            
+            # Aplicar filtros de productos a transacciones
+            if category_filter and category_filter != 'all':
+                transactions_queryset = transactions_queryset.filter(product__category_id=category_filter)
+            if warehouse_filter and warehouse_filter != 'all':
+                # Filtrar transacciones por almacén usando el nombre del almacén
+                try:
+                    location = Location.objects.get(id=warehouse_filter)
+                    warehouse_name = location.warehouse
+                    transactions_queryset = transactions_queryset.filter(product__inventory_items__location__warehouse=warehouse_name)
+                    print(f"🔍 Aplicando filtro de almacén a transacciones: {warehouse_name} (ID: {warehouse_filter})")
+                except Location.DoesNotExist:
+                    print(f"❌ Almacén con ID {warehouse_filter} no encontrado para transacciones")
+                    pass
+            if search_filter:
+                transactions_queryset = transactions_queryset.filter(
+                    Q(product__name__icontains=search_filter) |
+                    Q(product__sku__icontains=search_filter)
+                )
+            
+            # Transacciones con filtros aplicados
+            recent_transactions = transactions_queryset.count()
+            print(f"📊 Transacciones recientes (filtradas): {recent_transactions}")
+            
+            # OPTIMIZADO: Calcular métricas de ventas y compras con filtros de fecha usando agregaciones
+            sales_queryset = transactions_queryset.filter(transaction_type='sale')
+            purchases_queryset = transactions_queryset.filter(transaction_type='purchase')
+            
+            # OPTIMIZADO: Calcular ventas usando agregación
+            sales_aggregation = sales_queryset.aggregate(
+                total_sales=Sum(
+                    Case(
+                        When(product__sale_price__isnull=False,
+                             then=F('quantity') * F('product__sale_price') * -1),  # Convertir a positivo
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                ),
+                count=Count('id')
+            )
+            
+            sales_value = float(sales_aggregation['total_sales'] or 0)
+            sales_count = sales_aggregation['count'] or 0
+            
+            # OPTIMIZADO: Calcular compras usando agregación  
+            purchases_aggregation = purchases_queryset.aggregate(
+                total_purchases=Sum(
+                    Case(
+                        When(product__cost_price__isnull=False,
+                             then=F('quantity') * F('product__cost_price')),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                ),
+                count=Count('id')
+            )
+            
+            purchases_value = float(purchases_aggregation['total_purchases'] or 0)
+            purchases_count = purchases_aggregation['count'] or 0
+            
+            # Calcular ganancia neta
+            net_profit = sales_value - purchases_value
+            
+            print(f"💰 Ventas en período filtrado: {sales_count} transacciones, S/ {sales_value:.2f}")
+            print(f"📦 Compras en período filtrado: {purchases_count} transacciones, S/ {purchases_value:.2f}")
+            print(f"📈 Ganancia neta en período filtrado: S/ {net_profit:.2f}")
+            print(f"🔍 Filtros aplicados a transacciones: start_date={start_date}, end_date={end_date}, category={category_filter}, warehouse={warehouse_filter}")
+            
+            # Top 5 productos por valor total - CORREGIDO CON CAST y filtrado
             try:
-                top_products = list(Product.objects.filter(
-                    is_active=True
-                ).annotate(
-                    total_value=F('stock') * F('sale_price')
+                top_products = list(products_queryset.annotate(
+                    total_value=Case(
+                        When(stock__isnull=False,
+                             then=F('stock') * F('sale_price')),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
                 ).order_by('-total_value')[:5].values(
                     'id', 'name', 'sku', 'stock', 'total_value'
                 ))
@@ -621,19 +966,101 @@ class InventoryDashboardView(APIView):
                 print(f"❌ Error obteniendo top productos: {e}")
                 top_products = []
             
-            # Stock por categoría
+            # Stock por categoría - CORREGIDO CON CAST y filtrado
             try:
-                stock_by_category = list(Category.objects.filter(
-                    is_active=True
-                ).annotate(
-                    total_products=Count('products', filter=Q(products__is_active=True)),
-                    total_stock=Sum('products__stock', filter=Q(products__is_active=True)),
-                    total_value=Sum(F('products__stock') * F('products__sale_price'), 
-                                  filter=Q(products__is_active=True))
+                categories_queryset = Category.objects.filter(is_active=True)
+                if category_filter and category_filter != 'all':
+                    categories_queryset = categories_queryset.filter(id=category_filter)
+                
+                stock_by_category = list(categories_queryset.annotate(
+                    total_products=Count('products', filter=Q(products__is_active=True) & Q(products__in=products_queryset)),
+                    total_stock=Sum('products__stock', filter=Q(products__is_active=True) & Q(products__in=products_queryset)),
+                    total_value=Sum(
+                        Case(
+                            When(products__stock__isnull=False,
+                                 then=F('products__stock') * F('products__sale_price')),
+                            default=Value(0),
+                            output_field=DecimalField(max_digits=15, decimal_places=2)
+                        ),
+                        filter=Q(products__is_active=True) & Q(products__in=products_queryset)
+                    )
                 ).values('name', 'total_products', 'total_stock', 'total_value'))
+                print(f"📊 Stock por categoría (filtrado): {len(stock_by_category)} categorías")
             except Exception as e:
                 print(f"❌ Error obteniendo stock por categoría: {e}")
                 stock_by_category = []
+            
+            # NUEVO: Calcular ventas por fecha para el gráfico
+            try:
+                # Obtener ventas agrupadas por fecha
+                sales_by_date = sales_queryset.annotate(
+                    date=TruncDate('transaction_date')
+                ).values('date').annotate(
+                    total_sales=Sum(
+                        Case(
+                            When(product__sale_price__isnull=False,
+                                 then=F('quantity') * F('product__sale_price') * -1),  # Convertir a positivo
+                            default=Value(0),
+                            output_field=DecimalField(max_digits=15, decimal_places=2)
+                        )
+                    ),
+                    count=Count('id')
+                ).order_by('date')
+                
+                sales_trend_data = []
+                for sale in sales_by_date:
+                    sales_trend_data.append({
+                        'date': sale['date'].strftime('%Y-%m-%d') if sale['date'] else '',
+                        'sales': float(sale['total_sales'] or 0),
+                        'count': sale['count'] or 0
+                    })
+                
+                print(f"📊 Tendencia de ventas por fecha: {len(sales_trend_data)} días con datos")
+                
+            except Exception as e:
+                print(f"❌ Error calculando tendencia de ventas: {e}")
+                sales_trend_data = []
+
+            # NUEVO: Stock por almacén para el gráfico
+            try:
+                # Obtener almacenes únicos filtrados
+                warehouses_queryset = Location.objects.filter(is_active=True)
+                if warehouse_filter and warehouse_filter != 'all':
+                    try:
+                        location = Location.objects.get(id=warehouse_filter)
+                        warehouse_name = location.warehouse
+                        warehouses_queryset = warehouses_queryset.filter(warehouse=warehouse_name)
+                    except Location.DoesNotExist:
+                        pass
+                
+                stock_by_warehouse = []
+                seen_warehouses = set()
+                
+                for location in warehouses_queryset:
+                    if location.warehouse not in seen_warehouses:
+                        # Calcular stock total para este almacén
+                        warehouse_stock = InventoryItem.objects.filter(
+                            location__warehouse=location.warehouse,
+                            location__is_active=True,
+                            product__is_active=True
+                        ).aggregate(
+                            total_stock=Sum('quantity'),
+                            min_stock=Sum('product__min_stock'),
+                            max_stock=Sum('product__max_stock')
+                        )
+                        
+                        stock_by_warehouse.append({
+                            'warehouse': location.warehouse,
+                            'current_stock': float(warehouse_stock['total_stock'] or 0),
+                            'min_stock': float(warehouse_stock['min_stock'] or 0),
+                            'max_stock': float(warehouse_stock['max_stock'] or 0)
+                        })
+                        seen_warehouses.add(location.warehouse)
+                
+                print(f"🏢 Stock por almacén (filtrado): {len(stock_by_warehouse)} almacenes")
+            except Exception as e:
+                print(f"❌ Error obteniendo stock por almacén: {e}")
+                stock_by_warehouse = []
             
             dashboard_data = {
                 'total_products': total_products,
@@ -646,7 +1073,17 @@ class InventoryDashboardView(APIView):
                 'active_alerts': 0,  # Placeholder
                 'top_products': top_products,
                 'stock_by_category': stock_by_category,
+                'stock_by_warehouse': stock_by_warehouse,
+                'products_by_category': stock_by_category,  # Alias para compatibilidad con frontend
                 'recent_sales': [],
+                
+                # NUEVO: Métricas de ventas y compras que cambian con fecha
+                'sales_value': float(sales_value),
+                'sales_count': sales_count,
+                'purchases_value': float(purchases_value),
+                'purchases_count': purchases_count,
+                'net_profit': float(net_profit),
+                'sales_trend_data': sales_trend_data,
                 
                 # Campos adicionales que el frontend puede esperar
                 'total_value': float(total_stock_value),
@@ -655,38 +1092,30 @@ class InventoryDashboardView(APIView):
                 'active_customers': 0,
                 'pipeline_value': 0,
                 
-                # Debug info para verificar
-                'debug_info': {
-                    'inventory_items_total': InventoryItem.objects.count(),
-                    'products_updated': self._get_updated_products_count(),
-                    'calculation_timestamp': timezone.now().isoformat()
+                # Información de filtros aplicados
+                'filters_applied': {
+                    'category': category_filter,
+                    'warehouse': warehouse_filter, 
+                    'status': status_filter,
+                    'search': search_filter,
+                    'start_date': start_date,
+                    'end_date': end_date
                 }
             }
             
-            print(f"✅ Dashboard data calculado:")
-            print(f"   📦 Total productos: {total_products}")
-            print(f"   ⚠️ Stock crítico: {low_stock_products}")
-            print(f"   💰 Valor total: S/ {total_stock_value:.2f}")
+            print(f"✅ Dashboard data generado con {total_products} productos filtrados")
+            print(f"📊 Resumen: {low_stock_products} productos con stock crítico, {out_of_stock_products} sin stock")
             
             return Response(dashboard_data)
             
         except Exception as e:
-            print(f"❌ Error en dashboard: {str(e)}")
-            logger.error(f"Error en dashboard view: {str(e)}")
+            print(f"❌ Error en InventoryDashboardView: {str(e)}")
+            import traceback
+            print(f"🔍 Traceback: {traceback.format_exc()}")
             return Response({
-                'total_products': 0,
-                'total_categories': 0,
-                'total_suppliers': 0,
-                'total_stock_value': 0,
-                'low_stock_products': 0,
-                'out_of_stock_products': 0,
-                'recent_transactions': 0,
-                'active_alerts': 0,
-                'top_products': [],
-                'stock_by_category': [],
-                'recent_sales': [],
-                'error': f'Dashboard temporarily unavailable: {str(e)}'
-            })
+                'error': 'Internal server error',
+                'message': str(e)
+            }, status=500)
     
     def _update_product_stocks_from_inventory_items(self):
         """Actualizar stocks agregados en Product desde InventoryItem"""
@@ -722,7 +1151,6 @@ class InventoryDashboardView(APIView):
             ).count()
         except:
             return 0
-    
 
 
 class FileUploadView(APIView):
@@ -1025,3 +1453,72 @@ class OpportunityViewSet(viewsets.ModelViewSet):
             'count': opportunities.count(),
             'results': serializer.data
         })
+
+
+class FilterOptionsView(APIView):
+    """Vista para obtener opciones de filtros del dashboard"""
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Obtener opciones de filtros",
+        description="Retorna las opciones disponibles para los filtros del dashboard (categorías, almacenes, estados)"
+    )
+    def get(self, request):
+        """Devolver opciones de filtros para el dashboard"""
+        try:
+            print("🔍 FilterOptionsView: Obteniendo opciones de filtros...")
+            
+            # Obtener categorías activas
+            categories = list(Category.objects.filter(is_active=True).values('id', 'name'))
+            print(f"📦 Categorías encontradas: {len(categories)}")
+            
+            # Obtener almacenes únicos (sin duplicados)
+            warehouses_raw = Location.objects.filter(is_active=True).values('warehouse').distinct()
+            warehouses = []
+            seen_warehouses = set()
+            
+            for warehouse_data in warehouses_raw:
+                warehouse_name = warehouse_data['warehouse']
+                if warehouse_name not in seen_warehouses:
+                    # Obtener el primer ID de este almacén para usar como referencia
+                    location = Location.objects.filter(is_active=True, warehouse=warehouse_name).first()
+                    if location:
+                        warehouses.append({
+                            'id': location.id,
+                            'warehouse': warehouse_name
+                        })
+                        seen_warehouses.add(warehouse_name)
+            
+            print(f"🏢 Almacenes únicos encontrados: {len(warehouses)}")
+            
+            # Obtener tipos de transacciones únicos
+            transaction_types = list(Transaction.objects.values_list('transaction_type', flat=True).distinct())
+            print(f"📋 Tipos de transacciones: {len(transaction_types)}")
+            
+            # Estados predefinidos para el filtro
+            status_options = [
+                {'id': 'all', 'name': 'Todos los estados'},
+                {'id': 'in_stock', 'name': 'Con stock'},
+                {'id': 'low_stock', 'name': 'Stock bajo'},
+                {'id': 'out_of_stock', 'name': 'Sin stock'}
+            ]
+            
+            filter_options = {
+                'categories': categories,
+                'warehouses': warehouses,
+                'transaction_types': transaction_types,
+                'status_options': status_options
+            }
+            
+            print(f"✅ FilterOptionsView: Opciones de filtros enviadas exitosamente")
+            return Response(filter_options)
+            
+        except Exception as e:
+            print(f"❌ Error en FilterOptionsView: {str(e)}")
+            return Response({
+                'categories': [],
+                'warehouses': [],
+                'transaction_types': [],
+                'status_options': [],
+                'error': f'Filter options temporarily unavailable: {str(e)}'
+            }, status=500)
