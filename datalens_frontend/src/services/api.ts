@@ -42,7 +42,7 @@ const createOptimizedHeaders = (includeAuth: boolean = true): Record<string, str
   return headers;
 };
 
-// **NUEVO: Función para verificar y limpiar tokens corruptos**
+// **MEJORADO: Función para verificar y limpiar tokens corruptos**
 const validateAndCleanToken = (): boolean => {
   try {
     const token = localStorage.getItem('access_token');
@@ -61,6 +61,32 @@ const validateAndCleanToken = (): boolean => {
     const parts = token.split('.');
     if (parts.length !== 3) {
       console.warn('🧹 Token malformado, limpiando...');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      return false;
+    }
+
+    // **NUEVO: Verificar expiración del token**
+    try {
+      const payload = JSON.parse(atob(parts[1]));
+      const now = Math.floor(Date.now() / 1000);
+      
+      if (payload.exp && payload.exp < now) {
+        console.warn('🧹 Token expirado, limpiando...');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        return false;
+      }
+      
+      // Advertir si el token expira pronto (menos de 5 minutos)
+      if (payload.exp && (payload.exp - now) < 300) {
+        console.warn('⚠️ Token expira pronto, considera renovar');
+      }
+      
+    } catch (parseError) {
+      console.warn('🧹 Error decodificando payload del token, limpiando...');
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
@@ -97,6 +123,64 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// **NUEVO: Interceptor de respuesta para manejar tokens expirados**
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 || 
+        error.response?.data?.code === 'token_not_valid' ||
+        error.response?.data?.detail?.includes('token')) {
+      
+      console.warn('🔓 Token inválido detectado, limpiando sesión...');
+      
+      // Limpiar datos de autenticación
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      
+      // Redirigir al login solo si no estamos ya allí
+      if (!window.location.pathname.includes('/login')) {
+        console.log('🔄 Redirigiendo al login...');
+        window.location.href = '/login';
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// **MEJORADO: Interceptor para logging detallado de requests y responses**
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    console.log(`📤 Headers:`, config.headers);
+    if (config.data) {
+      console.log(`📤 Data:`, config.data);
+    }
+    return config;
+  },
+  (error) => {
+    console.error('📤 API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+api.interceptors.response.use(
+  (response: AxiosResponse) => {
+    console.log(`📥 API Response: ${response.status} ${response.config.url}`);
+    console.log(`📥 Response Data:`, response.data);
+    return response;
+  },
+  (error) => {
+    console.error(`📥 API Response Error: ${error.response?.status || 'Network Error'} ${error.config?.url || 'Unknown URL'}`);
+    if (error.response) {
+      console.error(`📥 Error Response Data:`, error.response.data);
+      console.error(`📥 Error Response Headers:`, error.response.headers);
+    }
+    return Promise.reject(error);
+  }
+);
+
 // **NUEVO: Variables para controlar la renovación de tokens**
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -116,7 +200,168 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
-// **NUEVO: Función para renovar el token automáticamente**
+// **NUEVO: Función para obtener datos de inteligencia de productos**
+const getProductIntelligence = async (productId?: number): Promise<any> => {
+  try {
+    const params = productId ? { product_id: productId } : {};
+    const response = await api.get('/inventory/products/intelligence/', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Error obteniendo inteligencia de productos:', error);
+    throw error;
+  }
+};
+
+// **NUEVO: Función para obtener productos con filtros inteligentes**
+const getProductsWithSmartFilters = async (filterType: string): Promise<ApiResponse<Product>> => {
+  try {
+    const response = await api.get('/inventory/products/smart-filters/', {
+      params: { filter_type: filterType }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error obteniendo productos con filtros inteligentes:', error);
+    throw error;
+  }
+};
+
+// **NUEVO: Función para ejecutar acciones inteligentes en productos**
+const executeProductAction = async (productId: number, action: string, data?: any): Promise<any> => {
+  try {
+    console.log(`🚀 FRONTEND: Ejecutando acción: ${action} para producto ${productId}`, data);
+    console.log(`📍 FRONTEND: URL completa: ${API_BASE_URL}/inventory/products/actions/`);
+    
+    const payload = {
+      product_id: productId,
+      action: action,
+      data: data || {}
+    };
+    
+    console.log(`📤 FRONTEND: Payload enviado:`, payload);
+    console.log(`🔐 FRONTEND: Token disponible:`, localStorage.getItem('access_token') ? 'SÍ' : 'NO');
+    
+    const response = await api.post('/inventory/products/actions/', payload);
+    
+    console.log(`✅ FRONTEND: Acción ${action} completada:`, response.data);
+    console.log(`📥 FRONTEND: Response status:`, response.status);
+    console.log(`📥 FRONTEND: Response headers:`, response.headers);
+    
+    return response.data;
+  } catch (error: any) {
+    console.error(`❌ FRONTEND: Error ejecutando acción ${action}:`, error);
+    console.error(`❌ FRONTEND: Error details:`, {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      headers: error.response?.headers,
+      config: error.config
+    });
+    throw error;
+  }
+};
+
+// **NUEVO: Generar orden de compra con IA**
+const generateAIPurchaseOrder = async (productId: number, customQuantity?: number): Promise<any> => {
+  try {
+    console.log(`🤖 FRONTEND: Iniciando generación de orden de compra con IA para producto ${productId}`);
+    console.log(`🤖 FRONTEND: Custom quantity:`, customQuantity);
+    
+    const data: any = {};
+    if (customQuantity) {
+      data.custom_quantity = customQuantity;
+    }
+    
+    console.log(`🤖 FRONTEND: Data enviada a executeProductAction:`, data);
+    
+    const response = await executeProductAction(productId, 'generate_purchase_order', data);
+    
+    console.log(`🤖 FRONTEND: Respuesta recibida de generateAIPurchaseOrder:`, response);
+    return response;
+  } catch (error) {
+    console.error('❌ FRONTEND: Error en generateAIPurchaseOrder:', error);
+    throw error;
+  }
+};
+
+// **NUEVO: Enviar email de orden de compra**
+const sendPurchaseOrderEmail = async (productId: number, quantity: number, emailTo?: string): Promise<any> => {
+  try {
+    console.log(`📧 Enviando email de orden de compra para producto ${productId}, cantidad: ${quantity}, email: ${emailTo || 'default'}`);
+    
+    const data: any = {
+      quantity: quantity
+    };
+    
+    // Agregar email personalizado si se proporciona
+    if (emailTo) {
+      data.email_to = emailTo;
+    }
+    
+    const response = await executeProductAction(productId, 'send_purchase_email', data);
+    
+    return response;
+  } catch (error) {
+    console.error('❌ Error enviando email de orden de compra:', error);
+    throw error;
+  }
+};
+
+// **NUEVO: Obtener pronósticos ML con insights de IA**
+const getMLForecastWithAI = async (productId: number): Promise<any> => {
+  try {
+    console.log(`📈 Obteniendo pronósticos ML con IA para producto ${productId}`);
+    
+    const response = await executeProductAction(productId, 'get_forecast');
+    return response;
+  } catch (error) {
+    console.error('❌ Error obteniendo pronósticos ML:', error);
+    throw error;
+  }
+};
+
+// **NUEVO: Actualizar producto de forma robusta**
+const updateProductRobust = async (productId: number, productData: Partial<Product>): Promise<Product> => {
+  try {
+    console.log(`✏️ Actualizando producto ${productId} de forma robusta:`, productData);
+    
+    // **FIX: Usar PATCH en lugar de PUT para coincidir con el backend funcional**
+    const response = await api.patch(`/inventory/products/${productId}/`, productData);
+    
+    console.log(`✅ Producto ${productId} actualizado exitosamente:`, response.data);
+    return response.data.product || response.data;
+  } catch (error) {
+    console.error(`❌ Error actualizando producto ${productId}:`, error);
+    throw error;
+  }
+};
+
+// **NUEVO: Eliminar producto de forma completa**
+const deleteProductComplete = async (productId: number): Promise<any> => {
+  try {
+    console.log(`🗑️ Eliminando producto ${productId} completamente`);
+    
+    const response = await api.delete(`/inventory/products/${productId}/`);
+    
+    console.log(`✅ Producto ${productId} eliminado exitosamente:`, response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Error eliminando producto ${productId}:`, error);
+    throw error;
+  }
+};
+
+// **NUEVO: Función para obtener pronóstico de producto**
+const getProductForecast = async (productId: number): Promise<any> => {
+  try {
+    const response = await api.get(`/forecasting/products/${productId}/forecast/`);
+    return response.data;
+  } catch (error) {
+    console.error('Error obteniendo pronóstico de producto:', error);
+    throw error;
+  }
+};
+
+// Renovación automática de token
 const refreshAuthToken = async (): Promise<string | null> => {
   try {
     const refreshToken = localStorage.getItem('refresh_token');
@@ -292,15 +537,45 @@ export const inventoryService = {
     }
   },
 
-  // Real API para productos
-  getProducts: async (): Promise<ApiResponse<any>> => {
-    try {
-      const response = await api.get('/inventory/products/');
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      throw error;
+  // **MEJORADO: Función para obtener productos con mejor manejo de errores**
+  getProducts: async (page?: number, searchTerm?: string, category?: string, supplier?: string, locationId?: number): Promise<ApiResponse<Product>> => {
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 segundo
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const params: any = {};
+        if (page) params.page = page;
+        if (searchTerm) params.search = searchTerm;
+        if (category) params.category = category;
+        if (supplier) params.supplier = supplier;
+        if (locationId) params.location = locationId;
+        
+        console.log(`🔄 Intento ${attempt}/${maxRetries} para obtener productos`);
+        
+        const response = await api.get('/inventory/products/', { params });
+        
+        console.log('✅ Productos obtenidos exitosamente');
+        return response.data;
+        
+      } catch (error: any) {
+        console.error(`❌ Error en intento ${attempt}/${maxRetries}:`, error);
+        
+        // Si es el último intento, lanzar el error
+        if (attempt === maxRetries) {
+          if (error.code === 'ERR_NETWORK' || error.code === 'ERR_CONNECTION_REFUSED') {
+            throw new Error('No se pudo conectar con el servidor. Verifique que el servidor esté ejecutándose.');
+          }
+          throw error;
+        }
+        
+        // Esperar antes del siguiente intento
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+      }
     }
+    
+    // Este código nunca debería ejecutarse, pero TypeScript lo requiere
+    throw new Error('Error inesperado en getProducts');
   },
 
   // CRUD Operations for Products
@@ -310,12 +585,119 @@ export const inventoryService = {
   },
 
   updateProduct: async (id: number, product: any): Promise<any> => {
-    const response = await api.put(`/inventory/products/${id}/`, product);
+    // **FIX: Usar PATCH para coincidir con el backend funcional**
+    const response = await api.patch(`/inventory/products/${id}/`, product);
     return response.data;
   },
 
   deleteProduct: async (id: number): Promise<void> => {
-    await api.delete(`/inventory/products/${id}/`);
+    // Usar la nueva función completa de eliminación
+    await deleteProductComplete(id);
+  },
+
+  // **NUEVAS FUNCIONES MEJORADAS**
+  generateAIPurchaseOrder: async (productId: number, customQuantity?: number): Promise<any> => {
+    return await generateAIPurchaseOrder(productId, customQuantity);
+  },
+
+  sendPurchaseOrderEmail: async (productId: number, quantity: number, emailTo?: string): Promise<any> => {
+    return await sendPurchaseOrderEmail(productId, quantity, emailTo);
+  },
+
+  getMLForecastWithAI: async (productId: number): Promise<any> => {
+    return await getMLForecastWithAI(productId);
+  },
+
+  updateProductRobust: async (productId: number, productData: Partial<Product>): Promise<Product> => {
+    return await updateProductRobust(productId, productData);
+  },
+
+  deleteProductComplete: async (productId: number): Promise<any> => {
+    return await deleteProductComplete(productId);
+  },
+
+  // **NUEVO: Funciones de inteligencia de productos**
+  getProductIntelligence: async (productId?: number): Promise<any> => {
+    try {
+      // Verificar token antes de hacer la llamada
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.warn('⚠️ No hay token de autenticación disponible');
+        return { error: 'No authenticated', data: {} };
+      }
+
+      const params = productId ? { product_id: productId } : {};
+      
+      console.log('🔍 Llamando a intelligence endpoint con token:', token ? 'Present' : 'Missing');
+      
+      const response = await api.get('/inventory/products/intelligence/', { params });
+      
+      console.log('✅ Intelligence endpoint respondió correctamente');
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Error obteniendo inteligencia de productos:', error);
+      
+      // Manejo mejorado de errores
+      if (error.response?.status === 401) {
+        console.warn('🔐 Error de autenticación, intentando renovar token...');
+        try {
+          const newToken = await refreshAuthToken();
+          if (newToken) {
+            console.log('✅ Token renovado, reintentando...');
+            const params = productId ? { product_id: productId } : {};
+            const retryResponse = await api.get('/inventory/products/intelligence/', { params });
+            return retryResponse.data;
+          }
+        } catch (refreshError) {
+          console.error('❌ Error renovando token:', refreshError);
+        }
+      }
+      
+      if (error.response?.status === 404) {
+        console.warn('⚠️ Endpoint de inteligencia no encontrado, usando datos básicos');
+        return { error: 'Endpoint not found', data: {} };
+      }
+      
+      // Fallback para otros errores
+      console.warn('⚠️ Usando datos básicos debido a error en intelligence endpoint');
+      return { error: error.message || 'Unknown error', data: {} };
+    }
+  },
+
+  getProductsWithSmartFilters: async (filterType: string): Promise<ApiResponse<Product>> => {
+    try {
+      const response = await api.get('/inventory/products/smart-filters/', {
+        params: { filter_type: filterType }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error obteniendo productos con filtros inteligentes:', error);
+      throw error;
+    }
+  },
+
+  executeProductAction: async (productId: number, action: string, data?: any): Promise<any> => {
+    try {
+      const response = await api.post('/inventory/products/actions/', {
+        product_id: productId,
+        action: action,
+        ...data
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error ejecutando acción de producto:', error);
+      throw error;
+    }
+  },
+
+  getProductForecast: async (productId: number): Promise<any> => {
+    try {
+      const response = await api.get(`/forecasting/products/${productId}/forecast/`);
+      return response.data;
+    } catch (error) {
+      console.error('Error obteniendo pronóstico de producto:', error);
+      throw error;
+    }
   },
 
   // Categories

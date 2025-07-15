@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.db.models import Sum, Count, Q, F, DecimalField, Case, When, Value
+from django.db.models import Sum, Count, Q, F, DecimalField, Case, When, Value, Avg, Max, Min
 from django.db.models.functions import TruncDate
 from django.db import transaction
 from django.utils import timezone
@@ -12,11 +12,21 @@ from datetime import datetime, timedelta
 from drf_spectacular.utils import extend_schema
 from datalens_backend.utils import get_default_company, get_company_for_user
 from .models import Category, Supplier, Product, Sale, Alert, InventoryHistory, Transaction, Customer, Lead, InventoryItem, Location
+
+# Import forecasting models
+from forecasting.models import DemandForecast, ReorderRecommendation
+
 from .serializers import (
     CategorySerializer, SupplierSerializer, ProductSerializer, SaleSerializer, 
     AlertSerializer, InventoryHistorySerializer, DashboardStatsSerializer, TransactionSerializer,
     CustomerSerializer, LeadSerializer, LocationSerializer, InventoryItemSerializer, OpportunitySerializer
 )
+
+import json
+import openai
+from django.conf import settings
+from alerts.services import NotificationService
+from alerts.models import Alert, AlertRule
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -241,6 +251,78 @@ class ProductViewSet(viewsets.ModelViewSet):
         elif current >= product.max_stock:
             return 'high_stock'
         return 'normal'
+
+    def destroy(self, request, *args, **kwargs):
+        """Override del método destroy para eliminación completa"""
+        try:
+            product = self.get_object()
+            product_name = product.name
+            product_id = product.id
+            
+            # Log de la eliminación
+            print(f"🗑️ Eliminando producto {product_id}: {product_name}")
+            
+            # Eliminación en transacción atómica
+            with transaction.atomic():
+                # Eliminar registros relacionados primero
+                if hasattr(product, 'sales'):
+                    product.sales.all().delete()
+                if hasattr(product, 'inventory_items'):
+                    product.inventory_items.all().delete()
+                if hasattr(product, 'alert_set'):
+                    product.alert_set.all().delete()
+                if hasattr(product, 'demand_forecasts'):
+                    product.demand_forecasts.all().delete()
+                
+                # Eliminar el producto
+                product.delete()
+                
+            print(f"✅ Producto {product_name} eliminado completamente")
+            
+            return Response({
+                'message': f'Producto "{product_name}" eliminado exitosamente',
+                'deleted_product_id': product_id
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"❌ Error eliminando producto: {str(e)}")
+            return Response({
+                'error': f'Error al eliminar producto: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def update(self, request, *args, **kwargs):
+        """Override del método update para asegurar actualización completa"""
+        try:
+            product = self.get_object()
+            original_name = product.name
+            
+            print(f"✏️ Actualizando producto {product.id}: {original_name}")
+            print(f"📝 Datos nuevos: {request.data}")
+            
+            # Actualización estándar
+            partial = kwargs.pop('partial', False)
+            serializer = self.get_serializer(product, data=request.data, partial=partial)
+            
+            if serializer.is_valid():
+                self.perform_update(serializer)
+                
+                updated_product = serializer.instance
+                print(f"✅ Producto actualizado: {updated_product.name}")
+                
+                # Respuesta con datos completos
+                return Response({
+                    'message': f'Producto "{updated_product.name}" actualizado exitosamente',
+                    'product': serializer.data
+                }, status=status.HTTP_200_OK)
+            else:
+                print(f"❌ Errores de validación: {serializer.errors}")
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            print(f"❌ Error actualizando producto: {str(e)}")
+            return Response({
+                'error': f'Error al actualizar producto: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SaleViewSet(viewsets.ModelViewSet):
@@ -1464,61 +1546,1018 @@ class FilterOptionsView(APIView):
         description="Retorna las opciones disponibles para los filtros del dashboard (categorías, almacenes, estados)"
     )
     def get(self, request):
-        """Devolver opciones de filtros para el dashboard"""
         try:
-            print("🔍 FilterOptionsView: Obteniendo opciones de filtros...")
+            # Obtener la empresa del usuario
+            company = get_company_for_user(request.user)
             
-            # Obtener categorías activas
-            categories = list(Category.objects.filter(is_active=True).values('id', 'name'))
-            print(f"📦 Categorías encontradas: {len(categories)}")
-            
-            # Obtener almacenes únicos (sin duplicados)
-            warehouses_raw = Location.objects.filter(is_active=True).values('warehouse').distinct()
-            warehouses = []
-            seen_warehouses = set()
-            
-            for warehouse_data in warehouses_raw:
-                warehouse_name = warehouse_data['warehouse']
-                if warehouse_name not in seen_warehouses:
-                    # Obtener el primer ID de este almacén para usar como referencia
-                    location = Location.objects.filter(is_active=True, warehouse=warehouse_name).first()
-                    if location:
-                        warehouses.append({
-                            'id': location.id,
-                            'warehouse': warehouse_name
-                        })
-                        seen_warehouses.add(warehouse_name)
-            
-            print(f"🏢 Almacenes únicos encontrados: {len(warehouses)}")
-            
-            # Obtener tipos de transacciones únicos
-            transaction_types = list(Transaction.objects.values_list('transaction_type', flat=True).distinct())
-            print(f"📋 Tipos de transacciones: {len(transaction_types)}")
-            
-            # Estados predefinidos para el filtro
-            status_options = [
-                {'id': 'all', 'name': 'Todos los estados'},
-                {'id': 'in_stock', 'name': 'Con stock'},
-                {'id': 'low_stock', 'name': 'Stock bajo'},
-                {'id': 'out_of_stock', 'name': 'Sin stock'}
-            ]
-            
-            filter_options = {
-                'categories': categories,
-                'warehouses': warehouses,
-                'transaction_types': transaction_types,
-                'status_options': status_options
+            # Construir las opciones de filtros
+            options = {
+                'categories': list(Category.objects.filter(is_active=True).values('id', 'name')),
+                'suppliers': list(Supplier.objects.filter(is_active=True).values('id', 'name')),
+                'locations': list(Location.objects.filter(is_active=True).values('id', 'name')),
+                'stock_statuses': [
+                    {'id': 'critical', 'name': 'Stock Crítico'},
+                    {'id': 'low', 'name': 'Stock Bajo'},
+                    {'id': 'normal', 'name': 'Stock Normal'},
+                    {'id': 'high', 'name': 'Stock Alto'},
+                ],
+                'transaction_types': [
+                    {'id': 'sale', 'name': 'Venta'},
+                    {'id': 'purchase', 'name': 'Compra'},
+                    {'id': 'adjustment', 'name': 'Ajuste'},
+                    {'id': 'transfer', 'name': 'Transferencia'},
+                ],
             }
             
-            print(f"✅ FilterOptionsView: Opciones de filtros enviadas exitosamente")
-            return Response(filter_options)
+            return Response(options)
             
         except Exception as e:
-            print(f"❌ Error en FilterOptionsView: {str(e)}")
             return Response({
-                'categories': [],
-                'warehouses': [],
-                'transaction_types': [],
-                'status_options': [],
-                'error': f'Filter options temporarily unavailable: {str(e)}'
-            }, status=500)
+                'error': f'Error al obtener opciones de filtros: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProductIntelligenceView(APIView):
+    """Vista para obtener datos de inteligencia artificial para productos"""
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Obtener datos de inteligencia artificial para productos",
+        description="Retorna recomendaciones de IA, tendencias, y estadísticas avanzadas por producto"
+    )
+    def get(self, request):
+        try:
+            company = get_company_for_user(request.user)
+            product_id = request.GET.get('product_id')
+            
+            # Si se especifica un producto específico
+            if product_id:
+                try:
+                    product = Product.objects.get(id=product_id, company=company)
+                    intelligence_data = self._get_product_intelligence_safe(product)
+                    return Response(intelligence_data)
+                except Product.DoesNotExist:
+                    return Response({'error': 'Producto no encontrado'}, status=404)
+            
+            # Obtener datos de inteligencia para todos los productos
+            products = Product.objects.filter(company=company, is_active=True)
+            intelligence_data = {}
+            
+            for product in products:
+                try:
+                    intelligence_data[product.id] = self._get_product_intelligence_safe(product)
+                except Exception as e:
+                    # Si hay error con un producto específico, usar datos básicos
+                    intelligence_data[product.id] = {
+                        'product_id': product.id,
+                        'product_name': product.name,
+                        'current_stock': product.stock or 0,
+                        'status': 'limited_data',
+                        'error': str(e)
+                    }
+            
+            return Response(intelligence_data)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error al obtener datos de inteligencia: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _get_product_intelligence_safe(self, product):
+        """Versión segura del método de inteligencia con mejor manejo de errores"""
+        try:
+            now = timezone.now()
+            last_30_days = now - timedelta(days=30)
+            last_7_days = now - timedelta(days=7)
+            
+            # Obtener transacciones recientes de forma segura
+            try:
+                recent_transactions = Transaction.objects.filter(
+                    product=product,
+                    transaction_type='sale',
+                    transaction_date__gte=last_30_days
+                ).aggregate(
+                    total_sold=Sum('quantity') or 0,
+                    avg_daily_sales=Avg('quantity') or 0,
+                    transaction_count=Count('id') or 0
+                )
+                
+                last_week_transactions = Transaction.objects.filter(
+                    product=product,
+                    transaction_type='sale',
+                    transaction_date__gte=last_7_days
+                ).aggregate(
+                    last_week_sales=Sum('quantity') or 0
+                )
+            except Exception:
+                # Si falla la consulta de transacciones, usar valores por defecto
+                recent_transactions = {'total_sold': 0, 'avg_daily_sales': 0, 'transaction_count': 0}
+                last_week_transactions = {'last_week_sales': 0}
+            
+            # Calcular métricas básicas
+            current_stock = product.stock or 0
+            min_stock = product.min_stock or 0
+            max_stock = product.max_stock or 100
+            daily_sales = recent_transactions['avg_daily_sales'] or 0
+            
+            # Calcular días de stock
+            days_of_stock = None
+            if daily_sales > 0:
+                days_of_stock = current_stock / daily_sales
+            
+            # Determinar estado del stock
+            stock_status = 'normal'
+            if current_stock <= 0:
+                stock_status = 'out_of_stock'
+            elif current_stock <= min_stock:
+                stock_status = 'low_stock'
+            elif current_stock >= max_stock:
+                stock_status = 'overstocked'
+            
+            # Calcular tendencia básica
+            trend = 'stable'
+            weekly_avg = daily_sales * 7
+            if last_week_transactions['last_week_sales'] > weekly_avg * 1.2:
+                trend = 'increasing'
+            elif last_week_transactions['last_week_sales'] < weekly_avg * 0.8:
+                trend = 'decreasing'
+            
+            # Recomendación de reorden
+            needs_reorder = current_stock <= min_stock and trend in ['stable', 'increasing']
+            suggested_quantity = 0
+            if needs_reorder:
+                suggested_quantity = max(min_stock - current_stock + int(daily_sales * 7), 0)
+            
+            return {
+                'product_id': product.id,
+                'product_name': product.name,
+                'current_stock': current_stock,
+                'min_stock': min_stock,
+                'max_stock': max_stock,
+                'stock_status': stock_status,
+                'days_of_stock': round(days_of_stock, 1) if days_of_stock else None,
+                'sales_data': {
+                    'last_30_days': recent_transactions['total_sold'],
+                    'last_7_days': last_week_transactions['last_week_sales'],
+                    'avg_daily_sales': round(daily_sales, 2),
+                    'transaction_count': recent_transactions['transaction_count']
+                },
+                'recommendations': {
+                    'needs_reorder': needs_reorder,
+                    'suggested_order_quantity': suggested_quantity,
+                    'trend': trend,
+                    'priority': 'high' if stock_status == 'out_of_stock' else 'medium' if stock_status == 'low_stock' else 'low'
+                },
+                'intelligence_summary': self._get_stock_level_text_safe(current_stock, days_of_stock),
+                'ai_insights': [
+                    f"Producto con {current_stock} unidades en stock",
+                    f"Tendencia de ventas: {trend}",
+                    f"Estado: {stock_status.replace('_', ' ').title()}",
+                    f"Días de stock estimados: {round(days_of_stock, 1) if days_of_stock else 'N/A'}"
+                ]
+            }
+            
+        except Exception as e:
+            # Fallback a datos muy básicos si todo falla
+            return {
+                'product_id': product.id,
+                'product_name': product.name,
+                'current_stock': product.stock or 0,
+                'status': 'error',
+                'error': str(e),
+                'ai_insights': [f"Error al procesar datos para {product.name}"]
+            }
+    
+    def _get_stock_level_text_safe(self, current_stock, days_of_stock):
+        """Versión segura del texto de nivel de stock"""
+        try:
+            if days_of_stock is None:
+                return f"{current_stock} unidades"
+            
+            if days_of_stock < 1:
+                return f"{current_stock} unidades (menos de 1 día)"
+            elif days_of_stock < 7:
+                return f"{current_stock} unidades (bueno para {int(days_of_stock)} días)"
+            elif days_of_stock < 30:
+                return f"{current_stock} unidades (bueno para {int(days_of_stock)} días)"
+            else:
+                return f"{current_stock} unidades (stock abundante)"
+        except Exception:
+            return f"{current_stock} unidades"
+
+
+class ProductSmartFiltersView(APIView):
+    """Vista para obtener productos con filtros inteligentes"""
+    permission_classes = [IsAuthenticated]
+    
+    @extend_schema(
+        summary="Obtener productos con filtros inteligentes",
+        description="Retorna productos filtrados por criterios inteligentes como 'necesita reabastecimiento', 'próximos a vencer', etc."
+    )
+    def get(self, request):
+        try:
+            company = get_company_for_user(request.user)
+            filter_type = request.GET.get('filter_type', 'all')
+            
+            # Base queryset
+            queryset = Product.objects.filter(company=company, is_active=True)
+            
+            # Aplicar filtros inteligentes
+            if filter_type == 'needs_restock':
+                # Productos que necesitan reabastecimiento
+                queryset = queryset.filter(
+                    Q(stock__lte=F('min_stock')) |
+                    Q(id__in=ReorderRecommendation.objects.filter(
+                        status='pending',
+                        priority__in=['high', 'urgent']
+                    ).values_list('product_id', flat=True))
+                )
+            
+            elif filter_type == 'expiring_soon':
+                # Productos próximos a vencer (con fecha de vencimiento)
+                expiring_date = timezone.now().date() + timedelta(days=30)
+                queryset = queryset.filter(
+                    has_expiration=True,
+                    inventory_items__expiration_date__lte=expiring_date
+                ).distinct()
+            
+            elif filter_type == 'top_sellers':
+                # Productos más vendidos en las últimas 2 semanas
+                two_weeks_ago = timezone.now() - timedelta(days=14)
+                top_products = Sale.objects.filter(
+                    date_sold__gte=two_weeks_ago
+                ).values('product_id').annotate(
+                    total_sold=Sum('quantity')
+                ).order_by('-total_sold')[:20]
+                
+                product_ids = [item['product_id'] for item in top_products]
+                queryset = queryset.filter(id__in=product_ids)
+            
+            elif filter_type == 'low_stock':
+                # Stock bajo
+                queryset = queryset.filter(stock__lte=F('min_stock'))
+            
+            elif filter_type == 'critical_stock':
+                # Stock crítico (0 o negativo)
+                queryset = queryset.filter(stock__lte=0)
+            
+            elif filter_type == 'trending_up':
+                # Productos con tendencia al alza
+                # Esto requiere cálculos más complejos, por simplicidad filtraremos por ventas recientes
+                last_week = timezone.now() - timedelta(days=7)
+                trending_products = Sale.objects.filter(
+                    date_sold__gte=last_week
+                ).values('product_id').annotate(
+                    total_sold=Sum('quantity')
+                ).filter(total_sold__gt=0)
+                
+                product_ids = [item['product_id'] for item in trending_products]
+                queryset = queryset.filter(id__in=product_ids)
+            
+            # Obtener productos con información adicional
+            products = queryset.select_related('category', 'supplier').prefetch_related('sales')
+            
+            # Serializar productos
+            serializer = ProductSerializer(products, many=True)
+            
+            return Response({
+                'filter_type': filter_type,
+                'count': products.count(),
+                'results': serializer.data
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error al filtrar productos: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProductActionView(APIView):
+    """Vista para ejecutar acciones inteligentes en productos"""
+    permission_classes = [IsAuthenticated]
+    
+    def __init__(self, *args, **kwargs):
+        print("🔧 ProductActionView.__init__ - INICIANDO")
+        super().__init__(*args, **kwargs)
+        print("🔧 ProductActionView.__init__ - super() completado")
+        
+        # **DIAGNÓSTICO: Inicialización con logging detallado**
+        try:
+            print("🔧 Configurando OpenAI...")
+            # Configurar OpenAI solo si está disponible
+            if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
+                import openai
+                openai.api_key = settings.OPENAI_API_KEY
+                print("✅ OpenAI configurado exitosamente")
+            else:
+                print("⚠️ OpenAI API key no encontrada")
+            
+            print("🔧 Inicializando NotificationService...")
+            # Inicializar NotificationService de forma segura
+            try:
+                self.notification_service = NotificationService()
+                print("✅ NotificationService inicializado exitosamente")
+            except Exception as e:
+                print(f"⚠️ Warning: NotificationService no disponible: {e}")
+                self.notification_service = None
+                
+        except Exception as e:
+            print(f"❌ Error en inicialización de ProductActionView: {e}")
+            import traceback
+            traceback.print_exc()
+            self.notification_service = None
+            
+        print("🔧 ProductActionView.__init__ - COMPLETADO")
+    
+    @extend_schema(
+        summary="Ejecutar acciones inteligentes en productos",
+        description="Ejecuta acciones como generar orden de compra, obtener pronóstico, etc."
+    )
+    def post(self, request):
+        print("🚀 ProductActionView.post - MÉTODO LLAMADO!")
+        print(f"📍 Request method: {request.method}")
+        print(f"📍 Request path: {request.path}")
+        print(f"📍 Request user: {request.user}")
+        print(f"📍 Request authenticated: {request.user.is_authenticated}")
+        
+        try:
+            print(f"📥 ProductActionView.post called with data: {request.data}")
+            print(f"📥 Request headers: {dict(request.headers)}")
+            
+            product_id = request.data.get('product_id')
+            action = request.data.get('action')
+            additional_data = request.data.get('data', {})
+            
+            print(f"🔍 Processing: product_id={product_id}, action={action}, data={additional_data}")
+            
+            if not product_id or not action:
+                print("❌ Missing required fields")
+                return Response({
+                    'error': 'Se requiere product_id y action'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            print("🔍 Getting company for user...")
+            company = get_company_for_user(request.user)
+            print(f"🏢 Company: {company}")
+            
+            print(f"🔍 Looking for product with ID: {product_id}")
+            try:
+                product = Product.objects.get(id=product_id, company=company)
+                print(f"📦 Product found: {product.name}")
+            except Product.DoesNotExist:
+                print(f"❌ Product not found: {product_id}")
+                return Response({'error': 'Producto no encontrado'}, status=404)
+            
+            print(f"🎯 Executing action: {action}")
+            
+            # Mantener funcionalidades completas originales
+            if action == 'generate_purchase_order':
+                print("🛒 Calling _generate_ai_purchase_order...")
+                result = self._generate_ai_purchase_order(product, additional_data, request.user)
+                print("✅ _generate_ai_purchase_order completed")
+            elif action == 'get_forecast':
+                print("📊 Calling _get_ml_forecast_with_ai_insights...")
+                result = self._get_ml_forecast_with_ai_insights(product)
+                print("✅ _get_ml_forecast_with_ai_insights completed")
+            elif action == 'update_stock_alert':
+                print("⚠️ Calling _update_stock_alert...")
+                result = self._update_stock_alert(product, additional_data)
+                print("✅ _update_stock_alert completed")
+            elif action == 'send_purchase_email':
+                print("📧 Calling _send_purchase_order_email...")
+                result = self._send_purchase_order_email(product, additional_data, request.user)
+                print("✅ _send_purchase_order_email completed")
+            else:
+                print(f"❌ Invalid action: {action}")
+                return Response({'error': 'Acción no válida'}, status=400)
+            
+            print(f"✅ Action '{action}' completed successfully")
+            print(f"📤 Returning result: {result}")
+            return Response(result)
+            
+        except Exception as e:
+            print(f"❌ EXCEPTION in ProductActionView.post: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'error': f'Error al ejecutar acción: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _generate_ai_purchase_order(self, product, data, user):
+        """Generar orden de compra con IA y recomendaciones personalizables"""
+        print(f"🛒 BACKEND: _generate_ai_purchase_order INICIADO")
+        print(f"🛒 BACKEND: Product: {product.name} (ID: {product.id})")
+        print(f"🛒 BACKEND: Data recibida: {data}")
+        print(f"🛒 BACKEND: User: {user}")
+        
+        # Obtener datos base para la recomendación
+        print("🛒 BACKEND: Buscando ReorderRecommendation...")
+        reorder_rec = ReorderRecommendation.objects.filter(
+            product=product,
+            status='pending'
+        ).first()
+        print(f"🛒 BACKEND: ReorderRecommendation encontrada: {reorder_rec}")
+        
+        # Calcular cantidad recomendada base
+        if reorder_rec:
+            base_quantity = float(reorder_rec.recommended_quantity)
+            estimated_cost = float(reorder_rec.estimated_cost)
+            print(f"🛒 BACKEND: Usando ReorderRecommendation - quantity: {base_quantity}, cost: {estimated_cost}")
+        else:
+            print("🛒 BACKEND: No hay ReorderRecommendation, calculando automáticamente...")
+            # Cálculo inteligente basado en histórico y stock
+            base_quantity = max(
+                float(product.min_stock * 2), 
+                float(product.reorder_point),
+                self._calculate_smart_quantity(product)
+            )
+            estimated_cost = base_quantity * float(product.cost_price)
+            print(f"🛒 BACKEND: Cantidad calculada: {base_quantity}, costo estimado: {estimated_cost}")
+        
+        # Obtener insights con OpenAI si está disponible
+        ai_recommendation = self._get_openai_purchase_recommendation(product, base_quantity)
+        
+        # Permitir override manual de cantidad
+        final_quantity = data.get('custom_quantity', base_quantity)
+        final_cost = final_quantity * float(product.cost_price)
+        
+        result = {
+            'action': 'generate_purchase_order',
+            'product_id': product.id,
+            'product_name': product.name,
+            'supplier': {
+                'name': product.supplier.name if product.supplier else 'Sin proveedor asignado',
+                'email': getattr(product.supplier, 'email', None) if product.supplier else None,
+                'phone': getattr(product.supplier, 'phone', None) if product.supplier else None,
+            },
+            'recommendation': {
+                'ai_suggested_quantity': base_quantity,
+                'user_selected_quantity': final_quantity,
+                'estimated_cost': final_cost,
+                'unit_cost': float(product.cost_price),
+                'ai_insights': ai_recommendation.get('insights', ''),
+                'priority_level': ai_recommendation.get('priority', 'medium'),
+                'justification': ai_recommendation.get('justification', '')
+            },
+            'current_stock': product.stock,
+            'reorder_point': product.reorder_point,
+            'min_stock': product.min_stock,
+            'suggested_delivery_date': (timezone.now().date() + timedelta(days=7)).isoformat(),
+            'can_send_email': bool(product.supplier and hasattr(product.supplier, 'email') and product.supplier.email),
+            'email_options': {
+                'whatsapp_available': False,  # En standby como solicitaste
+                'email_available': True
+            }
+        }
+        
+        print(f"🛒 BACKEND: _generate_ai_purchase_order COMPLETADO")
+        print(f"🛒 BACKEND: Result generado: {result}")
+        return result
+    
+    def _get_ml_forecast_with_ai_insights(self, product):
+        """Obtener pronósticos ML con insights de IA"""
+        
+        # Obtener pronósticos de los modelos ML
+        forecasts = DemandForecast.objects.filter(
+            product=product,
+            forecast_date__gte=timezone.now().date()
+        ).order_by('forecast_date')[:30]
+        
+        forecast_data = []
+        total_demand = 0
+        
+        for forecast in forecasts:
+            forecast_item = {
+                'date': forecast.forecast_date.isoformat(),
+                'predicted_demand': float(forecast.predicted_demand),
+                'lower_bound': float(forecast.lower_bound),
+                'upper_bound': float(forecast.upper_bound),
+                'confidence_level': float(forecast.confidence_level),
+                'model_type': forecast.model.model_type if forecast.model else 'unknown'
+            }
+            forecast_data.append(forecast_item)
+            total_demand += forecast_item['predicted_demand']
+        
+        # Obtener insights de IA sobre los pronósticos
+        ai_insights = self._get_openai_forecast_insights(product, forecast_data)
+        
+        # Obtener modelos ML disponibles y sus métricas
+        available_models = self._get_available_ml_models(product)
+        
+        # Recomendaciones de nuevos modelos a implementar
+        model_recommendations = self._get_model_recommendations()
+        
+        forecast_summary = {
+            'total_forecasted_demand': total_demand,
+            'avg_daily_demand': total_demand / len(forecast_data) if forecast_data else 0,
+            'forecast_horizon_days': len(forecast_data),
+            'confidence_avg': sum(f['confidence_level'] for f in forecast_data) / len(forecast_data) if forecast_data else 0
+        }
+        
+        return {
+            'action': 'get_forecast',
+            'product_id': product.id,
+            'product_name': product.name,
+            'forecast_data': forecast_data,
+            'forecast_summary': forecast_summary,
+            'ai_insights': ai_insights,
+            'ml_models': {
+                'active_models': available_models,
+                'model_recommendations': model_recommendations,
+                'model_performance': self._get_model_performance_summary(product)
+            }
+        }
+    
+    def _send_purchase_order_email(self, product, data, user):
+        """Enviar email de orden de compra usando el sistema de alertas"""
+        
+        try:
+            quantity = data.get('quantity', 0)
+            if not quantity:
+                return {'error': 'Cantidad requerida para enviar email'}
+            
+            # Generar email con OpenAI
+            email_content = self._generate_purchase_order_email_with_ai(product, quantity, user)
+            
+            # Crear una alerta temporal para usar el sistema de notificaciones
+            alert = Alert.objects.create(
+                title=f"Orden de Compra - {product.name}",
+                message=email_content.get('message', ''),
+                severity='medium',
+                status='pending',
+                product=product,
+                company=product.company,
+                current_value=quantity,
+                threshold_value=product.min_stock
+            )
+            
+            # **✅ CORREGIDO: Verificar email personalizado del frontend PRIMERO**
+            custom_email = data.get('email_to')
+            
+            if custom_email:
+                # **PRIORIDAD 1: Usar email personalizado del usuario**
+                print(f"📧 Enviando a email personalizado: {custom_email}")
+                result = self._send_email_to_custom(custom_email, email_content, product, quantity)
+            elif product.supplier and hasattr(product.supplier, 'email') and product.supplier.email:
+                # **PRIORIDAD 2: Enviar al proveedor**
+                print(f"📧 Enviando a proveedor: {product.supplier.email}")
+                result = self._send_email_to_supplier(product.supplier.email, email_content, product, quantity)
+            else:
+                # **PRIORIDAD 3: Enviar al usuario solicitante**
+                print(f"📧 Enviando a usuario: {user.email}")
+                result = self._send_email_to_user(user.email, email_content, product, quantity)
+            
+            # Limpiar alerta temporal
+            alert.delete()
+            
+            return {
+                'action': 'send_purchase_email',
+                'success': result.get('status') == 'success',
+                'message': result.get('message', ''),
+                'email_sent_to': result.get('recipient', ''),
+                'email_subject': email_content.get('subject', ''),
+                'ai_generated': True
+            }
+            
+        except Exception as e:
+            return {'error': f'Error enviando email: {str(e)}'}
+    
+    def _calculate_smart_quantity(self, product):
+        """Calcular cantidad inteligente basada en historial"""
+        try:
+            # Obtener transacciones recientes (últimos 30 días)
+            recent_transactions = Transaction.objects.filter(
+                product=product,
+                transaction_date__gte=timezone.now().date() - timedelta(days=30),
+                transaction_type='sale'
+            )
+            
+            total_sold = sum(t.quantity for t in recent_transactions)
+            daily_avg = total_sold / 30 if total_sold > 0 else 1
+            
+            # Calcular para 2 semanas de stock
+            return max(daily_avg * 14, float(product.min_stock))
+            
+        except:
+            return float(product.min_stock * 2)
+    
+    def _get_openai_purchase_recommendation(self, product, base_quantity):
+        """Obtener recomendación de compra usando OpenAI"""
+        
+        if not hasattr(settings, 'OPENAI_API_KEY') or not settings.OPENAI_API_KEY:
+            return {
+                'insights': 'Recomendación automática basada en datos históricos',
+                'priority': 'medium',
+                'justification': f'Cantidad calculada automáticamente: {base_quantity} unidades'
+            }
+        
+        try:
+            # Obtener contexto del producto
+            context = self._build_product_context(product)
+            
+            prompt = f"""
+            Eres un experto en gestión de inventarios. Analiza la siguiente información del producto y da una recomendación de compra:
+            
+            Producto: {product.name}
+            Stock actual: {product.stock}
+            Stock mínimo: {product.min_stock}
+            Punto de reorden: {product.reorder_point}
+            Cantidad sugerida: {base_quantity}
+            Contexto adicional: {context}
+            
+            Proporciona:
+            1. Una justificación clara de por qué esta cantidad es recomendable
+            2. El nivel de prioridad (low, medium, high, urgent)
+            3. Insights adicionales para optimizar el inventario
+            
+            Responde en formato JSON con keys: insights, priority, justification
+            """
+            
+            import openai
+            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=300,
+                temperature=0.7
+            )
+            
+            ai_response = json.loads(response.choices[0].message.content)
+            return ai_response
+            
+        except Exception as e:
+            print(f"Error en OpenAI recommendation: {str(e)}")
+            return {
+                'insights': f'Recomendación automática: {base_quantity} unidades basada en histórico',
+                'priority': 'medium',
+                'justification': 'Cálculo automático por falta de conectividad con IA'
+            }
+    
+    def _get_openai_forecast_insights(self, product, forecast_data):
+        """Obtener insights de pronósticos usando OpenAI"""
+        
+        if not hasattr(settings, 'OPENAI_API_KEY') or not settings.OPENAI_API_KEY or not forecast_data:
+            return {
+                'summary': 'Análisis automático de pronósticos basado en modelos ML',
+                'trends': 'Tendencia estable basada en datos históricos',
+                'recommendations': 'Mantener niveles de stock actuales',
+                'risk_factors': 'Riesgo bajo de desabastecimiento'
+            }
+        
+        try:
+            # Preparar datos de pronóstico para IA
+            forecast_summary = {
+                'total_demand': sum(f['predicted_demand'] for f in forecast_data),
+                'avg_confidence': sum(f['confidence_level'] for f in forecast_data) / len(forecast_data),
+                'demand_range': {
+                    'min': min(f['predicted_demand'] for f in forecast_data),
+                    'max': max(f['predicted_demand'] for f in forecast_data)
+                }
+            }
+            
+            prompt = f"""
+            Analiza estos pronósticos de demanda para el producto "{product.name}":
+            
+            Datos del producto:
+            - Stock actual: {product.stock}
+            - Stock mínimo: {product.min_stock}
+            
+            Pronósticos:
+            - Demanda total pronosticada: {forecast_summary['total_demand']}
+            - Confianza promedio: {forecast_summary['avg_confidence']}%
+            - Rango de demanda: {forecast_summary['demand_range']['min']} - {forecast_summary['demand_range']['max']}
+            
+            Proporciona análisis en formato JSON con:
+            - summary: Resumen ejecutivo
+            - trends: Análisis de tendencias
+            - recommendations: Recomendaciones específicas
+            - risk_factors: Factores de riesgo identificados
+            """
+            
+            import openai
+            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=400,
+                temperature=0.7
+            )
+            
+            return json.loads(response.choices[0].message.content)
+            
+        except Exception as e:
+            print(f"Error en OpenAI forecast insights: {str(e)}")
+            return {
+                'summary': 'Análisis automático disponible',
+                'trends': 'Tendencia basada en modelos ML',
+                'recommendations': 'Continuar monitoreo regular',
+                'risk_factors': 'Evaluación automática de riesgos'
+            }
+    
+    def _get_available_ml_models(self, product):
+        """Obtener modelos ML disponibles para este producto"""
+        try:
+            from forecasting.models import ForecastModel
+            
+            models = ForecastModel.objects.filter(
+                company=product.company,
+                status='active'
+            ).filter(
+                models.Q(products=product) | 
+                models.Q(categories=product.category) |
+                models.Q(products__isnull=True, categories__isnull=True)  # Modelos generales
+            )
+            
+            model_data = []
+            for model in models:
+                model_data.append({
+                    'id': model.id,
+                    'name': model.name,
+                    'type': model.model_type,
+                    'accuracy': model.accuracy_score,
+                    'mape': float(model.mape) if model.mape else None,
+                    'last_trained': model.training_completed_at.isoformat() if model.training_completed_at else None
+                })
+            
+            return model_data
+            
+        except Exception as e:
+            print(f"Error obteniendo modelos ML: {str(e)}")
+            return []
+    
+    def _get_model_recommendations(self):
+        """Recomendar modelos ML adicionales a implementar"""
+        return {
+            'recommended_models': [
+                {
+                    'name': 'XGBoost Forecaster',
+                    'description': 'Modelo de gradient boosting para patrones complejos',
+                    'benefits': 'Mejor rendimiento en datos no lineales',
+                    'complexity': 'medium'
+                },
+                {
+                    'name': 'Transformer Neural Network',
+                    'description': 'Red neuronal basada en attention para series temporales',
+                    'benefits': 'Excelente para patrones estacionales complejos',
+                    'complexity': 'high'
+                },
+                {
+                    'name': 'Seasonal ARIMA (SARIMA)',
+                    'description': 'ARIMA con componentes estacionales',
+                    'benefits': 'Manejo explícito de estacionalidad',
+                    'complexity': 'medium'
+                },
+                {
+                    'name': 'Facebook Prophet con regressors',
+                    'description': 'Prophet mejorado con variables externas',
+                    'benefits': 'Incorpora factores externos como promociones',
+                    'complexity': 'low'
+                }
+            ],
+            'current_models_status': 'Tienes modelos básicos implementados',
+            'priority_suggestion': 'Implementar XGBoost para mejorar precisión general'
+        }
+    
+    def _get_model_performance_summary(self, product):
+        """Resumen del rendimiento de modelos para este producto"""
+        try:
+            from forecasting.models import ForecastModel
+            
+            models = ForecastModel.objects.filter(
+                company=product.company,
+                status='active'
+            )
+            
+            performance = {
+                'total_models': models.count(),
+                'best_model': None,
+                'avg_accuracy': 0,
+                'model_comparison': []
+            }
+            
+            if models.exists():
+                best_model = models.filter(mape__isnull=False).order_by('mape').first()
+                if best_model:
+                    performance['best_model'] = {
+                        'name': best_model.name,
+                        'type': best_model.model_type,
+                        'accuracy': best_model.accuracy_score
+                    }
+                
+                accuracies = [m.accuracy_score for m in models if m.accuracy_score]
+                if accuracies:
+                    performance['avg_accuracy'] = sum(accuracies) / len(accuracies)
+            
+            return performance
+            
+        except Exception as e:
+            print(f"Error en performance summary: {str(e)}")
+            return {'total_models': 0, 'best_model': None, 'avg_accuracy': 0}
+    
+    def _generate_purchase_order_email_with_ai(self, product, quantity, user):
+        """Generar contenido de email para orden de compra usando OpenAI"""
+        
+        if not hasattr(settings, 'OPENAI_API_KEY') or not settings.OPENAI_API_KEY:
+            return self._generate_basic_purchase_email(product, quantity, user)
+        
+        try:
+            supplier_info = ""
+            if product.supplier:
+                supplier_info = f"Proveedor: {product.supplier.name}"
+                if hasattr(product.supplier, 'contact_name'):
+                    supplier_info += f"\nContacto: {product.supplier.contact_name}"
+            
+            prompt = f"""
+            Genera un email profesional para solicitar una orden de compra con estos detalles:
+            
+            Producto: {product.name}
+            SKU: {product.sku}
+            Cantidad solicitada: {quantity}
+            Precio unitario: S/ {product.cost_price}
+            Total estimado: S/ {quantity * float(product.cost_price)}
+            {supplier_info}
+            
+            Solicitante: {user.get_full_name() or user.username}
+            Empresa: {product.company.name if hasattr(product, 'company') else 'DataLens'}
+            
+            El email debe ser:
+            - Profesional y cordial
+            - Incluir todos los detalles necesarios
+            - Solicitar confirmación de disponibilidad y tiempo de entrega
+            - Incluir datos de contacto para coordinación de entrega
+            
+            Responde en formato JSON con keys: subject, message
+            """
+            
+            import openai
+            client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+                temperature=0.7
+            )
+            
+            return json.loads(response.choices[0].message.content)
+            
+        except Exception as e:
+            print(f"Error generando email con OpenAI: {str(e)}")
+            return self._generate_basic_purchase_email(product, quantity, user)
+    
+    def _generate_basic_purchase_email(self, product, quantity, user):
+        """Generar email básico sin IA"""
+        subject = f"Solicitud de Compra - {product.name} (SKU: {product.sku})"
+        
+        message = f"""
+        Estimado proveedor,
+        
+        Nos dirigimos a ustedes para solicitar la siguiente orden de compra:
+        
+        DETALLES DEL PEDIDO:
+        • Producto: {product.name}
+        • SKU: {product.sku}
+        • Cantidad: {quantity} unidades
+        • Precio unitario: S/ {product.cost_price}
+        • Total estimado: S/ {quantity * float(product.cost_price)}
+        
+        Por favor, confirmen:
+        1. Disponibilidad del producto
+        2. Tiempo de entrega estimado
+        3. Condiciones de pago
+        4. Datos para coordinación de entrega
+        
+        Quedamos atentos a su respuesta.
+        
+        Saludos cordiales,
+        {user.get_full_name() or user.username}
+        {product.company.name if hasattr(product, 'company') else 'DataLens'}
+        """
+        
+        return {'subject': subject, 'message': message}
+    
+    def _send_email_to_supplier(self, supplier_email, email_content, product, quantity):
+        """Enviar email específicamente al proveedor"""
+        try:
+            from django.core.mail import send_mail
+            
+            send_mail(
+                subject=email_content['subject'],
+                message=email_content['message'],
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[supplier_email],
+                fail_silently=False,
+            )
+            
+            return {
+                'status': 'success',
+                'message': f'Email enviado exitosamente al proveedor',
+                'recipient': supplier_email
+            }
+            
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Error enviando email: {str(e)}',
+                'recipient': supplier_email
+            }
+    
+    def _send_email_to_custom(self, custom_email, email_content, product, quantity):
+        """Enviar email a dirección personalizada del usuario"""
+        try:
+            from django.core.mail import send_mail
+            
+            send_mail(
+                subject=email_content['subject'],
+                message=email_content['message'],
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[custom_email],
+                fail_silently=False,
+            )
+            
+            return {
+                'status': 'success',
+                'message': f'Email enviado exitosamente a dirección personalizada',
+                'recipient': custom_email
+            }
+            
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Error enviando email: {str(e)}',
+                'recipient': custom_email
+            }
+    
+    def _send_email_to_user(self, user_email, email_content, product, quantity):
+        """Enviar email al usuario solicitante"""
+        try:
+            from django.core.mail import send_mail
+            
+            # Modificar el email para que sea una copia para el usuario
+            user_subject = f"[COPIA] {email_content['subject']}"
+            user_message = f"Esta es una copia de la orden de compra generada:\n\n{email_content['message']}"
+            
+            send_mail(
+                subject=user_subject,
+                message=user_message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user_email],
+                fail_silently=False,
+            )
+            
+            return {
+                'status': 'success',
+                'message': f'Copia de email enviada exitosamente',
+                'recipient': user_email
+            }
+            
+        except Exception as e:
+            return {
+                'status': 'error',
+                'message': f'Error enviando email: {str(e)}',
+                'recipient': user_email
+            }
+    
+    def _build_product_context(self, product):
+        """Construir contexto adicional del producto para IA"""
+        try:
+            # Obtener transacciones recientes
+            recent_sales = Transaction.objects.filter(
+                product=product,
+                transaction_type='sale',
+                transaction_date__gte=timezone.now().date() - timedelta(days=30)
+            ).count()
+            
+            context = f"Ventas recientes (30 días): {recent_sales}. "
+            context += f"Categoría: {product.category.name if product.category else 'Sin categoría'}. "
+            
+            if product.supplier:
+                context += f"Proveedor actual: {product.supplier.name}. "
+            
+            return context
+            
+        except Exception:
+            return "Contexto limitado disponible."
+    
+    def _update_stock_alert(self, product, data):
+        """Actualizar configuración de alerta de stock"""
+        new_min_stock = data.get('min_stock')
+        new_reorder_point = data.get('reorder_point')
+        
+        if new_min_stock is not None:
+            product.min_stock = new_min_stock
+        if new_reorder_point is not None:
+            product.reorder_point = new_reorder_point
+        
+        product.save()
+        
+        return {
+            'action': 'update_stock_alert',
+            'product_id': product.id,
+            'product_name': product.name,
+            'min_stock': product.min_stock,
+            'reorder_point': product.reorder_point,
+            'message': 'Configuración de alertas actualizada'
+        }

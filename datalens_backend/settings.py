@@ -226,6 +226,9 @@ if DEBUG:
     CORS_ALLOW_METHODS = [
         'GET',
         'POST',
+        'PATCH',  # FIX: Agregar PATCH para editar productos
+        'DELETE', # FIX: Agregar DELETE para eliminar productos
+        'PUT',    # FIX: Agregar PUT para actualizaciones completas
         'OPTIONS',
     ]
     

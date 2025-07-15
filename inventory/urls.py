@@ -17,8 +17,11 @@ router.register(r'inventory-items', views.InventoryItemViewSet)
 router.register(r'opportunities', views.OpportunityViewSet)
 
 urlpatterns = [
-    # Incluir todas las rutas del router
-    path('', include(router.urls)),
+    # 🔧 FIX: Rutas específicas ANTES del router para evitar conflictos
+    # Nuevos endpoints de inteligencia de productos
+    path('products/intelligence/', views.ProductIntelligenceView.as_view(), name='product-intelligence'),
+    path('products/smart-filters/', views.ProductSmartFiltersView.as_view(), name='product-smart-filters'),
+    path('products/actions/', views.ProductActionView.as_view(), name='product-actions'),
     
     # Vistas adicionales de inventario
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),
@@ -27,4 +30,7 @@ urlpatterns = [
     path('low-stock/', views.LowStockView.as_view(), name='low-stock'),
     path('stock-movements/', views.StockMovementsView.as_view(), name='stock-movements'),
     path('filter-options/', views.FilterOptionsView.as_view(), name='filter-options'),
+    
+    # 🔧 Router al FINAL para que no intercepte las rutas específicas
+    path('', include(router.urls)),
 ]

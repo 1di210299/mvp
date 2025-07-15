@@ -47,6 +47,7 @@ class ProductSerializer(serializers.ModelSerializer):
     
     # **COMPATIBILIDAD: Alias para el frontend**
     current_stock = serializers.ReadOnlyField(source='stock')  # Alias para compatibilidad
+    unit_price = serializers.ReadOnlyField(source='sale_price')  # FIX: Alias unit_price para frontend
     
     # FIX: Campos para crear categoría/proveedor sobre la marcha
     category_data = serializers.DictField(write_only=True, required=False, help_text="Datos para crear nueva categoría si category no se proporciona")
@@ -65,6 +66,7 @@ class ProductSerializer(serializers.ModelSerializer):
             # Precios (solo los esenciales)
             'cost_price',     # Precio de compra
             'sale_price',     # Precio de venta
+            'unit_price',     # FIX: Alias para compatibilidad con frontend
             
             # Stock (con compatibilidad)
             'stock',          # Stock actual (campo real del modelo)
@@ -88,7 +90,7 @@ class ProductSerializer(serializers.ModelSerializer):
         ]
         
         read_only_fields = [
-            'id', 'stock_value', 'current_stock', 'category_name', 'supplier_name', 'created_at'
+            'id', 'stock_value', 'current_stock', 'unit_price', 'category_name', 'supplier_name', 'created_at'
         ]
 
     def to_internal_value(self, data):
@@ -116,8 +118,9 @@ class ProductSerializer(serializers.ModelSerializer):
         print(f"📝 Data a validar: {data}")
         
         try:
-            # FIX: Validar que se proporcione categoría O datos para crearla
-            if not data.get('category') and not data.get('category_data'):
+            # FIX: Validar que se proporcione categoría O datos para crearla (solo para creación)
+            # En actualizaciones parciales (self.instance existe), no exigir categoría
+            if not self.instance and not data.get('category') and not data.get('category_data'):
                 raise serializers.ValidationError("Debe proporcionar una categoría existente o datos para crear una nueva")
             
             # FIX: Validar datos de nueva categoría si se proporcionan
