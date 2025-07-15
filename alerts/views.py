@@ -252,6 +252,11 @@ class AlertsDashboardView(APIView):
                 count = Alert.objects.filter(created_at__date=date).count()
                 alert_trends[date.strftime('%Y-%m-%d')] = count
             
+            # 🎯 NUEVA FUNCIONALIDAD: Agregación de alertas por categoría
+            # REUTILIZA patrones existentes y extiende para categorías
+            alerts_by_category = self._calculate_alerts_by_category()
+            category_risk_analysis = self._analyze_category_risks(alerts_by_category)
+            
             data = {
                 'total_alerts': total_alerts,
                 'active_alerts': active_alerts,
@@ -262,7 +267,12 @@ class AlertsDashboardView(APIView):
                 'alerts_by_type': alerts_by_type,
                 'notification_stats': notification_dict,
                 'recent_alerts': AlertSerializer(recent_alerts, many=True).data,
-                'alert_trends': alert_trends
+                'alert_trends': alert_trends,
+                
+                # 🎯 NUEVAS MÉTRICAS ESTRATÉGICAS POR CATEGORÍA
+                'alerts_by_category': alerts_by_category,
+                'category_risk_analysis': category_risk_analysis,
+                'category_priorities': self._get_category_priorities(alerts_by_category)
             }
             
             return Response(data)
@@ -273,6 +283,246 @@ class AlertsDashboardView(APIView):
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
+    def _calculate_alerts_by_category(self):
+        """
+        📊 Calcular alertas agregadas por categoría
+        REUTILIZA patrones de agregación existentes y los especializa
+        """
+        try:
+            from inventory.models import Category, Product
+            
+            # Obtener alertas activas agrupadas por categoría de producto
+            # REUTILIZAR patrón de agregación del dashboard existente
+            alerts_by_category_query = Alert.objects.filter(
+                status__in=['active', 'acknowledged'],
+                product__isnull=False  # Solo alertas con producto asociado
+            ).select_related('product', 'product__category').values(
+                'product__category__id',
+                'product__category__name'
+            ).annotate(
+                total_alerts=Count('id'),
+                critical_alerts=Count('id', filter=Q(severity='critical')),
+                warning_alerts=Count('id', filter=Q(severity='warning')),
+                info_alerts=Count('id', filter=Q(severity='info')),
+                acknowledged_alerts=Count('id', filter=Q(status='acknowledged')),
+                active_alerts=Count('id', filter=Q(status='active'))
+            ).order_by('-total_alerts')
+            
+            alerts_by_category = []
+            
+            for item in alerts_by_category_query:
+                if item['product__category__name']:  # Solo categorías válidas
+                    
+                    # Calcular productos afectados por categoría
+                    affected_products = Alert.objects.filter(
+                        status__in=['active', 'acknowledged'],
+                        product__category__id=item['product__category__id']
+                    ).values('product').distinct().count()
+                    
+                    # Total de productos en la categoría para contexto
+                    total_products = Product.objects.filter(
+                        category__id=item['product__category__id'],
+                        is_active=True
+                    ).count()
+                    
+                    # Calcular porcentaje de productos afectados
+                    affected_percentage = (affected_products / total_products * 100) if total_products > 0 else 0
+                    
+                    # Determinar nivel de riesgo de la categoría
+                    risk_level = self._calculate_category_risk_level(
+                        item['critical_alerts'],
+                        item['total_alerts'],
+                        affected_percentage
+                    )
+                    
+                    category_data = {
+                        'category_id': item['product__category__id'],
+                        'category_name': item['product__category__name'],
+                        'total_alerts': item['total_alerts'],
+                        'critical_alerts': item['critical_alerts'],
+                        'warning_alerts': item['warning_alerts'],
+                        'info_alerts': item['info_alerts'],
+                        'acknowledged_alerts': item['acknowledged_alerts'],
+                        'active_alerts': item['active_alerts'],
+                        'affected_products': affected_products,
+                        'total_products': total_products,
+                        'affected_percentage': round(affected_percentage, 1),
+                        'risk_level': risk_level,
+                        'priority_score': self._calculate_category_priority_score(item, affected_percentage)
+                    }
+                    
+                    alerts_by_category.append(category_data)
+            
+            # Incluir categorías sin alertas para vista completa (opcional)
+            categories_with_alerts = {item['category_id'] for item in alerts_by_category}
+            all_categories = Category.objects.filter(is_active=True).exclude(
+                id__in=categories_with_alerts
+            )
+            
+            for category in all_categories:
+                total_products = Product.objects.filter(
+                    category=category,
+                    is_active=True
+                ).count()
+                
+                if total_products > 0:  # Solo incluir categorías con productos
+                    alerts_by_category.append({
+                        'category_id': category.id,
+                        'category_name': category.name,
+                        'total_alerts': 0,
+                        'critical_alerts': 0,
+                        'warning_alerts': 0,
+                        'info_alerts': 0,
+                        'acknowledged_alerts': 0,
+                        'active_alerts': 0,
+                        'affected_products': 0,
+                        'total_products': total_products,
+                        'affected_percentage': 0,
+                        'risk_level': 'low',
+                        'priority_score': 0
+                    })
+            
+            # Ordenar por score de prioridad (más crítico primero)
+            alerts_by_category.sort(key=lambda x: x['priority_score'], reverse=True)
+            
+            return alerts_by_category
+            
+        except Exception as e:
+            print(f"❌ Error calculando alertas por categoría: {e}")
+            return []
+    
+    def _calculate_category_risk_level(self, critical_alerts, total_alerts, affected_percentage):
+        """
+        🎯 Determinar nivel de riesgo de una categoría
+        NUEVA LÓGICA ESTRATÉGICA para clasificación de riesgo
+        """
+        # Criterios para clasificación de riesgo
+        if critical_alerts >= 3 or affected_percentage >= 50:
+            return 'critical'
+        elif critical_alerts >= 1 or affected_percentage >= 25 or total_alerts >= 5:
+            return 'high'
+        elif total_alerts >= 2 or affected_percentage >= 10:
+            return 'medium'
+        else:
+            return 'low'
+    
+    def _calculate_category_priority_score(self, alert_data, affected_percentage):
+        """
+        🔢 Calcular score de prioridad para ordenamiento estratégico
+        Combina múltiples factores para determinar qué categorías necesitan atención urgente
+        """
+        score = 0
+        
+        # Peso por criticidad de alertas
+        score += alert_data['critical_alerts'] * 10
+        score += alert_data['warning_alerts'] * 5
+        score += alert_data['info_alerts'] * 1
+        
+        # Peso por porcentaje de productos afectados
+        score += affected_percentage * 0.5
+        
+        # Bonus por alto número de alertas activas (sin acknowledged)
+        score += alert_data['active_alerts'] * 2
+        
+        return round(score, 1)
+    
+    def _analyze_category_risks(self, alerts_by_category):
+        """
+        🧠 Análisis de riesgos por categoría - estilo Carlos Empresario
+        REUTILIZA patrón de insights del IntelligenceService
+        """
+        if not alerts_by_category:
+            return {
+                'summary': 'No hay datos de alertas por categoría disponibles',
+                'high_risk_categories': [],
+                'requires_immediate_attention': [],
+                'stable_categories': []
+            }
+        
+        # Categorizar por nivel de riesgo
+        high_risk = [cat for cat in alerts_by_category if cat['risk_level'] in ['critical', 'high']]
+        medium_risk = [cat for cat in alerts_by_category if cat['risk_level'] == 'medium']
+        low_risk = [cat for cat in alerts_by_category if cat['risk_level'] == 'low']
+        
+        # Identificar categorías que requieren atención inmediata
+        immediate_attention = [
+            cat for cat in alerts_by_category 
+            if cat['critical_alerts'] > 0 or cat['affected_percentage'] > 30
+        ]
+        
+        # Categorías estables (sin problemas)
+        stable_categories = [
+            cat for cat in alerts_by_category 
+            if cat['total_alerts'] == 0 or (cat['total_alerts'] <= 1 and cat['critical_alerts'] == 0)
+        ]
+        
+        # Generar summary estilo briefing
+        total_categories = len(alerts_by_category)
+        categories_with_alerts = len([cat for cat in alerts_by_category if cat['total_alerts'] > 0])
+        
+        summary = f"""
+        📊 **Análisis de Riesgos por Categoría:**
+        
+        🎯 **Resumen:** {categories_with_alerts} de {total_categories} categorías tienen alertas activas
+        
+        🚨 **Alto riesgo:** {len(high_risk)} categorías necesitan atención urgente
+        
+        ⚠️ **Riesgo medio:** {len(medium_risk)} categorías bajo monitoreo
+        
+        ✅ **Estables:** {len(stable_categories)} categorías sin problemas críticos
+        """.strip()
+        
+        return {
+            'summary': summary,
+            'high_risk_categories': [cat['category_name'] for cat in high_risk],
+            'medium_risk_categories': [cat['category_name'] for cat in medium_risk],
+            'stable_categories': [cat['category_name'] for cat in stable_categories],
+            'requires_immediate_attention': immediate_attention,
+            'risk_distribution': {
+                'critical': len([c for c in alerts_by_category if c['risk_level'] == 'critical']),
+                'high': len([c for c in alerts_by_category if c['risk_level'] == 'high']),
+                'medium': len([c for c in alerts_by_category if c['risk_level'] == 'medium']),
+                'low': len([c for c in alerts_by_category if c['risk_level'] == 'low'])
+            }
+        }
+    
+    def _get_category_priorities(self, alerts_by_category):
+        """
+        📋 Obtener acciones prioritarias por categoría
+        Genera lista de acciones inmediatas estilo Carlos Empresario
+        """
+        priorities = []
+        
+        # Top 3 categorías que necesitan atención más urgente
+        urgent_categories = sorted(
+            [cat for cat in alerts_by_category if cat['priority_score'] > 0],
+            key=lambda x: x['priority_score'],
+            reverse=True
+        )[:3]
+        
+        for i, category in enumerate(urgent_categories, 1):
+            if category['critical_alerts'] > 0:
+                action = f"Revisar {category['critical_alerts']} productos críticos"
+                urgency = 'urgent'
+            elif category['active_alerts'] > 2:
+                action = f"Resolver {category['active_alerts']} alertas pendientes"
+                urgency = 'important'
+            else:
+                action = f"Monitorear {category['affected_products']} productos con alertas"
+                urgency = 'routine'
+            
+            priorities.append({
+                'rank': i,
+                'category_name': category['category_name'],
+                'category_id': category['category_id'],
+                'action': action,
+                'urgency': urgency,
+                'reason': f"Score de prioridad: {category['priority_score']} - {category['affected_percentage']}% productos afectados",
+                'timeline': '24 horas' if urgency == 'urgent' else '3 días' if urgency == 'important' else '1 semana'
+            })
+        
+        return priorities
 
 
 class CheckAlertsView(APIView):

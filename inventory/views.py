@@ -37,6 +37,635 @@ class CategoryViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         return Category.objects.filter(is_active=True).order_by('name')
+    
+    @action(detail=False, methods=['get'])
+    def analytics(self, request):
+        """
+        🎯 ENDPOINT ESTRATÉGICO: Analytics completas por categoría
+        Convierte datos administrativos en inteligencia de negocio
+        """
+        try:
+            # Obtener filtros temporales del request
+            start_date = request.query_params.get('start_date')
+            end_date = request.query_params.get('end_date')
+            compare_period = request.query_params.get('compare_period', 'previous_month')
+            
+            print(f"🎯 CategoryAnalytics: Iniciando análisis estratégico de categorías...")
+            
+            # Calcular fechas para comparación
+            if end_date:
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+            else:
+                end_date_obj = timezone.now().date()
+                
+            if start_date:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+            else:
+                # Por defecto: último mes
+                start_date_obj = end_date_obj - timedelta(days=30)
+            
+            # Período anterior para comparación
+            period_days = (end_date_obj - start_date_obj).days
+            previous_start = start_date_obj - timedelta(days=period_days)
+            previous_end = start_date_obj
+            
+            # REUTILIZAR lógica existente del DashboardView y extenderla
+            categories_data = self._calculate_category_analytics(
+                start_date_obj, end_date_obj, previous_start, previous_end
+            )
+            
+            # Identificar categorías estratégicas
+            strategic_insights = self._generate_strategic_insights(categories_data)
+            
+            response_data = {
+                'strategic_metrics': strategic_insights['strategic_metrics'],
+                'categories_performance': categories_data,
+                'period_info': {
+                    'current_period': {
+                        'start': start_date_obj.isoformat(),
+                        'end': end_date_obj.isoformat(),
+                        'days': period_days
+                    },
+                    'comparison_period': {
+                        'start': previous_start.isoformat(),
+                        'end': previous_end.isoformat(),
+                        'days': period_days
+                    }
+                },
+                'executive_summary': strategic_insights['executive_summary'],
+                'quick_actions': strategic_insights['quick_actions']
+            }
+            
+            print(f"✅ CategoryAnalytics: Análisis completado para {len(categories_data)} categorías")
+            return Response(response_data)
+            
+        except Exception as e:
+            print(f"❌ Error en CategoryAnalytics: {str(e)}")
+            return Response({
+                'error': f'Error calculando analytics de categorías: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _calculate_category_analytics(self, start_date, end_date, previous_start, previous_end):
+        """
+        🔢 Calcula métricas financieras y operacionales por categoría
+        REUTILIZA y EXTIENDE lógica del DashboardView existente
+        """
+        # Base query reutilizando DashboardView pattern
+        categories_queryset = Category.objects.filter(is_active=True).prefetch_related('products')
+        
+        categories_data = []
+        
+        for category in categories_queryset:
+            # Productos de la categoría
+            products = category.products.filter(is_active=True)
+            products_count = products.count()
+            
+            if products_count == 0:
+                continue
+                
+            # MÉTRICAS FINANCIERAS - Reutilizar patrón de DashboardView
+            # Ventas período actual
+            current_sales = Transaction.objects.filter(
+                product__in=products,
+                transaction_type='sale',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date
+            ).aggregate(
+                total_quantity=Sum('quantity') * -1,  # Convertir a positivo
+                total_value=Sum(
+                    Case(
+                        When(product__sale_price__isnull=False,
+                             then=F('quantity') * F('product__sale_price') * -1),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )
+            )
+            
+            # Ventas período anterior
+            previous_sales = Transaction.objects.filter(
+                product__in=products,
+                transaction_type='sale',
+                transaction_date__gte=previous_start,
+                transaction_date__lte=previous_end
+            ).aggregate(
+                total_quantity=Sum('quantity') * -1,
+                total_value=Sum(
+                    Case(
+                        When(product__sale_price__isnull=False,
+                             then=F('quantity') * F('product__sale_price') * -1),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )
+            )
+            
+            # Calcular cambio porcentual
+            current_value = float(current_sales['total_value'] or 0)
+            previous_value = float(previous_sales['total_value'] or 0)
+            
+            if previous_value > 0:
+                sales_change = ((current_value - previous_value) / previous_value) * 100
+            else:
+                sales_change = 100 if current_value > 0 else 0
+            
+            # MARGEN PROMEDIO - Nueva métrica estratégica
+            avg_margin = products.aggregate(
+                avg_margin=Avg(
+                    Case(
+                        When(sale_price__gt=0,
+                             then=((F('sale_price') - F('cost_price')) / F('sale_price')) * 100),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=5, decimal_places=2)
+                    )
+                )
+            )['avg_margin'] or 0
+            
+            # ALERTAS POR CATEGORÍA - Reutilizar patrón existente
+            products_with_alerts = 0
+            critical_products = 0
+            
+            for product in products:
+                # Stock crítico
+                if product.stock <= product.min_stock:
+                    products_with_alerts += 1
+                    if product.stock <= (product.min_stock * 0.5):
+                        critical_products += 1
+            
+            # VALOR TOTAL DE INVENTARIO - Reutilizar DashboardView calculation
+            total_inventory_value = products.aggregate(
+                total_value=Sum(
+                    Case(
+                        When(stock__gt=0,
+                             then=F('stock') * F('cost_price')),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )
+            )['total_value'] or 0
+            
+            # Determinar tendencia visual
+            if sales_change > 5:
+                trend = 'up'
+                trend_icon = '📈'
+            elif sales_change < -5:
+                trend = 'down'
+                trend_icon = '📉'
+            else:
+                trend = 'stable'
+                trend_icon = '➡️'
+            
+            # Determinar estado operacional
+            if critical_products > 0:
+                operational_status = 'critical'
+                status_color = 'red'
+            elif products_with_alerts > 0:
+                operational_status = 'warning'
+                status_color = 'yellow'
+            else:
+                operational_status = 'good'
+                status_color = 'green'
+            
+            category_data = {
+                'id': category.id,
+                'name': category.name,
+                'description': category.description,
+                
+                # Métricas financieras
+                'sales_current_period': float(current_value),
+                'sales_previous_period': float(previous_value),
+                'sales_change_percentage': round(sales_change, 1),
+                'avg_margin_percentage': float(avg_margin),
+                
+                # Métricas operacionales
+                'products_count': products_count,
+                'products_with_alerts': products_with_alerts,
+                'critical_products': critical_products,
+                'total_inventory_value': float(total_inventory_value),
+                
+                # Indicadores visuales
+                'trend': trend,
+                'trend_icon': trend_icon,
+                'operational_status': operational_status,
+                'status_color': status_color,
+                
+                # Datos para gráficos (reutilizar patrón existente)
+                'chart_data': {
+                    'sales_trend': [current_value, previous_value],
+                    'margin_vs_average': float(avg_margin)
+                }
+            }
+            
+            categories_data.append(category_data)
+        
+        # Ordenar por valor de ventas descendente
+        categories_data.sort(key=lambda x: x['sales_current_period'], reverse=True)
+        
+        return categories_data
+    
+    def _generate_strategic_insights(self, categories_data):
+        """
+        🧠 Genera insights estratégicos estilo Carlos Empresario
+        REUTILIZA patrones del IntelligenceService existente
+        """
+        if not categories_data:
+            return {
+                'strategic_metrics': {},
+                'executive_summary': 'No hay datos de categorías disponibles',
+                'quick_actions': []
+            }
+        
+        # Top performer
+        top_category = categories_data[0]
+        
+        # Categoría con más problemas
+        problem_category = max(
+            categories_data, 
+            key=lambda x: x['critical_products'] + x['products_with_alerts']
+        )
+        
+        # Mejor oportunidad (mayor crecimiento)
+        opportunity_category = max(
+            categories_data,
+            key=lambda x: x['sales_change_percentage'] if x['sales_change_percentage'] > 0 else -100
+        )
+        
+        # Margen promedio general
+        avg_margin_general = sum(cat['avg_margin_percentage'] for cat in categories_data) / len(categories_data)
+        
+        strategic_metrics = {
+            'top_sales_category': {
+                'name': top_category['name'],
+                'change': f"+{top_category['sales_change_percentage']:.1f}% vs mes anterior" if top_category['sales_change_percentage'] > 0 else f"{top_category['sales_change_percentage']:.1f}% vs mes anterior",
+                'icon': '🏆'
+            },
+            'most_alerts_category': {
+                'name': problem_category['name'],
+                'critical_count': problem_category['critical_products'],
+                'total_alerts': problem_category['products_with_alerts'],
+                'icon': '🚨'
+            },
+            'average_margin': {
+                'value': f"{avg_margin_general:.1f}%",
+                'description': 'general',
+                'icon': '💰'
+            },
+            'opportunity_category': {
+                'name': opportunity_category['name'],
+                'growth': f"+{opportunity_category['sales_change_percentage']:.1f}%" if opportunity_category['sales_change_percentage'] > 0 else "demanda estable",
+                'icon': '🚀'
+            }
+        }
+        
+        # Executive summary estilo briefing matutino
+        executive_summary = f"""
+        📊 **Análisis Estratégico de Categorías:**
+        
+        🏆 **Mejor performance:** {top_category['name']} lidera con {top_category['sales_change_percentage']:+.1f}%
+        
+        🚨 **Requiere atención:** {problem_category['name']} tiene {problem_category['critical_products']} productos críticos
+        
+        🚀 **Oportunidad detectada:** {opportunity_category['name']} {f"creciendo +{opportunity_category['sales_change_percentage']:.1f}%" if opportunity_category['sales_change_percentage'] > 0 else "lista para impulso"}
+        
+        💰 **Margen promedio:** {avg_margin_general:.1f}% general
+        """.strip()
+        
+        # Quick actions accionables
+        quick_actions = [
+            {
+                'category_id': top_category['id'],
+                'action': 'analyze_trends',
+                'title': f'Analizar {top_category["name"]}',
+                'description': 'Ver detalles del top performer',
+                'priority': 'medium'
+            },
+            {
+                'category_id': problem_category['id'],
+                'action': 'review_critical',
+                'title': f'Revisar {problem_category["name"]}',
+                'description': f'{problem_category["critical_products"]} productos necesitan atención',
+                'priority': 'high'
+            },
+            {
+                'category_id': opportunity_category['id'],
+                'action': 'expand_inventory',
+                'title': f'Ampliar {opportunity_category["name"]}',
+                'description': 'Aprovechar tendencia de crecimiento',
+                'priority': 'medium'
+            }
+        ]
+        
+        return {
+            'strategic_metrics': strategic_metrics,
+            'executive_summary': executive_summary,
+            'quick_actions': quick_actions
+        }
+    
+    @action(detail=False, methods=['get'])
+    def sales_trends(self, request):
+        """
+        📈 ENDPOINT OPTIMIZADO: Tendencias de ventas por categoría con comparación temporal
+        REUTILIZA y EXTIENDE lógica existente del DashboardView
+        """
+        try:
+            # Obtener parámetros temporales
+            period = request.query_params.get('period', '30days')  # 30days, 90days, 12months
+            compare_with = request.query_params.get('compare_with', 'previous_period')
+            
+            print(f"📈 CategorySalesTrends: Calculando tendencias para período {period}")
+            
+            # Calcular fechas según período
+            end_date = timezone.now().date()
+            
+            if period == '90days':
+                start_date = end_date - timedelta(days=90)
+                period_days = 90
+            elif period == '12months':
+                start_date = end_date - timedelta(days=365)
+                period_days = 365
+            else:  # 30days default
+                start_date = end_date - timedelta(days=30)
+                period_days = 30
+            
+            # Período anterior para comparación
+            previous_start = start_date - timedelta(days=period_days)
+            previous_end = start_date
+            
+            # REUTILIZAR y EXTENDER lógica del DashboardView
+            trends_data = self._calculate_category_sales_trends(
+                start_date, end_date, previous_start, previous_end, period_days
+            )
+            
+            response_data = {
+                'period_info': {
+                    'current_period': {
+                        'start': start_date.isoformat(),
+                        'end': end_date.isoformat(),
+                        'days': period_days
+                    },
+                    'comparison_period': {
+                        'start': previous_start.isoformat(),
+                        'end': previous_end.isoformat(),
+                        'days': period_days
+                    }
+                },
+                'categories_trends': trends_data,
+                'summary': self._generate_trends_summary(trends_data),
+                'generated_at': timezone.now().isoformat()
+            }
+            
+            print(f"✅ CategorySalesTrends: Análisis completado para {len(trends_data)} categorías")
+            return Response(response_data)
+            
+        except Exception as e:
+            print(f"❌ Error en CategorySalesTrends: {str(e)}")
+            return Response({
+                'error': f'Error calculando tendencias de ventas: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _calculate_category_sales_trends(self, start_date, end_date, previous_start, previous_end, period_days):
+        """
+        📊 Calcular tendencias de ventas por categoría con comparación temporal
+        REUTILIZA patrón del DashboardView.stock_by_category y lo extiende
+        """
+        # Base query REUTILIZANDO patrón existente del DashboardView
+        categories_queryset = Category.objects.filter(is_active=True).prefetch_related('products')
+        
+        trends_data = []
+        
+        for category in categories_queryset:
+            # Productos de la categoría (REUTILIZAR filtrado existente)
+            products = category.products.filter(is_active=True)
+            products_count = products.count()
+            
+            if products_count == 0:
+                continue
+            
+            # VENTAS PERÍODO ACTUAL - Usando patrón del CategoryViewSet.analytics
+            current_sales = Transaction.objects.filter(
+                product__in=products,
+                transaction_type='sale',
+                transaction_date__gte=start_date,
+                transaction_date__lte=end_date
+            ).aggregate(
+                total_quantity=Sum('quantity') * -1,  # Convertir a positivo
+                total_transactions=Count('id'),
+                total_value=Sum(
+                    Case(
+                        When(product__sale_price__isnull=False,
+                             then=F('quantity') * F('product__sale_price') * -1),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                ),
+                avg_transaction_value=Avg(
+                    Case(
+                        When(product__sale_price__isnull=False,
+                             then=F('quantity') * F('product__sale_price') * -1),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )
+            )
+            
+            # VENTAS PERÍODO ANTERIOR - Para comparación
+            previous_sales = Transaction.objects.filter(
+                product__in=products,
+                transaction_type='sale',
+                transaction_date__gte=previous_start,
+                transaction_date__lte=previous_end
+            ).aggregate(
+                total_quantity=Sum('quantity') * -1,
+                total_transactions=Count('id'),
+                total_value=Sum(
+                    Case(
+                        When(product__sale_price__isnull=False,
+                             then=F('quantity') * F('product__sale_price') * -1),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )
+            )
+            
+            # CALCULAR MÉTRICAS DE COMPARACIÓN
+            current_quantity = float(current_sales['total_quantity'] or 0)
+            current_value = float(current_sales['total_value'] or 0)
+            current_transactions = current_sales['total_transactions'] or 0
+            
+            previous_quantity = float(previous_sales['total_quantity'] or 0)
+            previous_value = float(previous_sales['total_value'] or 0)
+            previous_transactions = previous_sales['total_transactions'] or 0
+            
+            # Calcular cambios porcentuales
+            quantity_change = self._calculate_percentage_change(current_quantity, previous_quantity)
+            value_change = self._calculate_percentage_change(current_value, previous_value)
+            transactions_change = self._calculate_percentage_change(current_transactions, previous_transactions)
+            
+            # TENDENCIA SEMANAL - Breakdown más granular
+            weekly_trend = self._calculate_weekly_breakdown(
+                products, start_date, end_date, period_days
+            )
+            
+            # VALOR PROMEDIO POR TRANSACCIÓN
+            avg_transaction_current = current_value / current_transactions if current_transactions > 0 else 0
+            avg_transaction_previous = previous_value / previous_transactions if previous_transactions > 0 else 0
+            avg_transaction_change = self._calculate_percentage_change(avg_transaction_current, avg_transaction_previous)
+            
+            # DETERMINAR TENDENCIA VISUAL (REUTILIZAR patrón de CategoryViewSet.analytics)
+            if value_change > 10:
+                trend_direction = 'strong_growth'
+                trend_icon = '🚀'
+                trend_color = 'green'
+            elif value_change > 5:
+                trend_direction = 'growth'
+                trend_icon = '📈'
+                trend_color = 'light-green'
+            elif value_change > -5:
+                trend_direction = 'stable'
+                trend_icon = '➡️'
+                trend_color = 'blue'
+            elif value_change > -10:
+                trend_direction = 'decline'
+                trend_icon = '📉'
+                trend_color = 'orange'
+            else:
+                trend_direction = 'strong_decline'
+                trend_icon = '🔻'
+                trend_color = 'red'
+            
+            # PERFORMANCE SCORE - Métrica compuesta para ranking
+            performance_score = self._calculate_performance_score(
+                current_value, value_change, current_transactions, transactions_change
+            )
+            
+            category_trend = {
+                'category_id': category.id,
+                'category_name': category.name,
+                'products_count': products_count,
+                
+                # Métricas del período actual
+                'current_period': {
+                    'quantity_sold': current_quantity,
+                    'sales_value': current_value,
+                    'transactions_count': current_transactions,
+                    'avg_transaction_value': float(current_sales['avg_transaction_value'] or 0)
+                },
+                
+                # Métricas del período anterior
+                'previous_period': {
+                    'quantity_sold': previous_quantity,
+                    'sales_value': previous_value,
+                    'transactions_count': previous_transactions
+                },
+                
+                # Análisis de cambios
+                'changes': {
+                    'quantity_change_pct': quantity_change,
+                    'value_change_pct': value_change,
+                    'transactions_change_pct': transactions_change,
+                    'avg_transaction_change_pct': avg_transaction_change
+                },
+                
+                # Indicadores visuales
+                'trend': {
+                    'direction': trend_direction,
+                    'icon': trend_icon,
+                    'color': trend_color
+                },
+                
+                # Datos para gráficos
+                'weekly_breakdown': weekly_trend,
+                'performance_score': performance_score
+            }
+            
+            trends_data.append(category_trend)
+        
+        # Ordenar por performance score (mejores primero)
+        trends_data.sort(key=lambda x: x['performance_score'], reverse=True)
+        
+        return trends_data
+    
+    def _calculate_percentage_change(self, current, previous):
+        """Calcular cambio porcentual de manera segura"""
+        if previous == 0:
+            return 100 if current > 0 else 0
+        return round(((current - previous) / previous) * 100, 1)
+    
+    def _calculate_weekly_breakdown(self, products, start_date, end_date, period_days):
+        """Calcular breakdown semanal de ventas"""
+        weeks = min(period_days // 7, 8)  # Máximo 8 semanas para performance
+        weekly_data = []
+        
+        for week in range(weeks):
+            week_start = end_date - timedelta(days=(week + 1) * 7)
+            week_end = end_date - timedelta(days=week * 7)
+            
+            week_sales = Transaction.objects.filter(
+                product__in=products,
+                transaction_type='sale',
+                transaction_date__gte=week_start,
+                transaction_date__lt=week_end
+            ).aggregate(
+                value=Sum(
+                    Case(
+                        When(product__sale_price__isnull=False,
+                             then=F('quantity') * F('product__sale_price') * -1),
+                        default=Value(0),
+                        output_field=DecimalField(max_digits=15, decimal_places=2)
+                    )
+                )
+            )['value'] or 0
+            
+            weekly_data.append({
+                'week_label': f'Sem {weeks - week}',
+                'week_start': week_start.isoformat(),
+                'week_end': week_end.isoformat(),
+                'sales_value': float(week_sales)
+            })
+        
+        return list(reversed(weekly_data))  # Orden cronológico
+    
+    def _calculate_performance_score(self, current_value, value_change, current_transactions, transactions_change):
+        """Calcular score de performance para ranking"""
+        # Combinar valor absoluto y crecimiento
+        value_score = current_value * 0.7  # 70% peso al valor actual
+        growth_score = max(0, value_change) * current_value * 0.01  # 30% peso al crecimiento
+        transaction_bonus = current_transactions * 10  # Bonus por volumen de transacciones
+        
+        return round(value_score + growth_score + transaction_bonus, 2)
+    
+    def _generate_trends_summary(self, trends_data):
+        """Generar resumen de tendencias estilo Carlos Empresario"""
+        if not trends_data:
+            return "No hay datos de tendencias disponibles"
+        
+        # Métricas generales
+        total_categories = len(trends_data)
+        growing_categories = len([t for t in trends_data if t['changes']['value_change_pct'] > 5])
+        declining_categories = len([t for t in trends_data if t['changes']['value_change_pct'] < -5])
+        stable_categories = total_categories - growing_categories - declining_categories
+        
+        # Top performer
+        top_performer = trends_data[0] if trends_data else None
+        
+        # Categoría con mayor crecimiento
+        best_growth = max(trends_data, key=lambda x: x['changes']['value_change_pct']) if trends_data else None
+        
+        summary = f"""
+        📊 **Resumen de Tendencias por Categorías:**
+        
+        🎯 **Top performer:** {top_performer['category_name']} (S/{top_performer['current_period']['sales_value']:.2f})
+        
+        🚀 **Mayor crecimiento:** {best_growth['category_name']} ({best_growth['changes']['value_change_pct']:+.1f}%)
+        
+        📈 **Creciendo:** {growing_categories} categorías (+5% o más)
+        📉 **Declinando:** {declining_categories} categorías (-5% o menos) 
+        ➡️ **Estables:** {stable_categories} categorías
+        
+        💡 **Insight:** {growing_categories / total_categories * 100:.0f}% de categorías en crecimiento
+        """.strip()
+        
+        return summary
 
 
 class SupplierViewSet(viewsets.ModelViewSet):

@@ -452,6 +452,502 @@ class IntelligenceService:
             logger.error(error_msg)
             raise OpenAIConnectionError(error_msg) from e
     
+    def generate_category_insights(self, company: Company, category_id: int = None) -> Dict[str, Any]:
+        """
+        🎯 Generar insights estratégicos específicos para categorías
+        REUTILIZA y EXTIENDE la lógica del briefing matutino para categorías
+        
+        Args:
+            company: Empresa para análisis
+            category_id: ID de categoría específica (opcional, si no se proporciona analiza todas)
+            
+        Returns:
+            Dict con insights estratégicos por categoría
+            
+        Raises:
+            OpenAIConnectionError: Si no se puede conectar con OpenAI
+        """
+        print(f"🧠 DEBUG: Generando insights de categorías para {company.name}")
+        
+        # Verificación estricta: REQUIERE IA
+        if not self.is_available():
+            error_msg = "Servicio de IA no disponible. No se pueden generar insights de categorías sin OpenAI."
+            print(f"❌ DEBUG: {error_msg}")
+            raise OpenAIConnectionError(error_msg)
+        
+        try:
+            # Obtener contexto específico de categorías (REUTILIZAR y EXTENDER)
+            categories_context = self._gather_categories_context(company, category_id)
+            print(f"✅ DEBUG: Contexto de categorías obtenido para {len(categories_context.get('categories', []))} categorías")
+            
+            # Generar insights específicos con IA
+            insights_data = self._generate_ai_category_insights(categories_context, company)
+            print(f"✅ DEBUG: Insights de categorías generados con IA exitosamente")
+            
+            # Validar estructura de insights
+            self._validate_category_insights_structure(insights_data)
+            
+            # Guardar insights en base de datos
+            self._save_category_insights_to_db(insights_data, categories_context, company)
+            
+            # Preparar respuesta final
+            response = {
+                'category_insights': insights_data['category_insights'],
+                'strategic_recommendations': insights_data['strategic_recommendations'],
+                'priority_actions': insights_data['priority_actions'],
+                'market_opportunities': insights_data['market_opportunities'],
+                'risk_assessment': insights_data['risk_assessment'],
+                'performance_analysis': insights_data['performance_analysis'],
+                'generated_at': timezone.now().isoformat(),
+                'success': True,
+                'ai_enabled': True,
+                'categories_analyzed': len(categories_context.get('categories', []))
+            }
+            
+            print(f"✅ DEBUG: Category insights completado exitosamente")
+            return response
+            
+        except Exception as e:
+            error_msg = f"Error generando insights de categorías con IA: {str(e)}"
+            print(f"❌ DEBUG: {error_msg}")
+            logger.error(error_msg)
+            raise OpenAIConnectionError(error_msg) from e
+    
+    def _gather_categories_context(self, company: Company, category_id: int = None) -> Dict[str, Any]:
+        """
+        📊 Recopilar contexto específico de categorías para análisis de IA
+        REUTILIZA patrón de _gather_business_context y lo especializa
+        """
+        print(f"🔍 DEBUG: Recopilando contexto de categorías para {company.name}")
+        
+        try:
+            from inventory.models import Category, Product, Transaction, InventoryItem
+            from alerts.models import Alert
+            
+            # Fechas para análisis (REUTILIZAR patrón existente)
+            today = timezone.now().date()
+            week_ago = today - timedelta(days=7)
+            month_ago = today - timedelta(days=30)
+            
+            # Filtrar categorías según parámetro
+            if category_id:
+                categories = Category.objects.filter(id=category_id, is_active=True)
+            else:
+                categories = Category.objects.filter(is_active=True)
+            
+            categories_data = []
+            
+            for category in categories:
+                # Productos de la categoría
+                products = Product.objects.filter(company=company, category=category, is_active=True)
+                products_count = products.count()
+                
+                if products_count == 0:
+                    continue
+                
+                # Transacciones por categoría (REUTILIZAR cálculos existentes)
+                category_transactions = Transaction.objects.filter(
+                    product__in=products,
+                    transaction_date__gte=month_ago
+                ).select_related('product')
+                
+                # Ventas por categoría
+                sales_transactions = category_transactions.filter(transaction_type='sale')
+                sales_this_month = sales_transactions.aggregate(
+                    total_quantity=Sum('quantity'),
+                    total_value=Sum(F('quantity') * F('product__sale_price'))
+                )
+                
+                # Tendencia de ventas (últimas 4 semanas)
+                sales_trend = []
+                for week_offset in range(4):
+                    week_start = today - timedelta(days=(week_offset + 1) * 7)
+                    week_end = today - timedelta(days=week_offset * 7)
+                    
+                    week_sales = sales_transactions.filter(
+                        transaction_date__gte=week_start,
+                        transaction_date__lt=week_end
+                    ).aggregate(total=Sum('quantity'))['total'] or 0
+                    
+                    sales_trend.append({
+                        'week': f'Semana {4-week_offset}',
+                        'sales': abs(float(week_sales))  # Convertir a positivo
+                    })
+                
+                # Márgenes por categoría (NUEVA MÉTRICA ESTRATÉGICA)
+                margin_analysis = products.aggregate(
+                    avg_margin=Avg(
+                        Case(
+                            When(sale_price__gt=0,
+                                 then=((F('sale_price') - F('cost_price')) / F('sale_price')) * 100),
+                            default=Value(0),
+                            output_field=DecimalField(max_digits=5, decimal_places=2)
+                        )
+                    ),
+                    min_margin=Min(
+                        Case(
+                            When(sale_price__gt=0,
+                                 then=((F('sale_price') - F('cost_price')) / F('sale_price')) * 100),
+                            default=Value(0),
+                            output_field=DecimalField(max_digits=5, decimal_places=2)
+                        )
+                    ),
+                    max_margin=Max(
+                        Case(
+                            When(sale_price__gt=0,
+                                 then=((F('sale_price') - F('cost_price')) / F('sale_price')) * 100),
+                            default=Value(0),
+                            output_field=DecimalField(max_digits=5, decimal_places=2)
+                        )
+                    )
+                )
+                
+                # Alertas por categoría (REUTILIZAR patrón de alertas)
+                category_alerts = Alert.objects.filter(
+                    product__in=products,
+                    status='active'
+                )
+                
+                alerts_summary = {
+                    'total_alerts': category_alerts.count(),
+                    'critical_alerts': category_alerts.filter(severity='critical').count(),
+                    'warning_alerts': category_alerts.filter(severity='warning').count(),
+                    'info_alerts': category_alerts.filter(severity='info').count()
+                }
+                
+                # Stock status por categoría
+                stock_analysis = {
+                    'total_products': products_count,
+                    'low_stock_products': products.filter(stock__lte=F('min_stock')).count(),
+                    'out_of_stock_products': products.filter(stock=0).count(),
+                    'optimal_stock_products': products.filter(
+                        stock__gt=F('min_stock'), 
+                        stock__lt=F('max_stock')
+                    ).count()
+                }
+                
+                # Valor total de inventario por categoría
+                inventory_value = products.aggregate(
+                    total_value=Sum(F('stock') * F('cost_price'))
+                )['total_value'] or 0
+                
+                category_data = {
+                    'id': category.id,
+                    'name': category.name,
+                    'description': category.description,
+                    'products_count': products_count,
+                    'sales_performance': {
+                        'monthly_quantity': abs(float(sales_this_month['total_quantity'] or 0)),
+                        'monthly_value': float(sales_this_month['total_value'] or 0),
+                        'weekly_trend': sales_trend
+                    },
+                    'margin_analysis': {
+                        'avg_margin': float(margin_analysis['avg_margin'] or 0),
+                        'min_margin': float(margin_analysis['min_margin'] or 0),
+                        'max_margin': float(margin_analysis['max_margin'] or 0)
+                    },
+                    'alerts_summary': alerts_summary,
+                    'stock_analysis': stock_analysis,
+                    'inventory_value': float(inventory_value),
+                    'top_products': list(products.order_by('-stock')[:3].values('name', 'stock', 'sale_price'))
+                }
+                
+                categories_data.append(category_data)
+            
+            # Estadísticas generales (REUTILIZAR patrón existente)
+            general_stats = {
+                'total_categories_analyzed': len(categories_data),
+                'total_products_across_categories': sum(cat['products_count'] for cat in categories_data),
+                'total_inventory_value': sum(cat['inventory_value'] for cat in categories_data),
+                'total_alerts': sum(cat['alerts_summary']['total_alerts'] for cat in categories_data),
+                'avg_margin_across_categories': sum(cat['margin_analysis']['avg_margin'] for cat in categories_data) / len(categories_data) if categories_data else 0
+            }
+            
+            context = {
+                'company_name': company.name,
+                'analysis_date': today.isoformat(),
+                'categories': categories_data,
+                'general_stats': general_stats,
+                'analysis_scope': 'single_category' if category_id else 'all_categories'
+            }
+            
+            return context
+            
+        except Exception as e:
+            print(f"❌ Error recopilando contexto de categorías: {e}")
+            return {
+                'company_name': company.name,
+                'categories': [],
+                'general_stats': {},
+                'error': str(e)
+            }
+    
+    def _generate_ai_category_insights(self, context: Dict[str, Any], company: Company) -> Dict[str, Any]:
+        """
+        🤖 Generar insights de categorías usando OpenAI
+        REUTILIZA patrón de _generate_ai_briefing_required pero especializado para categorías
+        """
+        print(f"🤖 DEBUG: Generando insights de categorías con IA para {company.name}")
+        
+        try:
+            # Construir prompt especializado para categorías (REUTILIZAR patrón existente)
+            prompt = self._build_category_analysis_prompt(context, company)
+            
+            # Llamada a OpenAI (REUTILIZAR configuración existente)
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"""Eres Carlos Empresario, consultor de negocios especializado en análisis de categorías para {company.name}.
+                        
+                        MISIÓN: Analizar el rendimiento por categorías y generar insights estratégicos accionables.
+                        
+                        FORMATO REQUERIDO: JSON válido EXACTO:
+                        {{
+                          "category_insights": [
+                            {{
+                              "category_name": "Nombre de categoría",
+                              "performance_rating": "excellent|good|average|poor|critical",
+                              "key_finding": "Insight principal de 1-2 oraciones",
+                              "opportunity": "Oportunidad específica detectada",
+                              "risk": "Riesgo o problema principal",
+                              "recommended_actions": ["Acción específica 1", "Acción específica 2"]
+                            }}
+                          ],
+                          "strategic_recommendations": [
+                            {{
+                              "title": "Recomendación estratégica",
+                              "description": "Explicación detallada",
+                              "priority": "high|medium|low",
+                              "timeline": "inmediato|1-2 semanas|1 mes",
+                              "expected_impact": "Impacto esperado"
+                            }}
+                          ],
+                          "priority_actions": [
+                            {{
+                              "action": "Acción específica",
+                              "category": "Categoría afectada",
+                              "urgency": "urgent|important|routine",
+                              "reason": "Por qué es importante ahora"
+                            }}
+                          ],
+                          "market_opportunities": [
+                            {{
+                              "opportunity": "Oportunidad de mercado",
+                              "categories_involved": ["Cat1", "Cat2"],
+                              "potential_value": "Valor potencial estimado",
+                              "next_steps": ["Paso 1", "Paso 2"]
+                            }}
+                          ],
+                          "risk_assessment": {{
+                            "high_risk_categories": ["Categoría con riesgo alto"],
+                            "main_threats": ["Amenaza 1", "Amenaza 2"],
+                            "mitigation_strategies": ["Estrategia 1", "Estrategia 2"]
+                          }},
+                          "performance_analysis": {{
+                            "top_performers": ["Mejor categoría 1", "Mejor categoría 2"],
+                            "underperformers": ["Categoría con problemas 1"],
+                            "growth_trends": ["Tendencia 1", "Tendencia 2"],
+                            "margin_insights": ["Insight de margen 1", "Insight de margen 2"]
+                          }}
+                        }}"""
+                    },
+                    {
+                        "role": "user", 
+                        "content": prompt
+                    }
+                ],
+                temperature=0.7,
+                max_tokens=2000
+            )
+            
+            # Procesar respuesta (REUTILIZAR patrón existente)
+            ai_response = response.choices[0].message.content
+            print(f"🤖 DEBUG: Respuesta de IA recibida, longitud: {len(ai_response)}")
+            
+            # Parsear JSON (REUTILIZAR patrón de validación)
+            try:
+                insights_data = json.loads(ai_response)
+                print(f"✅ DEBUG: JSON parseado exitosamente")
+                return insights_data
+            except json.JSONDecodeError as e:
+                print(f"❌ DEBUG: Error parseando JSON de IA: {e}")
+                # Intentar extraer JSON válido
+                import re
+                json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+                if json_match:
+                    try:
+                        insights_data = json.loads(json_match.group())
+                        print(f"✅ DEBUG: JSON extraído y parseado exitosamente")
+                        return insights_data
+                    except:
+                        pass
+                
+                # Fallback con estructura básica
+                return self._create_fallback_category_insights(context)
+            
+        except Exception as e:
+            print(f"❌ Error generando insights con IA: {e}")
+            return self._create_fallback_category_insights(context)
+    
+    def _build_category_analysis_prompt(self, context: Dict[str, Any], company: Company) -> str:
+        """
+        📝 Construir prompt especializado para análisis de categorías
+        REUTILIZA patrón de _build_intelligent_prompt
+        """
+        categories_summary = ""
+        for cat in context.get('categories', []):
+            categories_summary += f"""
+            CATEGORÍA: {cat['name']}
+            • Productos: {cat['products_count']}
+            • Ventas mensuales: {cat['sales_performance']['monthly_quantity']:.0f} unidades
+            • Valor ventas: S/{cat['sales_performance']['monthly_value']:.2f}
+            • Margen promedio: {cat['margin_analysis']['avg_margin']:.1f}%
+            • Alertas activas: {cat['alerts_summary']['total_alerts']} (críticas: {cat['alerts_summary']['critical_alerts']})
+            • Stock bajo: {cat['stock_analysis']['low_stock_products']} productos
+            • Valor inventario: S/{cat['inventory_value']:.2f}
+            """
+        
+        return f"""ANÁLISIS ESTRATÉGICO DE CATEGORÍAS - {company.name}
+        Fecha: {context['analysis_date']}
+        
+        ESTADÍSTICAS GENERALES:
+        • Total categorías: {context['general_stats']['total_categories_analyzed']}
+        • Total productos: {context['general_stats']['total_products_across_categories']}
+        • Valor total inventario: S/{context['general_stats']['total_inventory_value']:.2f}
+        • Alertas totales: {context['general_stats']['total_alerts']}
+        • Margen promedio general: {context['general_stats']['avg_margin_across_categories']:.1f}%
+        
+        DETALLES POR CATEGORÍA:
+        {categories_summary}
+        
+        INSTRUCCIONES PARA ANÁLISIS:
+        1. Evalúa el rendimiento de cada categoría (ventas, márgenes, problemas)
+        2. Identifica oportunidades estratégicas específicas por categoría
+        3. Detecta riesgos operacionales que requieren atención inmediata
+        4. Proporciona recomendaciones accionables priorizadas
+        5. Sugiere acciones específicas con timeline claro
+        
+        Genera insights en JSON válido siguiendo la estructura exacta especificada."""
+    
+    def _validate_category_insights_structure(self, insights_data: Dict[str, Any]):
+        """
+        ✅ Validar estructura de insights de categorías
+        REUTILIZA patrón de _validate_briefing_structure
+        """
+        required_keys = ['category_insights', 'strategic_recommendations', 'priority_actions', 
+                        'market_opportunities', 'risk_assessment', 'performance_analysis']
+        
+        for key in required_keys:
+            if key not in insights_data:
+                raise ValueError(f"Category insights falta clave requerida: {key}")
+        
+        print("✅ DEBUG: Estructura de category insights validada")
+    
+    def _save_category_insights_to_db(self, insights_data: Dict[str, Any], context: Dict[str, Any], company: Company):
+        """
+        💾 Guardar insights de categorías en base de datos
+        REUTILIZA patrón de IntelligenceInsight existente
+        """
+        try:
+            from .models import IntelligenceInsight
+            
+            # Guardar insights principales como registros individuales
+            for insight in insights_data.get('category_insights', []):
+                IntelligenceInsight.objects.create(
+                    company=company,
+                    insight_type='opportunity',
+                    priority='medium',
+                    title=f"Análisis: {insight.get('category_name', 'Categoría')}",
+                    message=insight.get('key_finding', ''),
+                    actions_json=insight.get('recommended_actions', []),
+                    source_data_json=context,
+                    confidence_score=85.0
+                )
+            
+            # Guardar acciones prioritarias
+            for action in insights_data.get('priority_actions', []):
+                priority_map = {'urgent': 'high', 'important': 'medium', 'routine': 'low'}
+                IntelligenceInsight.objects.create(
+                    company=company,
+                    insight_type='priority',
+                    priority=priority_map.get(action.get('urgency', 'medium'), 'medium'),
+                    title=f"Acción requerida: {action.get('category', '')}",
+                    message=action.get('reason', ''),
+                    actions_json=[action.get('action', '')],
+                    source_data_json=context,
+                    confidence_score=90.0
+                )
+            
+            print(f"✅ DEBUG: Category insights guardados en BD")
+            
+        except Exception as e:
+            print(f"❌ Error guardando insights en BD: {e}")
+    
+    def _create_fallback_category_insights(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        🔄 Crear insights de fallback cuando IA no está disponible
+        REUTILIZA patrón de fallback existente pero para categorías
+        """
+        categories = context.get('categories', [])
+        
+        if not categories:
+            return {
+                'category_insights': [],
+                'strategic_recommendations': [],
+                'priority_actions': [],
+                'market_opportunities': [],
+                'risk_assessment': {'high_risk_categories': [], 'main_threats': [], 'mitigation_strategies': []},
+                'performance_analysis': {'top_performers': [], 'underperformers': [], 'growth_trends': [], 'margin_insights': []}
+            }
+        
+        # Análisis básico sin IA
+        top_category = max(categories, key=lambda x: x['sales_performance']['monthly_value'])
+        problem_category = max(categories, key=lambda x: x['alerts_summary']['total_alerts'])
+        
+        return {
+            'category_insights': [
+                {
+                    'category_name': top_category['name'],
+                    'performance_rating': 'good',
+                    'key_finding': f"Lidera en ventas con S/{top_category['sales_performance']['monthly_value']:.2f}",
+                    'opportunity': 'Mantener momentum y expandir línea',
+                    'risk': 'Posible agotamiento de stock',
+                    'recommended_actions': ['Revisar niveles de inventario', 'Analizar demanda futura']
+                }
+            ],
+            'strategic_recommendations': [
+                {
+                    'title': 'Optimizar categoría líder',
+                    'description': f'Enfocar recursos en {top_category["name"]}',
+                    'priority': 'high',
+                    'timeline': '1-2 semanas',
+                    'expected_impact': 'Incremento de 10-15% en ventas'
+                }
+            ],
+            'priority_actions': [
+                {
+                    'action': f'Revisar alertas en {problem_category["name"]}',
+                    'category': problem_category['name'],
+                    'urgency': 'important',
+                    'reason': f'{problem_category["alerts_summary"]["total_alerts"]} alertas activas'
+                }
+            ],
+            'market_opportunities': [],
+            'risk_assessment': {
+                'high_risk_categories': [problem_category['name']],
+                'main_threats': ['Stock crítico', 'Alertas sin resolver'],
+                'mitigation_strategies': ['Revisión inmediata de inventario', 'Configurar reabastecimiento automático']
+            },
+            'performance_analysis': {
+                'top_performers': [top_category['name']],
+                'underperformers': [problem_category['name']],
+                'growth_trends': ['Análisis requiere más datos históricos'],
+                'margin_insights': ['Revisar márgenes por categoría regularmente']
+            }
+        }
+    
     def _gather_business_context(self, company: Company) -> Dict[str, Any]:
         """Recopilar contexto del negocio para análisis de IA"""
         

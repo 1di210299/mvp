@@ -29,10 +29,61 @@ import {
   Package,
   TrendingUp,
   BarChart3,
-  AlertTriangle
+  AlertTriangle,
+  Target,
+  DollarSign
 } from '../components/ui/icons';
 import { Category } from '../types';
 import { inventoryService } from '../services/api';
+
+interface CategoryAnalytics {
+  strategic_metrics: {
+    top_sales_category: {
+      name: string;
+      change: string;
+      icon: string;
+    };
+    most_alerts_category: {
+      name: string;
+      critical_count: number;
+      total_alerts: number;
+      icon: string;
+    };
+    average_margin: {
+      value: string;
+      description: string;
+      icon: string;
+    };
+    opportunity_category: {
+      name: string;
+      growth: string;
+      icon: string;
+    };
+  };
+  executive_summary: string;
+  quick_actions: Array<{
+    category_id: number;
+    action: string;
+    title: string;
+    description: string;
+    priority: string;
+  }>;
+}
+
+interface CategoryPerformance {
+  category_id: number;
+  category_name: string;
+  sales_current_period: number;
+  sales_previous_period: number;
+  sales_change_percentage: number;
+  avg_margin_percentage: number;
+  products_with_alerts: number;
+  critical_products: number;
+  trend: string;
+  trend_icon: string;
+  operational_status: string;
+  status_color: string;
+}
 
 interface CategoriesPageState {
   categories: Category[];
@@ -42,6 +93,13 @@ interface CategoriesPageState {
   isDialogOpen: boolean;
   selectedCategory: Category | null;
   formData: Partial<Category>;
+  // 🎯 NUEVOS ESTADOS PARA FUNCIONALIDAD ESTRATÉGICA
+  analytics: CategoryAnalytics | null;
+  analyticsLoading: boolean;
+  analyticsError: string | null;
+  // 🎯 PERFORMANCE DATA POR CATEGORÍA
+  categoriesPerformance: CategoryPerformance[];
+  performanceLoading: boolean;
 }
 
 const CategoriesPage: React.FC = () => {
@@ -52,7 +110,14 @@ const CategoriesPage: React.FC = () => {
     searchTerm: '',
     isDialogOpen: false,
     selectedCategory: null,
-    formData: {}
+    formData: {},
+    // 🎯 INICIALIZAR NUEVOS ESTADOS ESTRATÉGICOS
+    analytics: null,
+    analyticsLoading: true,
+    analyticsError: null,
+    // 🎯 PERFORMANCE DATA
+    categoriesPerformance: [],
+    performanceLoading: true
   });
 
   const fetchCategories = async () => {
@@ -70,6 +135,78 @@ const CategoriesPage: React.FC = () => {
         ...prev, 
         error: err instanceof Error ? err.message : 'Error al cargar categorías',
         loading: false 
+      }));
+    }
+  };
+
+  // 🎯 NUEVA FUNCIÓN: Cargar analytics estratégicos
+  const fetchCategoryAnalytics = async () => {
+    try {
+      setState(prev => ({ ...prev, analyticsLoading: true, analyticsError: null }));
+      
+      console.log('🎯 Cargando analytics estratégicos de categorías...');
+      
+      // Llamar al nuevo endpoint de analytics
+      const response = await fetch('/api/inventory/categories/analytics/', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          // Agregar headers de autenticación si es necesario
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      const analyticsData = await response.json();
+      console.log('✅ Analytics estratégicos cargados:', analyticsData);
+      
+      setState(prev => ({ 
+        ...prev, 
+        analytics: analyticsData,
+        analyticsLoading: false,
+        // 🎯 EXTRAER DATOS DE PERFORMANCE DESDE ANALYTICS
+        categoriesPerformance: analyticsData.categories_performance || [],
+        performanceLoading: false
+      }));
+    } catch (err) {
+      console.error('❌ Error cargando analytics de categorías:', err);
+      setState(prev => ({ 
+        ...prev, 
+        analyticsError: err instanceof Error ? err.message : 'Error al cargar analytics',
+        analyticsLoading: false,
+        // Fallback con datos por defecto
+        analytics: {
+          strategic_metrics: {
+            top_sales_category: {
+              name: 'Cargando...',
+              change: '',
+              icon: '🏆'
+            },
+            most_alerts_category: {
+              name: 'Cargando...',
+              critical_count: 0,
+              total_alerts: 0,
+              icon: '🚨'
+            },
+            average_margin: {
+              value: '0%',
+              description: 'general',
+              icon: '💰'
+            },
+            opportunity_category: {
+              name: 'Cargando...',
+              growth: '',
+              icon: '🚀'
+            }
+          },
+          executive_summary: 'Error cargando análisis estratégico. Verifique la conexión.',
+          quick_actions: []
+        },
+        // 🎯 FALLBACK PARA PERFORMANCE DATA
+        categoriesPerformance: [],
+        performanceLoading: false
       }));
     }
   };
@@ -158,7 +295,15 @@ const CategoriesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchCategories();
+    // 🎯 CARGAR DATOS EN PARALELO para mejor performance
+    const loadAllData = async () => {
+      await Promise.all([
+        fetchCategories(),
+        fetchCategoryAnalytics()
+      ]);
+    };
+    
+    loadAllData();
   }, []);
 
   const filteredCategories = state.categories.filter(category =>
@@ -190,65 +335,217 @@ const CategoriesPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Stats Cards */}
+      {/* 🎯 MÉTRICAS ESTRATÉGICAS - Reutilizando patrón del Dashboard */}
       <div 
-        className="grid gap-6"
+        className="grid gap-6 mb-8"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: '1.5rem'
         }}
       >
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <FolderOpen className="h-8 w-8 text-blue-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Categorías</p>
-                <p className="text-2xl font-bold text-gray-900">{state.categories.length}</p>
+        {/* 🏆 Categoría #1 en Ventas */}
+        <Card className="group relative overflow-hidden bg-gradient-to-br from-slate-50 via-green-50/40 to-emerald-50/30 dark:from-slate-800 dark:via-green-900/40 dark:to-emerald-900/30 border-slate-200/60 dark:border-slate-700/60 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 via-emerald-500/3 to-teal-500/5 dark:from-green-400/10 dark:via-emerald-400/6 dark:to-teal-400/10"></div>
+          <CardContent className="relative p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-gradient-to-r from-green-500 to-emerald-500 dark:from-green-400 dark:to-emerald-400 rounded-xl group-hover:shadow-lg group-hover:shadow-green-500/25 dark:group-hover:shadow-green-400/25 transition-all">
+                    <TrendingUp className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Categoría #1 en Ventas</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {state.analyticsLoading ? (
+                    <div className="animate-pulse">
+                      <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                        {state.analytics?.strategic_metrics.top_sales_category.name || 'Sin datos'}
+                      </p>
+                      <p className="text-sm text-green-600 dark:text-green-400 font-medium">
+                        {state.analytics?.strategic_metrics.top_sales_category.change || 'Calculando...'}
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
+              <span className="text-2xl">{state.analytics?.strategic_metrics.top_sales_category.icon || '🏆'}</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <TrendingUp className="h-8 w-8 text-green-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Categorías Activas</p>
-                <p className="text-2xl font-bold text-gray-900">{activeCategories.length}</p>
+        {/* 🚨 Categoría con Más Alertas */}
+        <Card className="group relative overflow-hidden bg-gradient-to-br from-slate-50 via-orange-50/40 to-red-50/30 dark:from-slate-800 dark:via-orange-900/40 dark:to-red-900/30 border-slate-200/60 dark:border-slate-700/60 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-red-500/3 to-pink-500/5 dark:from-orange-400/10 dark:via-red-400/6 dark:to-pink-400/10"></div>
+          <CardContent className="relative p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-gradient-to-r from-orange-500 to-red-500 dark:from-orange-400 dark:to-red-400 rounded-xl group-hover:shadow-lg group-hover:shadow-orange-500/25 dark:group-hover:shadow-orange-400/25 transition-all">
+                    <AlertTriangle className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Categoría con Más Alertas</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {state.analyticsLoading ? (
+                    <div className="animate-pulse">
+                      <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                        {state.analytics?.strategic_metrics.most_alerts_category.name || 'Sin alertas'}
+                      </p>
+                      <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">
+                        {state.analytics?.strategic_metrics.most_alerts_category.critical_count || 0} productos críticos
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
+              <span className="text-2xl">{state.analytics?.strategic_metrics.most_alerts_category.icon || '🚨'}</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <Package className="h-8 w-8 text-purple-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Categorías Filtradas</p>
-                <p className="text-2xl font-bold text-gray-900">{filteredCategories.length}</p>
+        {/* 💰 Margen Promedio */}
+        <Card className="group relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/30 dark:from-slate-800 dark:via-blue-900/40 dark:to-indigo-900/30 border-slate-200/60 dark:border-slate-700/60 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-indigo-500/3 to-purple-500/5 dark:from-blue-400/10 dark:via-indigo-400/6 dark:to-purple-400/10"></div>
+          <CardContent className="relative p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 dark:from-blue-400 dark:to-indigo-400 rounded-xl group-hover:shadow-lg group-hover:shadow-blue-500/25 dark:group-hover:shadow-blue-400/25 transition-all">
+                    <DollarSign className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Margen Promedio</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {state.analyticsLoading ? (
+                    <div className="animate-pulse">
+                      <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                        {state.analytics?.strategic_metrics.average_margin.value || '0%'}
+                      </p>
+                      <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                        {state.analytics?.strategic_metrics.average_margin.description || 'general'}
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
+              <span className="text-2xl">{state.analytics?.strategic_metrics.average_margin.icon || '💰'}</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <BarChart3 className="h-8 w-8 text-orange-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">% Activas</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {state.categories.length > 0 ? Math.round((activeCategories.length / state.categories.length) * 100) : 0}%
-                </p>
+        {/* 🚀 Oportunidad del Mes */}
+        <Card className="group relative overflow-hidden bg-gradient-to-br from-slate-50 via-purple-50/40 to-pink-50/30 dark:from-slate-800 dark:via-purple-900/40 dark:to-pink-900/30 border-slate-200/60 dark:border-slate-700/60 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/3 to-rose-500/5 dark:from-purple-400/10 dark:via-pink-400/6 dark:to-rose-400/10"></div>
+          <CardContent className="relative p-6">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 dark:from-purple-400 dark:to-pink-400 rounded-xl group-hover:shadow-lg group-hover:shadow-purple-500/25 dark:group-hover:shadow-purple-400/25 transition-all">
+                    <Target className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Oportunidad del Mes</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {state.analyticsLoading ? (
+                    <div className="animate-pulse">
+                      <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                        {state.analytics?.strategic_metrics.opportunity_category.name || 'Analizando...'}
+                      </p>
+                      <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">
+                        {state.analytics?.strategic_metrics.opportunity_category.growth || 'demanda estable'}
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
+              <span className="text-2xl">{state.analytics?.strategic_metrics.opportunity_category.icon || '🚀'}</span>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* 🎯 Widget de Resumen Ejecutivo */}
+      {state.analytics && !state.analyticsLoading && (
+        <Card className="mb-6 bg-gradient-to-r from-slate-50 to-indigo-50 dark:from-slate-800 dark:to-indigo-900 border-indigo-200 dark:border-indigo-700">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-indigo-800 dark:text-indigo-200">
+              <BarChart3 className="h-5 w-5" />
+              Resumen Ejecutivo
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <div className="whitespace-pre-line text-slate-700 dark:text-slate-300">
+                {state.analytics.executive_summary}
+              </div>
+            </div>
+            {state.analytics.quick_actions.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-indigo-200 dark:border-indigo-700">
+                <h4 className="font-semibold text-indigo-800 dark:text-indigo-200 mb-2">Acciones Recomendadas:</h4>
+                <div className="space-y-2">
+                  {state.analytics.quick_actions.slice(0, 3).map((action, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm">
+                      <span className={`w-2 h-2 rounded-full ${
+                        action.priority === 'high' ? 'bg-red-500' : 
+                        action.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                      }`}></span>
+                      <span className="text-slate-600 dark:text-slate-400">{action.title}:</span>
+                      <span className="text-slate-800 dark:text-slate-200">{action.description}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Error de Analytics */}
+      {state.analyticsError && (
+        <Alert className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Error cargando analytics estratégicos: {state.analyticsError}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-2"
+              onClick={fetchCategoryAnalytics}
+            >
+              Reintentar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Search */}
       <Card>
@@ -277,54 +574,191 @@ const CategoriesPage: React.FC = () => {
         </Alert>
       )}
 
-      {/* Categories Table */}
+      {/* 🎯 TABLA EXPANDIDA CON PERFORMANCE FINANCIERO */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Categorías</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Performance por Categorías
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Descripción</TableHead>
-                <TableHead>Estado</TableHead>
+                <TableHead>Categoría</TableHead>
+                <TableHead>Ventas del Mes</TableHead>
+                <TableHead>Cambio vs Anterior</TableHead>
+                <TableHead>Margen Promedio</TableHead>
+                <TableHead>Estado Operacional</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCategories.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell className="font-medium">{category.name}</TableCell>
-                  <TableCell>{category.description || 'Sin descripción'}</TableCell>
-                  <TableCell>
-                    <Badge variant={category.is_active ? 'success' : 'secondary'}>
-                      {category.is_active ? 'Activa' : 'Inactiva'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => openEditDialog(category)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteCategory(category.id)}
-                        className="text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredCategories.map((category) => {
+                // Buscar datos de performance para esta categoría
+                const performance = state.categoriesPerformance.find(
+                  p => p.category_id === category.id
+                );
+                
+                return (
+                  <TableRow key={category.id}>
+                    {/* Nombre de Categoría */}
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{category.name}</span>
+                        <span className="text-sm text-gray-500">{category.description || 'Sin descripción'}</span>
+                      </div>
+                    </TableCell>
+
+                    {/* Ventas del Mes */}
+                    <TableCell>
+                      {state.performanceLoading ? (
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-16"></div>
+                      ) : performance ? (
+                        <div className="flex flex-col">
+                          <span className="font-medium">
+                            S/{performance.sales_current_period.toLocaleString()}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            vs S/{performance.sales_previous_period.toLocaleString()}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">Sin datos</span>
+                      )}
+                    </TableCell>
+
+                    {/* Cambio vs Anterior con Tendencia Visual */}
+                    <TableCell>
+                      {state.performanceLoading ? (
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-12"></div>
+                      ) : performance ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{performance.trend_icon}</span>
+                          <div className="flex flex-col">
+                            <span className={`font-medium ${
+                              performance.sales_change_percentage > 0 ? 'text-green-600' :
+                              performance.sales_change_percentage < 0 ? 'text-red-600' : 'text-gray-600'
+                            }`}>
+                              {performance.sales_change_percentage > 0 ? '+' : ''}
+                              {performance.sales_change_percentage.toFixed(1)}%
+                            </span>
+                            <span className="text-xs text-gray-500 capitalize">
+                              {performance.trend}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </TableCell>
+
+                    {/* Margen Promedio */}
+                    <TableCell>
+                      {state.performanceLoading ? (
+                        <div className="animate-pulse h-4 bg-gray-200 rounded w-12"></div>
+                      ) : performance ? (
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-blue-600">
+                            {performance.avg_margin_percentage.toFixed(1)}%
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            Margen
+                          </Badge>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </TableCell>
+
+                    {/* Estado Operacional */}
+                    <TableCell>
+                      {state.performanceLoading ? (
+                        <div className="animate-pulse h-6 bg-gray-200 rounded w-20"></div>
+                      ) : performance ? (
+                        <div className="flex flex-col gap-1">
+                          <Badge 
+                            variant={
+                              performance.operational_status === 'critical' ? 'destructive' :
+                              performance.operational_status === 'warning' ? 'default' : 'success'
+                            }
+                            className="w-fit"
+                          >
+                            {performance.operational_status === 'critical' ? '🚨 Crítico' :
+                             performance.operational_status === 'warning' ? '⚠️ Atención' : '✅ Normal'}
+                          </Badge>
+                          {performance.critical_products > 0 && (
+                            <span className="text-xs text-red-600">
+                              {performance.critical_products} productos críticos
+                            </span>
+                          )}
+                          {performance.products_with_alerts > 0 && performance.critical_products === 0 && (
+                            <span className="text-xs text-orange-600">
+                              {performance.products_with_alerts} alertas
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="secondary">
+                          {category.is_active ? 'Activa' : 'Inactiva'}
+                        </Badge>
+                      )}
+                    </TableCell>
+
+                    {/* Acciones */}
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {/* Botón Ver Análisis (nuevo) */}
+                        {performance && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-blue-600"
+                            onClick={() => {
+                              // TODO: Abrir modal de análisis detallado
+                              console.log('Ver análisis de', category.name);
+                            }}
+                          >
+                            <BarChart3 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        
+                        {/* Acciones existentes */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditDialog(category)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteCategory(category.id)}
+                          className="text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
+
+          {/* Información adicional */}
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-400">
+                📊 Mostrando {filteredCategories.length} categorías con datos de performance
+              </span>
+              <span className="text-gray-500 dark:text-gray-500">
+                🔄 Datos actualizados hace {state.performanceLoading ? 'cargando...' : 'unos momentos'}
+              </span>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
