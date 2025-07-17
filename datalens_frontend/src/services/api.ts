@@ -725,6 +725,17 @@ export const inventoryService = {
     await api.delete(`/inventory/categories/${id}/`);
   },
 
+  // Category Analytics
+  getCategoryAnalytics: async (): Promise<any> => {
+    try {
+      const response = await api.get('/inventory/categories/analytics/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching category analytics:', error);
+      throw error;
+    }
+  },
+
   // Suppliers
   getSuppliers: async (): Promise<ApiResponse<any>> => {
     try {

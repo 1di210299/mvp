@@ -146,20 +146,8 @@ const CategoriesPage: React.FC = () => {
       
       console.log('🎯 Cargando analytics estratégicos de categorías...');
       
-      // Llamar al nuevo endpoint de analytics
-      const response = await fetch('/api/inventory/categories/analytics/', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          // Agregar headers de autenticación si es necesario
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const analyticsData = await response.json();
+      // Usar el servicio API existente en lugar de fetch directo
+      const analyticsData = await inventoryService.getCategoryAnalytics();
       console.log('✅ Analytics estratégicos cargados:', analyticsData);
       
       setState(prev => ({ 
@@ -681,7 +669,7 @@ const CategoriesPage: React.FC = () => {
                           <Badge 
                             variant={
                               performance.operational_status === 'critical' ? 'destructive' :
-                              performance.operational_status === 'warning' ? 'default' : 'success'
+                              performance.operational_status === 'warning' ? 'warning' : 'success'
                             }
                             className="w-fit"
                           >
