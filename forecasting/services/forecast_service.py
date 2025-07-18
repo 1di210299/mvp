@@ -813,6 +813,17 @@ class ForecastService:
         print(f"📈 Generando pronósticos para {product.name}...")
         
         try:
+            # Obtener o crear un modelo por defecto para pronósticos sintéticos
+            default_model, created = ForecastModel.objects.get_or_create(
+                company=product.company,
+                name='Default Synthetic Model',
+                defaults={
+                    'model_type': 'synthetic',
+                    'status': 'active',
+                    'description': 'Modelo por defecto para pronósticos sintéticos'
+                }
+            )
+            
             forecasts = []
             base_date = timezone.now().date()
             
@@ -855,6 +866,7 @@ class ForecastService:
                 
                 # Crear el pronóstico en la base de datos
                 forecast = DemandForecast.objects.create(
+                    model=default_model,  # Usar el modelo por defecto
                     product=product,
                     forecast_date=forecast_date,
                     predicted_demand=Decimal(str(round(predicted_demand, 2))),

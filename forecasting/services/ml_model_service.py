@@ -409,7 +409,7 @@ class MLModelService:
                 )
                 performance['avg_confidence_interval_width'] = float(
                     recent_forecasts.aggregate(
-                        avg=django_models.Avg(django_models.F('confidence_interval__upper') - django_models.F('confidence_interval__lower'))
+                        avg=django_models.Avg(django_models.F('upper_bound') - django_models.F('lower_bound'))
                     )['avg'] or 0
                 )
             

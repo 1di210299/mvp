@@ -16,16 +16,27 @@ class CustomerLifetimeValue(models.Model):
     
     # Métricas CLV
     predicted_clv = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="CLV Predicho")
-    current_value = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Valor actual")
-    predicted_lifetime_months = models.PositiveIntegerField(verbose_name="Vida predicha (meses)")
+    current_value = models.DecimalField(max_digits=12, decimal_places=2, default=0.0, verbose_name="Valor actual")
+    predicted_lifetime_months = models.PositiveIntegerField(default=0, verbose_name="Vida predicha (meses)")
+    
+    # Campos adicionales requeridos por ML service
+    clv_confidence = models.DecimalField(max_digits=6, decimal_places=4, default=0.0, verbose_name="Confianza CLV")
+    average_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, verbose_name="Valor promedio orden")
+    customer_lifespan_months = models.PositiveIntegerField(default=0, verbose_name="Duración de vida (meses)")
+    recency_days = models.PositiveIntegerField(default=0, verbose_name="Días desde última compra")
+    
+    # Análisis RFM
+    frequency_score = models.PositiveIntegerField(default=1, verbose_name="Puntaje frecuencia (1-5)")
+    monetary_score = models.PositiveIntegerField(default=1, verbose_name="Puntaje monetario (1-5)")
+    rfm_segment = models.CharField(max_length=20, default='unknown', verbose_name="Segmento RFM")
     
     # Probabilidades
-    churn_probability = models.DecimalField(max_digits=5, decimal_places=4, verbose_name="Probabilidad de abandono")
-    next_purchase_probability = models.DecimalField(max_digits=5, decimal_places=4, verbose_name="Probabilidad próxima compra")
+    churn_probability = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name="Probabilidad de abandono")
+    next_purchase_probability = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name="Probabilidad próxima compra")
     
     # Patrones de compra
-    avg_order_value = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Valor promedio de orden")
-    purchase_frequency = models.DecimalField(max_digits=8, decimal_places=4, verbose_name="Frecuencia de compra")
+    avg_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, verbose_name="Valor promedio de orden")
+    purchase_frequency = models.DecimalField(max_digits=8, decimal_places=4, default=0.0, verbose_name="Frecuencia de compra")
     last_purchase_date = models.DateField(null=True, blank=True, verbose_name="Última compra")
     
     # Segmentación
@@ -78,13 +89,22 @@ class ChurnPrediction(models.Model):
     )
     
     # Predicción de churn
-    churn_probability = models.DecimalField(max_digits=5, decimal_places=4, verbose_name="Probabilidad de abandono")
-    risk_level = models.CharField(max_length=10, choices=RISK_LEVELS, verbose_name="Nivel de riesgo")
+    churn_probability = models.DecimalField(max_digits=5, decimal_places=4, default=0.0, verbose_name="Probabilidad de abandono")
+    risk_level = models.CharField(max_length=10, choices=RISK_LEVELS, default='low', verbose_name="Nivel de riesgo")
+    
+    # Campos adicionales requeridos por ML service
+    churn_risk_level = models.CharField(max_length=20, default='unknown', verbose_name="Nivel de riesgo churn")
+    declining_order_value = models.BooleanField(default=False, verbose_name="Valor de orden en declive")
+    declining_purchase_frequency = models.BooleanField(default=False, verbose_name="Frecuencia en declive")
+    engagement_score = models.DecimalField(max_digits=6, decimal_places=4, default=0.0, verbose_name="Puntaje engagement")
+    loyalty_score = models.DecimalField(max_digits=6, decimal_places=4, default=0.0, verbose_name="Puntaje lealtad")
+    negative_trend_months = models.PositiveIntegerField(default=0, verbose_name="Meses tendencia negativa")
+    recommended_action_priority = models.CharField(max_length=20, default='low', verbose_name="Prioridad acción")
     
     # Factores de riesgo
-    days_since_last_purchase = models.PositiveIntegerField(verbose_name="Días desde última compra")
-    purchase_frequency_decline = models.DecimalField(max_digits=6, decimal_places=4, verbose_name="Declive en frecuencia")
-    value_decline = models.DecimalField(max_digits=6, decimal_places=4, verbose_name="Declive en valor")
+    days_since_last_purchase = models.PositiveIntegerField(default=0, verbose_name="Días desde última compra")
+    purchase_frequency_decline = models.DecimalField(max_digits=6, decimal_places=4, default=0.0, verbose_name="Declive en frecuencia")
+    value_decline = models.DecimalField(max_digits=6, decimal_places=4, default=0.0, verbose_name="Declive en valor")
     
     # Factores de influencia
     risk_factors = models.JSONField(default=list, verbose_name="Factores de riesgo")

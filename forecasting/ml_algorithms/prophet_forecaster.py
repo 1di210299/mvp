@@ -109,8 +109,13 @@ class ProphetForecaster(BaseForecaster):
             self.training_data = processed_data.copy()
             
             # Prepara los datos para Prophet (requiere columnas 'ds' y 'y')
+            # Prophet no acepta fechas con timezone, convertir a naive datetime
+            ds_values = processed_data.index
+            if hasattr(ds_values, 'tz') and ds_values.tz is not None:
+                ds_values = ds_values.tz_localize(None)
+            
             prophet_data = pd.DataFrame({
-                'ds': processed_data.index,
+                'ds': ds_values,
                 'y': processed_data[target_column]
             })
             
@@ -284,8 +289,12 @@ class ProphetForecaster(BaseForecaster):
             return None
             
         # Crea un dataframe con los datos de entrenamiento
+        ds_values = self.training_data.index
+        if hasattr(ds_values, 'tz') and ds_values.tz is not None:
+            ds_values = ds_values.tz_localize(None)
+            
         prophet_data = pd.DataFrame({
-            'ds': self.training_data.index,
+            'ds': ds_values,
             'y': self.training_data.iloc[:, 0]  # Asume que la primera columna es el target
         })
         

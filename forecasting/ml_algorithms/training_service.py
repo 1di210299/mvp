@@ -167,23 +167,35 @@ class ModelTrainingService:
         try:
             # Limpiar predicciones anteriores del mismo período
             DemandForecast.objects.filter(
-                forecast_model=forecast_model,
+                model=forecast_model,
                 forecast_date__gte=timezone.now().date()
             ).delete()
             
-            # Crear nuevas predicciones
+            # Obtener productos para este modelo
+            if forecast_model.products.exists():
+                products = forecast_model.products.all()
+            elif forecast_model.categories.exists():
+                from inventory.models import Product
+                products = Product.objects.filter(category__in=forecast_model.categories.all())
+            else:
+                from inventory.models import Product
+                products = Product.objects.filter(company=forecast_model.company)[:1]  # Al menos un producto
+            
+            # Crear nuevas predicciones para cada producto
             forecasts_to_create = []
-            for pred in predictions:
-                forecast = DemandForecast(
-                    forecast_model=forecast_model,
-                    forecast_date=pred['date'],
-                    predicted_demand=pred['predicted_value'],
-                    lower_bound=pred.get('lower_bound'),
-                    upper_bound=pred.get('upper_bound'),
-                    confidence_interval=forecast_model.confidence_interval,
-                    created_at=timezone.now()
-                )
-                forecasts_to_create.append(forecast)
+            for product in products:
+                for pred in predictions:
+                    forecast = DemandForecast(
+                        model=forecast_model,
+                        product=product,
+                        forecast_date=pred['date'],
+                        predicted_demand=pred['predicted_value'],
+                        lower_bound=pred.get('lower_bound', pred['predicted_value'] * 0.8),
+                        upper_bound=pred.get('upper_bound', pred['predicted_value'] * 1.2),
+                        confidence_level=forecast_model.confidence_interval,
+                        created_at=timezone.now()
+                    )
+                    forecasts_to_create.append(forecast)
             
             # Bulk create para eficiencia
             DemandForecast.objects.bulk_create(forecasts_to_create)

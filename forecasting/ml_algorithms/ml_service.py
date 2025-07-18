@@ -50,6 +50,11 @@ class MLAlgorithmService:
             
             # Agrupar por fecha y sumar cantidades
             daily_sales = df.groupby('date')['quantity'].sum().reset_index()
+            
+            # Remover timezone para Prophet si existe
+            if hasattr(daily_sales['date'].dtype, 'tz') and daily_sales['date'].dt.tz is not None:
+                daily_sales['date'] = daily_sales['date'].dt.tz_localize(None)
+            
             daily_sales.columns = ['ds', 'y']  # Prophet format
             
             return daily_sales

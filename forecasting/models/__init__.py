@@ -8,6 +8,12 @@ from .base_models import (
     ReorderRecommendation, ModelTrainingJob
 )
 
+# Modelos ML Core - Arquitectura ML-first
+from .ml_core_models import (
+    MLModelVersion, MLMetric, MLExperiment, 
+    MLModelRegistry, MLDatasetVersion
+)
+
 # Modelos financieros avanzados
 from .financial_models import (
     RevenueForecasting, FinancialForecastModel, RevenuePrediction,
@@ -45,6 +51,10 @@ __all__ = [
     # Base models
     'ForecastModel', 'DemandForecast', 'ForecastAccuracy', 
     'ReorderRecommendation', 'ModelTrainingJob',
+    
+    # ML Core models
+    'MLModelVersion', 'MLMetric', 'MLExperiment', 
+    'MLModelRegistry', 'MLDatasetVersion',
     
     # Financial models
     'RevenueForecasting', 'FinancialForecastModel', 'RevenuePrediction',

@@ -72,6 +72,19 @@ class FinancialForecastModel(models.Model):
     name = models.CharField(max_length=200, verbose_name="Nombre del modelo")
     model_type = models.CharField(max_length=50, verbose_name="Tipo de modelo")
     
+    # Campos adicionales requeridos por advanced_ml_service
+    base_model = models.ForeignKey(
+        'forecasting.ForecastModel',
+        on_delete=models.CASCADE,
+        related_name='financial_configs',
+        null=True,
+        blank=True
+    )
+    metric_type = models.CharField(max_length=50, default='revenue', verbose_name="Tipo de métrica")
+    currency = models.CharField(max_length=10, default='PEN', verbose_name="Moneda")
+    include_supplier_analysis = models.BooleanField(default=False, verbose_name="Incluir análisis proveedores")
+    include_cost_tracking = models.BooleanField(default=True, verbose_name="Incluir seguimiento costos")
+    
     # Configuración específica para finanzas
     forecast_horizon_months = models.PositiveIntegerField(default=12, verbose_name="Horizonte en meses")
     include_seasonality = models.BooleanField(default=True, verbose_name="Incluir estacionalidad")
