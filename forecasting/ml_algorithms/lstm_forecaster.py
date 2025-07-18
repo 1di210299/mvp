@@ -397,7 +397,28 @@ class LSTMForecaster(BaseForecaster):
             # Asegura valores no negativos
             predictions = np.maximum(predictions, 0)
             
-            # Estima intervalos de confianza
+            # Estima intervalos de confianza básicos
+            std_dev = np.std(predictions) if len(predictions) > 1 else predictions[0] * 0.1
+            confidence_multiplier = 1.96  # Para 95% de confianza
+            
+            # Genera fechas futuras
+            last_date = self.training_data.index[-1]
+            future_dates = pd.date_range(
+                start=last_date + pd.Timedelta(days=1),
+                periods=periods,
+                freq='D'
+            )
+            
+            # Crea DataFrame de resultados
+            result = pd.DataFrame({
+                'predicted_demand': predictions,
+                'lower_bound': np.maximum(predictions - confidence_multiplier * std_dev, 0),
+                'upper_bound': predictions + confidence_multiplier * std_dev
+            }, index=future_dates)
+            
+            logger.info(f"Generados {periods} pronósticos LSTM")
+            
+            return result
             # Para LSTM, usamos la variabilidad histórica como aproximación
             historical_errors = []
             if len(self.training_data) > sequence_length:
@@ -497,10 +518,36 @@ class LSTMForecaster(BaseForecaster):
         try:
             # Para LSTM, guardamos el modelo de TensorFlow por separado
             model_path = filepath.replace('.joblib', '_keras.h5')
-            self.model.save(model_path)
             
-            # Guardamos el resto con joblib
-            return super().save_model(filepath)
+            # Guardar solo la arquitectura y pesos, no el optimizador
+            self.model.save(model_path, save_format='h5', include_optimizer=False)
+            
+            # Guardamos el resto con joblib (excluyendo el modelo de TensorFlow)
+            temp_model = self.model
+            self.model = None  # Temporalmente removemos el modelo para joblib
+            
+            # Crear diccionario con todo lo necesario para la reconstrucción
+            model_data = {
+                'hyperparameters': self.hyperparameters,
+                'is_fitted': self.is_fitted,
+                'feature_names': self.feature_names,
+                'training_data': self.training_data,
+                'scaler': self.scaler,
+                'feature_scaler': self.feature_scaler,
+                'metrics': self.metrics,
+                'history': self.history.history if self.history else None,
+                'model_path': model_path
+            }
+            
+            # Guardar con joblib
+            import joblib
+            joblib.dump(model_data, filepath)
+            
+            # Restauramos el modelo
+            self.model = temp_model
+            
+            logger.info(f"Modelo guardado exitosamente en {filepath}")
+            return True
             
         except Exception as e:
             logger.error(f"Error guardando modelo LSTM: {str(e)}")
@@ -511,13 +558,48 @@ class LSTMForecaster(BaseForecaster):
         Carga un modelo LSTM previamente guardado
         """
         try:
-            # Carga el modelo base
-            if not super().load_model(filepath):
-                return False
+            # Carga datos del modelo
+            import joblib
+            model_data = joblib.load(filepath)
+            
+            # Restaurar atributos
+            self.hyperparameters = model_data['hyperparameters']
+            self.is_fitted = model_data['is_fitted']
+            self.feature_names = model_data['feature_names']
+            self.training_data = model_data['training_data']
+            self.scaler = model_data['scaler']
+            self.feature_scaler = model_data['feature_scaler']
+            self.metrics = model_data['metrics']
+            
+            # Restaurar historia si existe
+            if model_data['history']:
+                from tensorflow.keras.callbacks import History
+                self.history = History()
+                self.history.history = model_data['history']
             
             # Carga el modelo de TensorFlow
-            model_path = filepath.replace('.joblib', '_keras.h5')
-            self.model = tf.keras.models.load_model(model_path)
+            model_path = model_data['model_path']
+            
+            # Cargar solo arquitectura y pesos, recompilar después
+            self.model = tf.keras.models.load_model(model_path, compile=False)
+            
+            # Recompilar el modelo con optimizador legacy para M1/M2
+            try:
+                # Intentar usar optimizador legacy para M1/M2 Macs
+                optimizer = tf.keras.optimizers.legacy.Adam(
+                    learning_rate=self.hyperparameters.get('learning_rate', 0.001)
+                )
+            except AttributeError:
+                # Fallback para otras versiones de TensorFlow
+                optimizer = tf.keras.optimizers.Adam(
+                    learning_rate=self.hyperparameters.get('learning_rate', 0.001)
+                )
+            
+            self.model.compile(
+                optimizer=optimizer,
+                loss='mse',
+                metrics=['mae']
+            )
             
             logger.info(f"Modelo LSTM cargado desde {filepath}")
             return True

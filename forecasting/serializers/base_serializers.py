@@ -22,7 +22,8 @@ class ForecastModelSerializer(serializers.ModelSerializer):
             'confidence_interval', 'hyperparameters', 'mae', 'mape', 'rmse', 'r2_score',
             'model_file_path', 'model_size_mb', 'version', 'accuracy_percentage',
             'product_count', 'category_count', 'training_started_at', 
-            'training_completed_at', 'last_prediction_at', 'created_at', 'updated_at'
+            'training_completed_at', 'last_prediction_at', 'created_at', 'updated_at',
+            'company'  # Agregar company field
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at', 'training_started_at', 

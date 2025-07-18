@@ -108,7 +108,7 @@ class CustomerLifetimeValueSerializer(serializers.ModelSerializer):
     
     def get_confidence_percentage(self, obj):
         """Formatear confidence como porcentaje"""
-        return f"{obj.confidence_level:.1f}%"
+        return f"{obj.clv_confidence * 100:.1f}%"
 
 
 class ChurnPredictionSerializer(serializers.ModelSerializer):

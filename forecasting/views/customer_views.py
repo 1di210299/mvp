@@ -27,11 +27,59 @@ from ..serializers import (
     CrossSellModelSerializer, CustomerSatisfactionModelSerializer,
     LoyaltyProgramModelSerializer, CustomerEngagementModelSerializer
 )
-from ..services.advanced_ml_service import CustomerIntelligenceService
+from ..services.customer_intelligence_service import CustomerIntelligenceService
 from .base_views import ForecastPagination, get_user_company
 from inventory.models import Product, Customer
 
 logger = logging.getLogger(__name__)
+
+
+class CustomerLifetimeValueAPIView(APIView):
+    """Vista para obtener Customer Lifetime Value"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Obtener análisis de Customer Lifetime Value
+        """
+        try:
+            company = get_user_company(request)
+            if not company:
+                return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Usar el servicio de inteligencia de clientes
+            service = CustomerIntelligenceService(company)
+            clv_results = service.calculate_customer_lifetime_value()
+            
+            # Serializar los resultados
+            serializer = CustomerLifetimeValueSerializer(clv_results, many=True)
+            
+            # Calcular estadísticas adicionales
+            total_customers = len(clv_results)
+            if total_customers > 0:
+                avg_clv = sum(float(r.predicted_clv) for r in clv_results) / total_customers
+                high_value_customers = sum(1 for r in clv_results if float(r.predicted_clv) > avg_clv)
+            else:
+                avg_clv = 0
+                high_value_customers = 0
+            
+            return Response({
+                'success': True,
+                'clv_analyses': serializer.data,
+                'summary': {
+                    'total_customers': total_customers,
+                    'average_clv': round(avg_clv, 2),
+                    'high_value_customers': high_value_customers,
+                    'analysis_date': datetime.now().isoformat()
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error en análisis CLV: {str(e)}")
+            return Response({
+                'error': 'Error generando análisis CLV',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CustomerLifetimeValueViewSet(viewsets.ModelViewSet):
@@ -45,57 +93,55 @@ class CustomerLifetimeValueViewSet(viewsets.ModelViewSet):
         if not company:
             return CustomerLifetimeValue.objects.none()
         
-        # Filtrar por clientes sin campo company (Customer no tiene este campo)
-        # En su lugar, filtramos por ventas de productos de la empresa
+        # Filtrar por clientes de la empresa
         company_customers = Customer.objects.filter(
             name__in=Sale.objects.filter(
                 product__company=company
             ).values_list('customer_name', flat=True).distinct()
         )
         
-        queryset = CustomerLifetimeValue.objects.select_related('customer').filter(
+        return CustomerLifetimeValue.objects.filter(
             customer__in=company_customers
-        )
-        
-        # Filtros opcionales
-        customer_id = self.request.query_params.get('customer_id')
-        clv_min = self.request.query_params.get('clv_min')
-        prediction_horizon = self.request.query_params.get('prediction_horizon')
-        
-        if customer_id:
-            queryset = queryset.filter(customer_id=customer_id)
-        if clv_min:
-            queryset = queryset.filter(predicted_clv__gte=float(clv_min))
-        if prediction_horizon:
-            queryset = queryset.filter(prediction_horizon=prediction_horizon)
-            
-        return queryset.order_by('-predicted_clv', '-calculation_date')
+        ).order_by('-predicted_clv')
     
-    @action(detail=False, methods=['post'])
-    def calculate_clv(self, request):
-        """Calcula CLV para clientes específicos"""
-        company = get_user_company(request)
-        if not company:
-            return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
-        
+    def list(self, request, *args, **kwargs):
+        """Listar análisis CLV con funcionalidad de generación automática"""
         try:
-            customer_service = CustomerIntelligenceService()
-            clv_results = customer_service.calculate_customer_lifetime_value(
-                company=company,
-                **request.data
-            )
+            company = get_user_company(request)
+            if not company:
+                return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
             
-            serializer = self.get_serializer(clv_results, many=True)
+            # Usar el servicio de inteligencia de clientes
+            service = CustomerIntelligenceService(company)
+            clv_results = service.calculate_customer_lifetime_value()
+            
+            # Serializar los resultados
+            serializer = CustomerLifetimeValueSerializer(clv_results, many=True)
+            
+            # Calcular estadísticas adicionales
+            total_customers = len(clv_results)
+            if total_customers > 0:
+                avg_clv = sum(float(r.predicted_clv) for r in clv_results) / total_customers
+                high_value_customers = sum(1 for r in clv_results if float(r.predicted_clv) > avg_clv)
+            else:
+                avg_clv = 0
+                high_value_customers = 0
+            
             return Response({
                 'success': True,
-                'clv_results': serializer.data,
-                'count': len(clv_results)
+                'results': serializer.data,
+                'summary': {
+                    'total_customers': total_customers,
+                    'average_clv': round(avg_clv, 2),
+                    'high_value_customers': high_value_customers,
+                    'analysis_date': datetime.now().isoformat()
+                }
             })
             
         except Exception as e:
-            logger.error(f"Error calculando CLV: {str(e)}")
+            logger.error(f"Error en análisis CLV: {str(e)}")
             return Response({
-                'error': 'Error al calcular Customer Lifetime Value',
+                'error': 'Error generando análisis CLV',
                 'details': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -112,9 +158,30 @@ class ChurnPredictionViewSet(viewsets.ModelViewSet):
             return ChurnPrediction.objects.none()
         
         # Filtrar por clientes de la empresa
-        queryset = ChurnPrediction.objects.select_related('customer').filter(
-            customer__in=Customer.objects.filter(company=company)
+        company_customers = Customer.objects.filter(
+            name__in=Sale.objects.filter(
+                product__company=company
+            ).values_list('customer_name', flat=True).distinct()
         )
+        
+        queryset = ChurnPrediction.objects.select_related('customer').filter(
+            customer__in=company_customers
+        )
+        
+        # Si no hay datos de churn, generar automáticamente
+        if not queryset.exists():
+            try:
+                from forecasting.services.customer_intelligence_service import CustomerIntelligenceService
+                service = CustomerIntelligenceService(company)
+                churn_results = service.predict_customer_churn()
+                logger.info(f"Generated {len(churn_results)} churn predictions for company {company.name}")
+                
+                # Refrescar queryset después de generar datos
+                queryset = ChurnPrediction.objects.select_related('customer').filter(
+                    customer__in=company_customers
+                )
+            except Exception as e:
+                logger.error(f"Error auto-generating churn data: {str(e)}")
         
         # Filtros opcionales
         customer_id = self.request.query_params.get('customer_id')

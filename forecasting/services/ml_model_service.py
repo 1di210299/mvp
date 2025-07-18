@@ -39,6 +39,54 @@ class MLModelService:
         # Asegura que el directorio existe
         os.makedirs(self.model_storage_path, exist_ok=True)
     
+    def _safe_decimal_conversion(self, value: Any, default: float = 0.0) -> Decimal:
+        """
+        Convierte un valor a Decimal de forma segura, manejando casos especiales
+        
+        Args:
+            value: Valor a convertir
+            default: Valor por defecto si la conversión falla
+            
+        Returns:
+            Decimal válido
+        """
+        try:
+            if value is None:
+                return Decimal(str(default))
+            
+            # Convertir a float primero para manejar diferentes tipos
+            float_value = float(value)
+            
+            # Verificar valores especiales
+            if math.isnan(float_value):
+                logger.warning(f"Valor NaN detectado, usando default: {default}")
+                return Decimal(str(default))
+            
+            if math.isinf(float_value):
+                if float_value > 0:
+                    logger.warning(f"Valor +Inf detectado, usando valor alto: 999999")
+                    return Decimal('999999')
+                else:
+                    logger.warning(f"Valor -Inf detectado, usando default: {default}")
+                    return Decimal(str(default))
+            
+            # Verificar rangos razonables para métricas ML
+            if abs(float_value) > 1000000:  # Valor demasiado alto
+                logger.warning(f"Valor muy alto detectado: {float_value}, limitando a 999999")
+                return Decimal('999999')
+            
+            if float_value < -1000:  # Valor demasiado bajo (especialmente para R²)
+                logger.warning(f"Valor muy bajo detectado: {float_value}, usando default: {default}")
+                return Decimal(str(default))
+            
+            # Redondear a 6 decimales para evitar problemas de precisión
+            rounded_value = round(float_value, 6)
+            return Decimal(str(rounded_value))
+            
+        except (ValueError, TypeError, InvalidOperation) as e:
+            logger.warning(f"Error convirtiendo valor {value} a Decimal: {e}, usando default: {default}")
+            return Decimal(str(default))
+    
     def create_and_train_model(self,
                              company: Company,
                              name: str,
@@ -128,10 +176,10 @@ class MLModelService:
             with transaction.atomic():
                 forecast_model.model_type = actual_model_type
                 forecast_model.status = 'active'
-                forecast_model.mae = Decimal(str(metrics.get('mae', 0)))
-                forecast_model.mape = Decimal(str(metrics.get('mape', 0)))
-                forecast_model.rmse = Decimal(str(metrics.get('rmse', 0)))
-                forecast_model.r2_score = Decimal(str(metrics.get('r2', 0)))
+                forecast_model.mae = self._safe_decimal_conversion(metrics.get('mae'), 0.0)
+                forecast_model.mape = self._safe_decimal_conversion(metrics.get('mape'), 0.0)
+                forecast_model.rmse = self._safe_decimal_conversion(metrics.get('rmse'), 0.0)
+                forecast_model.r2_score = self._safe_decimal_conversion(metrics.get('r2'), 0.0)
                 forecast_model.hyperparameters = best_model.get_hyperparameters()
                 forecast_model.training_completed_at = timezone.now()
                 
@@ -216,10 +264,10 @@ class MLModelService:
             
             # Actualiza el modelo
             forecast_model.status = 'active'
-            forecast_model.mae = Decimal(str(metrics.get('mae', 0)))
-            forecast_model.mape = Decimal(str(metrics.get('mape', 0)))
-            forecast_model.rmse = Decimal(str(metrics.get('rmse', 0)))
-            forecast_model.r2_score = Decimal(str(metrics.get('r2', 0)))
+            forecast_model.mae = self._safe_decimal_conversion(metrics.get('mae'), 0.0)
+            forecast_model.mape = self._safe_decimal_conversion(metrics.get('mape'), 0.0)
+            forecast_model.rmse = self._safe_decimal_conversion(metrics.get('rmse'), 0.0)
+            forecast_model.r2_score = self._safe_decimal_conversion(metrics.get('r2'), 0.0)
             forecast_model.hyperparameters = best_model.get_hyperparameters()
             forecast_model.training_completed_at = timezone.now()
             
@@ -686,3 +734,109 @@ class MLModelService:
         except Exception as e:
             logger.error(f"Error entrenando modelo para producto {product.name}: {str(e)}")
             raise
+    
+    def train_model(self, company: Company, model_id: int = None, model_type: str = 'auto', 
+                   forecast_horizon_days: int = 30, training_period_days: int = 365,
+                   retrain_existing: bool = False, async_training: bool = True,
+                   product_ids: list = None, **kwargs) -> Dict[str, Any]:
+        """
+        Entrena un modelo existente o crea uno nuevo
+        
+        Args:
+            company: Empresa
+            model_id: ID del modelo a entrenar (opcional)
+            model_type: Tipo de modelo (auto, prophet, arima, lstm, random_forest)
+            forecast_horizon_days: Días para pronóstico
+            training_period_days: Días para entrenamiento
+            retrain_existing: Si re-entrenar modelos existentes
+            async_training: Si ejecutar en segundo plano
+            product_ids: IDs de productos
+            **kwargs: Otros argumentos
+            
+        Returns:
+            Dict con resultado del entrenamiento
+        """
+        try:
+            logger.info(f"train_model called with model_id={model_id}, company={company.id}")
+            
+            if model_id:
+                logger.info(f"Entrando en rama de re-entrenamiento para model_id={model_id}")
+                # Re-entrenar modelo existente
+                forecast_model = ForecastModel.objects.get(id=model_id, company=company)
+                logger.info(f"Modelo encontrado: {forecast_model.name}, estado: {forecast_model.status}")
+                
+                # Entrenar el modelo existente (sea cual sea su estado)
+                logger.info(f"Entrenando modelo existente: {forecast_model.name}")
+                
+                # Obtener datos de entrenamiento
+                training_data = self._get_training_data(forecast_model)
+                
+                if training_data.empty:
+                    raise ValueError("No hay datos históricos suficientes para entrenar el modelo")
+                
+                # Entrenar usando el tipo de modelo especificado
+                model_type_to_use = forecast_model.model_type
+                
+                # Entrenar el modelo
+                best_model, metrics = self._train_specific_model(
+                    algorithm_name=model_type_to_use,
+                    training_data=training_data,
+                    hyperparameters=forecast_model.hyperparameters,
+                    model_name=forecast_model.name,
+                    optimize_hyperparameters=True
+                )
+                
+                # Actualizar el modelo existente con los resultados
+                forecast_model.status = 'active'
+                forecast_model.mae = self._safe_decimal_conversion(metrics.get('mae'), 0.0)
+                forecast_model.mape = self._safe_decimal_conversion(metrics.get('mape'), 0.0)
+                forecast_model.rmse = self._safe_decimal_conversion(metrics.get('rmse'), 0.0)
+                forecast_model.r2_score = self._safe_decimal_conversion(metrics.get('r2'), 0.0)
+                forecast_model.hyperparameters = best_model.get_hyperparameters()
+                forecast_model.training_completed_at = timezone.now()
+                
+                # Guardar archivo del modelo
+                model_filename = f"model_{forecast_model.id}_{forecast_model.model_type}.joblib"
+                model_path = os.path.join(self.model_storage_path, model_filename)
+                if best_model.save_model(model_path):
+                    forecast_model.model_file_path = model_path
+                    forecast_model.model_size_mb = Decimal(str(os.path.getsize(model_path) / (1024 * 1024)))
+                
+                forecast_model.save()
+                trained_model = forecast_model
+                logger.info(f"Modelo {forecast_model.id} entrenado exitosamente, nuevo estado: {forecast_model.status}")
+            else:
+                logger.info(f"Creando nuevo modelo porque model_id es None")
+                # Crear y entrenar nuevo modelo
+                import uuid
+                unique_name = f"ML Model {model_type} {str(uuid.uuid4())[:8]}"
+                trained_model = self.create_and_train_model(
+                    company=company,
+                    name=unique_name,
+                    model_type=model_type,
+                    forecast_horizon_days=forecast_horizon_days,
+                    training_period_days=training_period_days
+                )
+            
+            return {
+                'success': True,
+                'model_id': trained_model.id,
+                'model_type': trained_model.model_type,
+                'status': trained_model.status,
+                'mae': float(trained_model.mae) if trained_model.mae else None,
+                'mape': float(trained_model.mape) if trained_model.mape else None,
+                'rmse': float(trained_model.rmse) if trained_model.rmse else None,
+                'r2_score': float(trained_model.r2_score) if trained_model.r2_score else None,
+                'message': f'Modelo {trained_model.name} entrenado exitosamente'
+            }
+        except ForecastModel.DoesNotExist:
+            return {
+                'success': False,
+                'error': f'Modelo con ID {model_id} no encontrado'
+            }
+        except Exception as e:
+            logger.error(f"Error entrenando modelo {model_id}: {str(e)}")
+            return {
+                'success': False,
+                'error': f'Error en entrenamiento: {str(e)}'
+            }

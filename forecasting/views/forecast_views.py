@@ -19,6 +19,7 @@ from ..serializers import (
     ForecastChartDataSerializer, ProductForecastSummarySerializer
 )
 # Importar servicios ML
+from ..services import ForecastService
 from ..ml_algorithms.training_service import training_service
 from ..services.ml_model_service import MLModelService
 from ..services.forecast_service import ForecastService
@@ -305,35 +306,54 @@ class PredictDemandView(APIView):
             
             try:
                 model_id = serializer.validated_data.get('model_id')
-                periods = serializer.validated_data.get('periods', 30)
+                periods = serializer.validated_data.get('periods') or serializer.validated_data.get('forecast_horizon', 30)
                 
                 if model_id:
                     # Usar modelo específico
                     try:
                         forecast_model = ForecastModel.objects.get(id=model_id, company=company)
-                        result = training_service.generate_predictions(forecast_model, periods)
+                        forecast_service = ForecastService()
+                        result = forecast_service.generate_forecasts_for_model(
+                            model_id=model_id,
+                            periods=periods
+                        )
                     except ForecastModel.DoesNotExist:
                         return Response({
                             'error': 'Modelo no encontrado'
                         }, status=status.HTTP_404_NOT_FOUND)
                 else:
-                    # Usar el primer modelo activo disponible
+                    # Usar el primer modelo activo disponible o el más reciente
                     forecast_model = ForecastModel.objects.filter(
                         company=company,
                         status='active'
-                    ).first()
+                    ).order_by('-created_at').first()
                     
                     if not forecast_model:
-                        return Response({
-                            'error': 'No hay modelos entrenados disponibles'
-                        }, status=status.HTTP_400_BAD_REQUEST)
+                        # Si no hay modelos activos, buscar el modelo más reciente
+                        forecast_model = ForecastModel.objects.filter(
+                            company=company
+                        ).order_by('-created_at').first()
+                        
+                        if forecast_model:
+                            # Marcar como activo si no está fallido
+                            if forecast_model.status != 'failed':
+                                forecast_model.status = 'active'
+                                forecast_model.save()
+                        else:
+                            return Response({
+                                'error': 'No hay modelos disponibles'
+                            }, status=status.HTTP_400_BAD_REQUEST)
                     
-                    result = training_service.generate_predictions(forecast_model, periods)
+                    forecast_service = ForecastService()
+                    result = forecast_service.generate_forecasts_for_model(
+                        model_id=forecast_model.id,
+                        periods=periods
+                    )
                 
-                if result['success']:
+                if result.get('success', True):
                     return Response({
                         'success': True,
-                        'forecast': result['forecast'],
+                        'forecast': result.get('forecast', []),
                         'model_type': result.get('model_type'),
                         'generated_at': datetime.now()
                     })

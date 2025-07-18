@@ -41,6 +41,10 @@ class TrainModelRequestSerializer(serializers.Serializer):
 
 class PredictDemandRequestSerializer(serializers.Serializer):
     """Serializer para solicitudes de predicción"""
+    model_id = serializers.IntegerField(
+        required=False,
+        help_text="ID del modelo a usar para la predicción. Si no se especifica, usa el mejor modelo disponible."
+    )
     product_ids = serializers.ListField(
         child=serializers.IntegerField(),
         required=False,
@@ -51,6 +55,12 @@ class PredictDemandRequestSerializer(serializers.Serializer):
         min_value=1,
         max_value=365,
         help_text="Días hacia el futuro para predecir"
+    )
+    periods = serializers.IntegerField(
+        default=30,
+        min_value=1,
+        max_value=365,
+        help_text="Alias para forecast_horizon (compatibilidad)"
     )
     include_confidence_intervals = serializers.BooleanField(
         default=True,

@@ -32,13 +32,15 @@ class ForecastService:
         Inicializa el servicio de pronósticos
         """
         self.ml_service = MLModelService()
-    
+
+    # REEMPLAZAR EL MÉTODO generate_forecasts_for_model COMPLETO EN forecast_service.py
+
     def generate_forecasts_for_model(self,
-                                   model_id: int,
-                                   periods: int = 30,
-                                   products: Optional[List[Product]] = None,
-                                   locations: Optional[List[Location]] = None,
-                                   confidence_interval: Optional[float] = None) -> Dict[str, Any]:
+                                model_id: int,
+                                periods: int = 30,
+                                products: Optional[List[Product]] = None,
+                                locations: Optional[List[Location]] = None,
+                                confidence_interval: Optional[float] = None) -> Dict[str, Any]:
         """
         Genera pronósticos para un modelo específico
         
@@ -73,6 +75,66 @@ class ForecastService:
                 confidence_interval=confidence_interval
             )
             
+            # ========== FIX: MANEJAR AMBOS FORMATOS (DataFrame y Dict) ==========
+            
+            if isinstance(predictions, dict):
+                # RandomForest devuelve dict
+                if not predictions.get('success', False):
+                    raise ValueError(f"Error en predicción: {predictions.get('error', 'Unknown error')}")
+                
+                forecast_data = predictions.get('forecast', [])
+                if not forecast_data:
+                    raise ValueError("No se generaron predicciones")
+                
+                # Convertir a formato estándar para procesamiento
+                predictions_df = pd.DataFrame(forecast_data)
+                predictions_df['date'] = pd.to_datetime(predictions_df['date'])
+                predictions_df = predictions_df.set_index('date')
+                
+                # Renombrar columnas para compatibilidad
+                column_mapping = {
+                    'predicted_demand': 'predicted_demand',
+                    'lower_bound': 'lower_bound', 
+                    'upper_bound': 'upper_bound'
+                }
+                predictions_df = predictions_df.rename(columns=column_mapping)
+                
+            elif isinstance(predictions, pd.DataFrame):
+                # Prophet, ARIMA, LSTM devuelven DataFrame
+                predictions_df = predictions.copy()
+                
+                # Asegurar que las columnas necesarias existen
+                if 'predicted_demand' not in predictions_df.columns:
+                    if 'yhat' in predictions_df.columns:
+                        predictions_df['predicted_demand'] = predictions_df['yhat']
+                    elif 'predicted_value' in predictions_df.columns:
+                        predictions_df['predicted_demand'] = predictions_df['predicted_value']
+                    else:
+                        # Usar la primera columna numérica como predicción
+                        numeric_cols = predictions_df.select_dtypes(include=[np.number]).columns
+                        if len(numeric_cols) > 0:
+                            predictions_df['predicted_demand'] = predictions_df[numeric_cols[0]]
+                        else:
+                            raise ValueError("No se encontró columna de predicciones")
+                
+                # Asegurar que lower_bound y upper_bound existen
+                if 'lower_bound' not in predictions_df.columns:
+                    if 'yhat_lower' in predictions_df.columns:
+                        predictions_df['lower_bound'] = predictions_df['yhat_lower']
+                    else:
+                        predictions_df['lower_bound'] = predictions_df['predicted_demand'] * 0.8
+                
+                if 'upper_bound' not in predictions_df.columns:
+                    if 'yhat_upper' in predictions_df.columns:
+                        predictions_df['upper_bound'] = predictions_df['yhat_upper']
+                    else:
+                        predictions_df['upper_bound'] = predictions_df['predicted_demand'] * 1.2
+            
+            else:
+                raise ValueError(f"Formato de predicciones no soportado: {type(predictions)}")
+            
+            # ========== CONTINUAR CON PROCESAMIENTO NORMAL ==========
+            
             # Determina productos objetivo
             if products is None:
                 target_products = forecast_model.products.all()
@@ -92,9 +154,8 @@ class ForecastService:
             
             with transaction.atomic():
                 # FIX: Eliminar pronósticos existentes que puedan entrar en conflicto
-                # No solo de este modelo, sino cualquier pronóstico para las mismas combinaciones
-                start_date = predictions.index[0].date()
-                end_date = predictions.index[-1].date()
+                start_date = predictions_df.index[0].date()
+                end_date = predictions_df.index[-1].date()
                 
                 # Eliminar pronósticos existentes para evitar conflictos UNIQUE
                 for product in target_products:
@@ -109,7 +170,7 @@ class ForecastService:
                 # Crea nuevos pronósticos
                 for product in target_products:
                     for location in target_locations:
-                        for date, row in predictions.iterrows():
+                        for date, row in predictions_df.iterrows():
                             # Ajusta la predicción según características del producto
                             adjusted_demand = self._adjust_prediction_for_product(
                                 base_prediction=row['predicted_demand'],
@@ -181,7 +242,7 @@ class ForecastService:
         except Exception as e:
             logger.error(f"Error generando pronósticos para modelo {model_id}: {str(e)}")
             raise
-    
+
     def get_forecasts_for_product(self,
                                 product_id: int,
                                 days_ahead: int = 30,
@@ -439,7 +500,8 @@ class ForecastService:
         Ajusta la predicción base según características específicas del producto
         """
         try:
-            adjusted_prediction = base_prediction
+            # Convierte a float para evitar problemas con Decimal
+            adjusted_prediction = float(base_prediction)
             
             # Factor de ubicación (si hay datos históricos específicos)
             location_factor = self._get_location_factor(product, location)
@@ -458,7 +520,7 @@ class ForecastService:
             
         except Exception as e:
             logger.warning(f"Error ajustando predicción para {product.sku}: {str(e)}")
-            return base_prediction
+            return float(base_prediction)
     
     def _get_location_factor(self, product: Product, location: Location) -> float:
         """
@@ -483,7 +545,7 @@ class ForecastService:
             ).aggregate(total=models.Sum('quantity'))['total'] or 0
             
             if total_sales > 0:
-                return location_sales / total_sales
+                return float(location_sales) / float(total_sales)
             else:
                 return 1.0
                 
@@ -514,7 +576,7 @@ class ForecastService:
             ).aggregate(avg=models.Avg('quantity'))['avg'] or 0
             
             if general_avg > 0:
-                return historical_sales / general_avg
+                return float(historical_sales) / float(general_avg)
             else:
                 return 1.0
                 
@@ -545,7 +607,7 @@ class ForecastService:
             ).aggregate(total=models.Sum('quantity'))['total'] or 0
             
             if old_sales > 0:
-                trend = recent_sales / old_sales
+                trend = float(recent_sales) / float(old_sales)
                 # Limita el factor de tendencia a un rango razonable
                 return max(0.5, min(2.0, trend))
             else:

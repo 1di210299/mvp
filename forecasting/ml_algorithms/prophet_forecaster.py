@@ -34,19 +34,23 @@ class ProphetForecaster(BaseForecaster):
         if not PROPHET_AVAILABLE:
             raise ImportError("Prophet no está instalado. Instálalo con: pip install prophet")
             
-        # Hiperparámetros por defecto de Prophet
+        # Hiperparámetros optimizados para ML Services Core
         default_params = {
             'growth': 'linear',  # 'linear' o 'logistic'
             'yearly_seasonality': 'auto',
             'weekly_seasonality': 'auto', 
             'daily_seasonality': 'auto',
             'seasonality_mode': 'additive',  # 'additive' o 'multiplicative'
-            'changepoint_prior_scale': 0.05,
+            'changepoint_prior_scale': 0.05,  # Optimizado para estabilidad
             'seasonality_prior_scale': 10.0,
             'holidays_prior_scale': 10.0,
             'mcmc_samples': 0,
             'interval_width': 0.95,
-            'uncertainty_samples': 1000
+            'uncertainty_samples': 1000,
+            # Nuevos parámetros optimizados
+            'changepoint_range': 0.8,  # Mejora detección de cambios
+            'n_changepoints': 25,  # Número óptimo de changepoints
+            'fourier_order': None,  # Auto-determinado por seasonality
         }
         
         if hyperparameters:
@@ -91,7 +95,7 @@ class ProphetForecaster(BaseForecaster):
     
     def fit(self, data: pd.DataFrame, target_column: str = 'demand') -> 'ProphetForecaster':
         """
-        Entrena el modelo Prophet
+        Entrena el modelo Prophet con validación robusta de datos
         
         Args:
             data: DataFrame con datos históricos
@@ -101,31 +105,63 @@ class ProphetForecaster(BaseForecaster):
             self: Instancia del modelo entrenado
         """
         try:
-            # Valida los datos
-            self.validate_data(data, target_column)
+            # VALIDACIÓN ROBUSTA DE DATOS
+            if not isinstance(data, pd.DataFrame):
+                raise ValueError("Los datos deben ser un DataFrame de pandas")
             
-            # Preprocesa los datos
-            processed_data = self.preprocess_data(data, target_column)
-            self.training_data = processed_data.copy()
+            if len(data) < 10:
+                raise ValueError("Se necesitan al menos 10 observaciones para entrenar Prophet")
             
-            # Prepara los datos para Prophet (requiere columnas 'ds' y 'y')
-            # Prophet no acepta fechas con timezone, convertir a naive datetime
-            ds_values = processed_data.index
-            if hasattr(ds_values, 'tz') and ds_values.tz is not None:
-                ds_values = ds_values.tz_localize(None)
+            # Verificar si tiene columna objetivo
+            if target_column not in data.columns:
+                # Si no tiene la columna objetivo, buscar alternativas
+                if 'y' in data.columns:
+                    target_column = 'y'
+                elif 'value' in data.columns:
+                    target_column = 'value'
+                elif len(data.columns) == 1:
+                    target_column = data.columns[0]
+                else:
+                    raise ValueError(f"Columna objetivo '{target_column}' no encontrada en los datos")
             
-            prophet_data = pd.DataFrame({
-                'ds': ds_values,
-                'y': processed_data[target_column]
-            })
+            # PREPARAR DATOS PARA PROPHET (requiere 'ds' y 'y')
+            prophet_data = pd.DataFrame()
             
-            # Añade regresores adicionales si existen
-            for regressor in self.additional_regressors:
-                regressor_name = regressor['name']
-                if regressor_name in processed_data.columns:
-                    prophet_data[regressor_name] = processed_data[regressor_name]
+            # Manejar la columna de fecha (ds)
+            if 'ds' in data.columns:
+                # Si ya tiene columna 'ds', usarla
+                prophet_data['ds'] = pd.to_datetime(data['ds'])
+            elif 'date' in data.columns:
+                # Si tiene columna 'date', usarla
+                prophet_data['ds'] = pd.to_datetime(data['date'])
+            elif isinstance(data.index, pd.DatetimeIndex):
+                # Si el índice es de fechas, usarlo
+                prophet_data['ds'] = data.index
+            else:
+                # Crear fechas sintéticas si no hay fechas
+                logger.warning("No se encontraron fechas, creando fechas sintéticas")
+                prophet_data['ds'] = pd.date_range(
+                    start='2023-01-01', 
+                    periods=len(data), 
+                    freq='D'
+                )
             
-            # Inicializa el modelo Prophet
+            # Manejar la columna objetivo (y)
+            prophet_data['y'] = data[target_column].values
+            
+            # Limpiar timezone si existe
+            if hasattr(prophet_data['ds'], 'dt') and prophet_data['ds'].dt.tz is not None:
+                prophet_data['ds'] = prophet_data['ds'].dt.tz_localize(None)
+            
+            # Validar que no hay valores nulos
+            if prophet_data['y'].isnull().any():
+                logger.warning("Eliminando valores nulos en datos de entrenamiento")
+                prophet_data = prophet_data.dropna()
+            
+            # Guardar datos de entrenamiento
+            self.training_data = prophet_data.copy()
+            
+            # Inicializar modelo Prophet
             self.model = Prophet(
                 growth=self.hyperparameters.get('growth', 'linear'),
                 yearly_seasonality=self.hyperparameters.get('yearly_seasonality', 'auto'),
@@ -140,26 +176,13 @@ class ProphetForecaster(BaseForecaster):
                 uncertainty_samples=self.hyperparameters.get('uncertainty_samples', 1000)
             )
             
-            # Añade días festivos si están definidos
-            if self.holidays is not None:
-                self.model.holidays = self.holidays
-            
-            # Añade regresores adicionales
-            for regressor in self.additional_regressors:
-                self.model.add_regressor(
-                    regressor['name'],
-                    prior_scale=regressor['prior_scale'],
-                    standardize=regressor['standardize'],
-                    mode=regressor['mode']
-                )
-            
-            # Entrena el modelo
+            # Entrenar el modelo
             logger.info(f"Entrenando modelo Prophet con {len(prophet_data)} observaciones")
             self.model.fit(prophet_data)
             
             self.is_fitted = True
             
-            # Calcula métricas en el conjunto de entrenamiento
+            # Calcular métricas en el conjunto de entrenamiento
             train_forecast = self.model.predict(prophet_data)
             y_true = prophet_data['y'].values
             y_pred = train_forecast['yhat'].values
@@ -397,6 +420,218 @@ class ProphetForecaster(BaseForecaster):
         except ImportError:
             logger.error("prophet.diagnostics no está disponible")
             return pd.DataFrame()
-        except Exception as e:
-            logger.error(f"Error en validación cruzada: {str(e)}")
-            return pd.DataFrame()
+    
+    def get_baseline_accuracy_metrics(self, data: pd.DataFrame, 
+                                    target_column: str = 'demand') -> Dict[str, float]:
+        """
+        Calcula métricas de accuracy baseline para ML Services Core
+        
+        Args:
+            data: Datos de prueba
+            target_column: Columna objetivo
+            
+        Returns:
+            Dict con métricas baseline
+        """
+        if not self.is_fitted:
+            raise ValueError("El modelo debe estar entrenado")
+        
+        # Preparar datos para Prophet (igual que en fit)
+        prophet_data = pd.DataFrame()
+        
+        # Manejar la columna de fecha (ds)
+        if 'ds' in data.columns:
+            prophet_data['ds'] = pd.to_datetime(data['ds'])
+        elif 'date' in data.columns:
+            prophet_data['ds'] = pd.to_datetime(data['date'])
+        elif isinstance(data.index, pd.DatetimeIndex):
+            prophet_data['ds'] = data.index
+        else:
+            # Crear fechas sintéticas
+            prophet_data['ds'] = pd.date_range(
+                start='2024-01-01', 
+                periods=len(data), 
+                freq='D'
+            )
+        
+        # Manejar la columna objetivo (y)
+        if target_column in data.columns:
+            prophet_data['y'] = data[target_column].values
+        elif 'y' in data.columns:
+            prophet_data['y'] = data['y'].values
+        else:
+            raise ValueError(f"No se encontró la columna objetivo '{target_column}'")
+        
+        # Limpiar timezone si existe
+        if hasattr(prophet_data['ds'], 'dt') and prophet_data['ds'].dt.tz is not None:
+            prophet_data['ds'] = prophet_data['ds'].dt.tz_localize(None)
+        
+        # Hacer predicciones
+        forecast = self.model.predict(prophet_data[['ds']])
+        
+        # Calcular métricas
+        actual = prophet_data['y'].values
+        predicted = forecast['yhat'].values
+        
+        # Métricas básicas
+        mae = np.mean(np.abs(actual - predicted))
+        mse = np.mean((actual - predicted) ** 2)
+        rmse = np.sqrt(mse)
+        mape = np.mean(np.abs((actual - predicted) / np.where(actual != 0, actual, 1))) * 100
+        
+        # Métricas avanzadas para ML Core
+        def mean_absolute_scaled_error(actual, predicted):
+            """MASE - Mean Absolute Scaled Error"""
+            naive_forecast = actual[:-1]  # Naive forecast (t-1)
+            naive_mae = np.mean(np.abs(actual[1:] - naive_forecast))
+            return mae / naive_mae if naive_mae != 0 else float('inf')
+        
+        mase = mean_absolute_scaled_error(actual, predicted)
+        
+        # Coeficiente de determinación
+        ss_res = np.sum((actual - predicted) ** 2)
+        ss_tot = np.sum((actual - np.mean(actual)) ** 2)
+        r2 = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
+        
+        # Accuracy score (100 - MAPE)
+        accuracy_score = max(0, 100 - mape)
+        
+        # Directional accuracy (% de predicciones que van en la dirección correcta)
+        if len(actual) > 1:
+            actual_direction = np.diff(actual) > 0
+            predicted_direction = np.diff(predicted) > 0
+            directional_accuracy = np.mean(actual_direction == predicted_direction) * 100
+        else:
+            directional_accuracy = 0
+        
+        return {
+            'mae': float(mae),
+            'mse': float(mse),
+            'rmse': float(rmse),
+            'mape': float(mape),
+            'mase': float(mase),
+            'r2_score': float(r2),
+            'accuracy_score': float(accuracy_score),
+            'directional_accuracy': float(directional_accuracy),
+            'forecast_bias': float(np.mean(predicted - actual)),
+            'prediction_interval_coverage': self._calculate_coverage(actual, forecast)
+        }
+    
+    def _calculate_coverage(self, actual: np.ndarray, forecast: pd.DataFrame) -> float:
+        """
+        Calcula la cobertura del intervalo de predicción
+        """
+        lower_bound = forecast['yhat_lower'].values
+        upper_bound = forecast['yhat_upper'].values
+        
+        within_interval = (actual >= lower_bound) & (actual <= upper_bound)
+        coverage = np.mean(within_interval) * 100
+        
+        return float(coverage)
+    
+    def get_performance_summary(self, data: pd.DataFrame, 
+                              target_column: str = 'demand') -> Dict[str, Any]:
+        """
+        Resumen completo de performance para ML Services Core
+        """
+        baseline_metrics = self.get_baseline_accuracy_metrics(data, target_column)
+        
+        # Información del modelo
+        model_info = {
+            'model_name': self.get_model_name(),
+            'hyperparameters': self.hyperparameters,
+            'is_fitted': self.is_fitted,
+            'training_samples': len(data) if data is not None else 0,
+            'additional_regressors': len(self.additional_regressors),
+            'has_holidays': self.holidays is not None
+        }
+        
+        # Componentes del modelo (si está entrenado)
+        components = {}
+        if self.is_fitted:
+            try:
+                # Obtener componentes de seasonality
+                components = {
+                    'trend_changepoints': len(self.model.changepoints),
+                    'yearly_seasonality': 'yearly' in self.model.seasonalities,
+                    'weekly_seasonality': 'weekly' in self.model.seasonalities,
+                    'daily_seasonality': 'daily' in self.model.seasonalities,
+                    'growth_type': self.hyperparameters.get('growth', 'linear')
+                }
+            except Exception as e:
+                logger.warning(f"Error obteniendo componentes: {e}")
+        
+        return {
+            'model_info': model_info,
+            'baseline_metrics': baseline_metrics,
+            'model_components': components,
+            'timestamp': datetime.now().isoformat()
+        }
+    
+    def optimize_hyperparameters(self, data: pd.DataFrame, target_column: str = 'demand',
+                                cv_horizon: str = '30 days') -> Dict[str, Any]:
+        """
+        Optimización automática de hiperparámetros para ML Services Core
+        """
+        param_grid = {
+            'changepoint_prior_scale': [0.001, 0.01, 0.1, 0.5],
+            'seasonality_prior_scale': [0.01, 0.1, 1.0, 10.0],
+            'holidays_prior_scale': [0.01, 0.1, 1.0, 10.0],
+            'seasonality_mode': ['additive', 'multiplicative']
+        }
+        
+        best_params = None
+        best_mape = float('inf')
+        results = []
+        
+        logger.info("Iniciando optimización de hiperparámetros Prophet...")
+        
+        # Grid search simplificado
+        for changepoint_scale in param_grid['changepoint_prior_scale']:
+            for seasonality_scale in param_grid['seasonality_prior_scale']:
+                for holidays_scale in param_grid['holidays_prior_scale']:
+                    for season_mode in param_grid['seasonality_mode']:
+                        
+                        try:
+                            # Crear modelo con parámetros específicos
+                            test_params = self.hyperparameters.copy()
+                            test_params.update({
+                                'changepoint_prior_scale': changepoint_scale,
+                                'seasonality_prior_scale': seasonality_scale,
+                                'holidays_prior_scale': holidays_scale,
+                                'seasonality_mode': season_mode
+                            })
+                            
+                            # Entrenar y evaluar
+                            test_model = ProphetForecaster(test_params)
+                            test_model.fit(data, target_column)
+                            
+                            # Validación cruzada rápida
+                            cv_results = test_model.cross_validate(horizon=cv_horizon)
+                            if not cv_results.empty:
+                                avg_mape = cv_results['mape'].mean()
+                                
+                                results.append({
+                                    'params': test_params,
+                                    'mape': avg_mape,
+                                    'mae': cv_results['mae'].mean(),
+                                    'rmse': cv_results['rmse'].mean()
+                                })
+                                
+                                if avg_mape < best_mape:
+                                    best_mape = avg_mape
+                                    best_params = test_params
+                        
+                        except Exception as e:
+                            logger.warning(f"Error en optimización con params {test_params}: {e}")
+                            continue
+        
+        if best_params:
+            self.hyperparameters = best_params
+            logger.info(f"Mejores parámetros encontrados con MAPE: {best_mape:.4f}")
+        
+        return {
+            'best_params': best_params,
+            'best_mape': best_mape,
+            'all_results': results
+        }

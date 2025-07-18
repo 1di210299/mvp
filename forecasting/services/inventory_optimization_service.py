@@ -2,6 +2,8 @@
 Servicio de Optimización de Inventario - DataLens
 Algoritmos avanzados para optimización inteligente de inventario, predicción de stockouts
 y análisis EOQ con clasificación ABC automática.
+
+FIXED VERSION - Usa los modelos correctos que existen en la BD
 """
 
 import numpy as np
@@ -14,8 +16,9 @@ from django.db.models import Sum, Avg, Q
 # Imports from Django models
 from authentication.models import Company
 from inventory.models import Product, Transaction
+# FIX: Usar los modelos correctos que SÍ existen
 from forecasting.models import (
-    OptimalStockLevel, StockoutPrediction
+    StockLevelRecommendation, InventoryOptimizationModel
 )
 
 
@@ -25,11 +28,27 @@ class InventoryOptimizationService:
     def __init__(self, company: Company):
         self.company = company
     
-    def calculate_optimal_stock_levels(self) -> List[OptimalStockLevel]:
+    def calculate_optimal_stock_levels(self) -> List[StockLevelRecommendation]:
         """Calcular niveles de stock óptimos matemáticamente"""
         
         products = Product.objects.filter(company=self.company, is_active=True)
         optimal_levels = []
+        
+        # FIX: Crear o usar un modelo de optimización por defecto
+        optimization_model, created = InventoryOptimizationModel.objects.get_or_create(
+            company=self.company,
+            model_type='eoq_optimization',
+            defaults={
+                'optimization_algorithm': 'Enhanced EOQ with Safety Stock',
+                'is_active': True,
+                'parameters': {
+                    'service_level': 95.0,
+                    'lead_time_days': 7,
+                    'holding_cost_rate': 0.25,
+                    'ordering_cost': 100.0
+                }
+            }
+        )
         
         for product in products:
             # Obtener datos necesarios para cálculo
@@ -48,45 +67,50 @@ class InventoryOptimizationService:
             # Calcular punto de reorden óptimo
             reorder_point = self._calculate_optimal_reorder_point(demand_data, safety_stock)
             
-            # Calcular costos actuales vs óptimos
-            current_cost = self._calculate_current_inventory_cost(product, demand_data, cost_data)
-            optimal_cost = self._calculate_optimal_inventory_cost(optimal_quantity, demand_data, cost_data)
-            
             # Clasificación ABC automática
             abc_data = self._calculate_abc_classification(product, demand_data)
             
-            optimal_level = OptimalStockLevel.objects.update_or_create(
+            # Determinar prioridad de recomendación
+            current_stock = float(product.stock or 0)
+            if current_stock <= reorder_point:
+                priority = 'high' if current_stock <= safety_stock else 'medium'
+            else:
+                priority = 'low'
+            
+            # FIX: Usar StockLevelRecommendation en lugar de OptimalStockLevel
+            optimal_level = StockLevelRecommendation.objects.update_or_create(
                 product=product,
+                model=optimization_model,
                 defaults={
-                    'optimal_stock': Decimal(str(optimal_quantity)),
-                    'safety_stock': Decimal(str(safety_stock)),
-                    'reorder_point': Decimal(str(reorder_point)),
-                    'economic_order_quantity': Decimal(str(optimal_quantity)),
-                    'holding_cost_rate': Decimal(str(cost_data['holding_cost'] / float(product.cost_price or 1))),
-                    'ordering_cost': Decimal(str(cost_data['ordering_cost'])),
-                    'stockout_cost': Decimal(str(cost_data['stockout_cost'])),
-                    'avg_daily_demand': Decimal(str(demand_data['average_demand'])),
-                    'demand_variability': Decimal(str(demand_data['demand_variability'])),
-                    'lead_time_variability': Decimal(str(demand_data['lead_time_variability'])),
-                    'expected_stockout_frequency': Decimal('0.05'),  # 5% target
-                    'expected_annual_cost': Decimal(str(optimal_cost)),
-                    'service_level': Decimal('95.00')
+                    'recommendation_type': 'eoq_optimization',
+                    'recommended_stock': float(optimal_quantity),
+                    'current_stock': current_stock,
+                    'safety_stock': float(safety_stock),
+                    'priority': priority
                 }
             )[0]
+            
+            # Agregar atributos adicionales para compatibilidad
+            optimal_level.abc_classification = abc_data['classification']
+            optimal_level.reorder_point = reorder_point
+            optimal_level.economic_order_quantity = optimal_quantity
             
             optimal_levels.append(optimal_level)
         
         return optimal_levels
     
-    def predict_stockouts(self, days_ahead: int = 30) -> List[StockoutPrediction]:
-        """Predecir quiebres de stock con anticipación"""
+    def predict_stockouts(self, days_ahead: int = 30) -> List[Dict[str, Any]]:
+        """
+        Predecir quiebres de stock con anticipación
+        FIX: Retorna diccionarios en lugar de objetos DB que no existen
+        """
         
         products = Product.objects.filter(company=self.company, is_active=True)
         predictions = []
         
         for product in products:
             # Obtener datos de demanda y stock actuales
-            current_stock = float(product.stock)
+            current_stock = float(product.stock or 0)
             demand_data = self._get_demand_statistics(product, days_back=90)
             
             if demand_data['average_demand'] <= 0:
@@ -107,21 +131,197 @@ class InventoryOptimizationService:
                     impact_data['customer_impact_score']
                 )
                 
-                prediction = StockoutPrediction.objects.update_or_create(
-                    product=product,
-                    prediction_date=timezone.now().date(),
-                    defaults={
-                        'predicted_stockout_date': stockout_prediction['stockout_date'],
-                        'stockout_probability': Decimal(str(stockout_prediction['confidence'] / 100)),
-                        'days_until_stockout': stockout_prediction['days_until_stockout'],
-                        'current_stock': Decimal(str(current_stock)),
-                        'predicted_demand': Decimal(str(demand_data['average_demand'] * days_ahead))
-                    }
-                )[0]
+                # FIX: Crear diccionario de predicción en lugar de objeto DB
+                prediction_dict = {
+                    'product_id': product.id,
+                    'product_name': product.name,
+                    'prediction_date': timezone.now().date(),
+                    'predicted_stockout_date': stockout_prediction['stockout_date'],
+                    'stockout_probability': stockout_prediction['confidence'] / 100,
+                    'days_until_stockout': stockout_prediction['days_until_stockout'],
+                    'current_stock': current_stock,
+                    'predicted_demand': demand_data['average_demand'] * days_ahead,
+                    'priority': alert_priority,
+                    'estimated_lost_revenue': impact_data['estimated_lost_sales'],
+                    'customer_impact_score': impact_data['customer_impact_score']
+                }
                 
-                predictions.append(prediction)
+                predictions.append(prediction_dict)
         
         return predictions
+    
+    def comprehensive_inventory_optimization(self, company: Company, **kwargs) -> Dict[str, Any]:
+        """
+        FIX: Método que faltaba en el servicio original
+        Análisis completo de optimización de inventario
+        """
+        try:
+            # Calcular niveles de stock óptimos
+            stock_levels = self.calculate_optimal_stock_levels()
+            
+            # Predecir stockouts
+            stockout_predictions = self.predict_stockouts(
+                days_ahead=kwargs.get('days_ahead', 30)
+            )
+            
+            # Análisis de clasificación ABC
+            abc_analysis = self._perform_abc_analysis()
+            
+            # Calcular métricas de resumen
+            summary_metrics = self._calculate_optimization_summary(
+                stock_levels, stockout_predictions, abc_analysis
+            )
+            
+            # Recomendaciones de acción
+            action_recommendations = self._generate_action_recommendations(
+                stock_levels, stockout_predictions
+            )
+            
+            return {
+                'stock_levels': [self._serialize_stock_level(level) for level in stock_levels],
+                'stockout_predictions': stockout_predictions,
+                'abc_analysis': abc_analysis,
+                'summary_metrics': summary_metrics,
+                'action_recommendations': action_recommendations,
+                'optimization_date': timezone.now().date(),
+                'total_products_analyzed': len(stock_levels),
+                'high_priority_alerts': len([p for p in stockout_predictions if p['priority'] in ['critical', 'high']])
+            }
+            
+        except Exception as e:
+            logger.error(f"Error en optimización completa: {str(e)}")
+            raise
+    
+    def _serialize_stock_level(self, stock_level: StockLevelRecommendation) -> Dict[str, Any]:
+        """Serializar recomendación de stock a diccionario"""
+        return {
+            'product_id': stock_level.product.id,
+            'product_name': stock_level.product.name,
+            'recommendation_type': stock_level.recommendation_type,
+            'recommended_stock': float(stock_level.recommended_stock),
+            'current_stock': float(stock_level.current_stock),
+            'safety_stock': float(stock_level.safety_stock),
+            'priority': stock_level.priority,
+            'abc_classification': getattr(stock_level, 'abc_classification', 'C'),
+            'reorder_point': getattr(stock_level, 'reorder_point', 0),
+            'economic_order_quantity': getattr(stock_level, 'economic_order_quantity', 0)
+        }
+    
+    def _perform_abc_analysis(self) -> Dict[str, Any]:
+        """Realizar análisis ABC completo"""
+        products = Product.objects.filter(company=self.company, is_active=True)
+        
+        abc_counts = {'A': 0, 'B': 0, 'C': 0}
+        total_value = 0
+        product_values = []
+        
+        for product in products:
+            demand_data = self._get_demand_statistics(product)
+            abc_data = self._calculate_abc_classification(product, demand_data)
+            
+            abc_counts[abc_data['classification']] += 1
+            
+            annual_demand = demand_data['average_demand'] * 365
+            unit_value = float(product.cost_price) if product.cost_price else 0
+            annual_value = annual_demand * unit_value
+            total_value += annual_value
+            
+            product_values.append({
+                'product_id': product.id,
+                'product_name': product.name,
+                'classification': abc_data['classification'],
+                'annual_value': annual_value,
+                'annual_demand': annual_demand
+            })
+        
+        return {
+            'classification_counts': abc_counts,
+            'total_annual_value': total_value,
+            'product_details': sorted(product_values, key=lambda x: x['annual_value'], reverse=True)
+        }
+    
+    def _calculate_optimization_summary(self, stock_levels, stockout_predictions, abc_analysis) -> Dict[str, Any]:
+        """Calcular métricas de resumen de optimización"""
+        
+        # Calcular ahorros potenciales
+        total_current_cost = 0
+        total_optimal_cost = 0
+        
+        for level in stock_levels:
+            product = level.product
+            demand_data = self._get_demand_statistics(product)
+            cost_data = self._get_cost_parameters(product)
+            
+            current_cost = self._calculate_current_inventory_cost(product, demand_data, cost_data)
+            optimal_cost = self._calculate_optimal_inventory_cost(
+                getattr(level, 'economic_order_quantity', level.recommended_stock),
+                demand_data, cost_data
+            )
+            
+            total_current_cost += current_cost
+            total_optimal_cost += optimal_cost
+        
+        potential_savings = max(0, total_current_cost - total_optimal_cost)
+        
+        # Calcular estadísticas de stockout
+        critical_stockouts = len([p for p in stockout_predictions if p['priority'] == 'critical'])
+        high_stockouts = len([p for p in stockout_predictions if p['priority'] == 'high'])
+        
+        return {
+            'total_products': len(stock_levels),
+            'products_needing_reorder': len([l for l in stock_levels if l.priority in ['high', 'medium']]),
+            'potential_annual_savings': potential_savings,
+            'current_annual_cost': total_current_cost,
+            'optimal_annual_cost': total_optimal_cost,
+            'critical_stockout_alerts': critical_stockouts,
+            'high_priority_stockout_alerts': high_stockouts,
+            'abc_class_a_products': abc_analysis['classification_counts']['A'],
+            'abc_class_b_products': abc_analysis['classification_counts']['B'],
+            'abc_class_c_products': abc_analysis['classification_counts']['C']
+        }
+    
+    def _generate_action_recommendations(self, stock_levels, stockout_predictions) -> List[Dict[str, Any]]:
+        """Generar recomendaciones de acción específicas"""
+        
+        recommendations = []
+        
+        # Recomendaciones de reorden urgente
+        urgent_reorders = [l for l in stock_levels if l.priority == 'high']
+        for level in urgent_reorders[:5]:  # Top 5 más urgentes
+            recommendations.append({
+                'type': 'urgent_reorder',
+                'priority': 'high',
+                'product_name': level.product.name,
+                'action': f'Ordenar {level.recommended_stock:.0f} unidades inmediatamente',
+                'reason': f'Stock actual ({level.current_stock:.0f}) por debajo del punto de reorden'
+            })
+        
+        # Recomendaciones de stockout crítico
+        critical_stockouts = [p for p in stockout_predictions if p['priority'] == 'critical']
+        for pred in critical_stockouts[:3]:  # Top 3 más críticos
+            recommendations.append({
+                'type': 'critical_stockout',
+                'priority': 'critical',
+                'product_name': pred['product_name'],
+                'action': f'Acción inmediata requerida - agotamiento en {pred["days_until_stockout"]} días',
+                'reason': f'Alto impacto al cliente (score: {pred["customer_impact_score"]})'
+            })
+        
+        # Recomendaciones de optimización
+        if len(recommendations) < 10:
+            overstock_items = [l for l in stock_levels if l.current_stock > l.recommended_stock * 1.5]
+            for level in overstock_items[:3]:
+                recommendations.append({
+                    'type': 'reduce_stock',
+                    'priority': 'medium',
+                    'product_name': level.product.name,
+                    'action': f'Considerar reducir stock a {level.recommended_stock:.0f} unidades',
+                    'reason': f'Sobrepobación actual: {level.current_stock:.0f} vs recomendado: {level.recommended_stock:.0f}'
+                })
+        
+        return recommendations[:10]  # Máximo 10 recomendaciones
+    
+    # ==================== MÉTODOS AUXILIARES (sin cambios) ====================
     
     def _get_demand_statistics(self, product: Product, days_back: int = 365) -> Dict:
         """Obtener estadísticas de demanda para un producto"""
@@ -242,7 +442,7 @@ class InventoryOptimizationService:
     def _calculate_current_inventory_cost(self, product: Product, demand_data: Dict, cost_data: Dict) -> float:
         """Calcular costo actual de inventario"""
         
-        current_stock = float(product.stock)
+        current_stock = float(product.stock or 0)
         
         # Costo de mantener stock actual
         holding_cost = current_stock * cost_data['holding_cost'] * 365

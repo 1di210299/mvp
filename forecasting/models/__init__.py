@@ -46,6 +46,11 @@ from .analysis_models import (
     StockoutPrediction
 )
 
+# Modelos AI híbridos - Arquitectura ML+AI
+from .ai_models import (
+    AIPromptVersion, AIAPIUsage, AIInsight, HybridMLAIPrediction
+)
+
 # Exportar todos los modelos para mantener compatibilidad
 __all__ = [
     # Base models
@@ -79,4 +84,7 @@ __all__ = [
     # Analysis models
     'SupplierROIAnalysis', 'PriceElasticityAnalysis', 'TrendingProductPrediction',
     'StockoutPrediction',
+    
+    # AI Hybrid models
+    'AIPromptVersion', 'AIAPIUsage', 'AIInsight', 'HybridMLAIPrediction',
 ]

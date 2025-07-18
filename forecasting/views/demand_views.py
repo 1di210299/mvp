@@ -24,7 +24,8 @@ from ..serializers import (
     ProcurementOptimizationSerializer, SupplierRiskAnalysisSerializer,
     SupplierROIAnalysisSerializer, InventoryTurnoverAnalysisSerializer
 )
-from ..services.advanced_ml_service import DemandAnalysisService, InventoryOptimizationService
+from ..services.demand_analysis_service import DemandAnalysisService
+from ..services.inventory_optimization_service import InventoryOptimizationService
 from .base_views import ForecastPagination, get_user_company
 from inventory.models import Product, Supplier
 
@@ -46,7 +47,18 @@ class DemandPatternViewSet(viewsets.ModelViewSet):
             product__company=company
         )
         
-        # Filtros opcionales
+        if not queryset.exists():
+            try:
+                service = DemandAnalysisService(company)
+                patterns = service.analyze_seasonal_patterns()
+                logger.info(f"Generated {len(patterns)} demand patterns for company {company.name}")
+                
+                queryset = DemandPattern.objects.select_related('product').filter(
+                    product__company=company
+                )
+            except Exception as e:
+                logger.error(f"Error auto-generating demand patterns: {str(e)}")
+        
         product_id = self.request.query_params.get('product_id')
         pattern_type = self.request.query_params.get('pattern_type')
         start_date = self.request.query_params.get('start_date')
@@ -71,7 +83,7 @@ class DemandPatternViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            demand_service = DemandAnalysisService()
+            demand_service = DemandAnalysisService(company)
             patterns = demand_service.analyze_demand_patterns(
                 company=company,
                 **request.data
@@ -107,7 +119,6 @@ class AdvancedDemandForecastViewSet(viewsets.ModelViewSet):
             product__company=company
         )
         
-        # Filtros opcionales
         product_id = self.request.query_params.get('product_id')
         forecast_type = self.request.query_params.get('forecast_type')
         start_date = self.request.query_params.get('start_date')
@@ -132,7 +143,7 @@ class AdvancedDemandForecastViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            demand_service = DemandAnalysisService()
+            demand_service = DemandAnalysisService(company)
             forecasts = demand_service.generate_advanced_demand_forecast(
                 company=company,
                 **request.data
@@ -168,7 +179,6 @@ class SeasonalPatternViewSet(viewsets.ModelViewSet):
             product__company=company
         )
         
-        # Filtros opcionales
         product_id = self.request.query_params.get('product_id')
         season_type = self.request.query_params.get('season_type')
         is_active = self.request.query_params.get('is_active')
@@ -196,7 +206,6 @@ class InventoryOptimizationModelViewSet(viewsets.ModelViewSet):
         
         queryset = InventoryOptimizationModel.objects.filter(company=company)
         
-        # Filtros opcionales
         model_type = self.request.query_params.get('model_type')
         is_active = self.request.query_params.get('is_active')
         
@@ -215,7 +224,7 @@ class InventoryOptimizationModelViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            inventory_service = InventoryOptimizationService()
+            inventory_service = InventoryOptimizationService(company)
             optimization = inventory_service.optimize_inventory_levels(
                 company=company,
                 **request.data
@@ -250,7 +259,6 @@ class StockLevelRecommendationViewSet(viewsets.ModelViewSet):
             product__company=company
         )
         
-        # Filtros opcionales
         product_id = self.request.query_params.get('product_id')
         recommendation_type = self.request.query_params.get('recommendation_type')
         priority = self.request.query_params.get('priority')
@@ -276,14 +284,12 @@ class SupplierPerformanceModelViewSet(viewsets.ModelViewSet):
         if not company:
             return SupplierPerformanceModel.objects.none()
         
-        # Filtrar por proveedores que suministran productos de la empresa
         queryset = SupplierPerformanceModel.objects.select_related('supplier').filter(
             supplier__in=Supplier.objects.filter(
                 products__company=company
             ).distinct()
         )
         
-        # Filtros opcionales
         supplier_id = self.request.query_params.get('supplier_id')
         performance_score_min = self.request.query_params.get('performance_score_min')
         
@@ -312,7 +318,6 @@ class ProcurementOptimizationViewSet(viewsets.ModelViewSet):
             product__company=company
         )
         
-        # Filtros opcionales
         product_id = self.request.query_params.get('product_id')
         supplier_id = self.request.query_params.get('supplier_id')
         optimization_type = self.request.query_params.get('optimization_type')
@@ -338,14 +343,12 @@ class SupplierRiskAnalysisViewSet(viewsets.ModelViewSet):
         if not company:
             return SupplierRiskAnalysis.objects.none()
         
-        # Filtrar por proveedores que suministran productos de la empresa
         queryset = SupplierRiskAnalysis.objects.select_related('supplier').filter(
             supplier__in=Supplier.objects.filter(
                 products__company=company
             ).distinct()
         )
         
-        # Filtros opcionales
         supplier_id = self.request.query_params.get('supplier_id')
         risk_level = self.request.query_params.get('risk_level')
         risk_type = self.request.query_params.get('risk_type')
@@ -371,14 +374,12 @@ class SupplierROIAnalysisViewSet(viewsets.ModelViewSet):
         if not company:
             return SupplierROIAnalysis.objects.none()
         
-        # Filtrar por proveedores que suministran productos de la empresa
         queryset = SupplierROIAnalysis.objects.select_related('supplier').filter(
             supplier__in=Supplier.objects.filter(
                 products__company=company
             ).distinct()
         )
         
-        # Filtros opcionales
         supplier_id = self.request.query_params.get('supplier_id')
         roi_min = self.request.query_params.get('roi_min')
         
@@ -405,7 +406,6 @@ class InventoryTurnoverAnalysisViewSet(viewsets.ModelViewSet):
             product__company=company
         )
         
-        # Filtros opcionales
         product_id = self.request.query_params.get('product_id')
         turnover_min = self.request.query_params.get('turnover_min')
         period_type = self.request.query_params.get('period_type')
@@ -430,7 +430,7 @@ class DemandAnalysisView(APIView):
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            demand_service = DemandAnalysisService()
+            demand_service = DemandAnalysisService(company)
             analysis = demand_service.comprehensive_demand_analysis(
                 company=company,
                 **request.data
@@ -454,13 +454,40 @@ class InventoryOptimizationView(APIView):
     """Vista para optimización completa de inventario"""
     permission_classes = [IsAuthenticated]
     
+    def get(self, request):
+        """Obtener optimización de inventario existente o generar nueva"""
+        company = get_user_company(request)
+        if not company:
+            return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            service = InventoryOptimizationService(company)
+            optimization = service.comprehensive_inventory_optimization(company)
+            
+            return Response({
+                'success': True,
+                'stock_levels_count': len(optimization.get('stock_levels', [])),
+                'stockout_predictions_count': len(optimization.get('stockout_predictions', [])),
+                'abc_classifications_count': optimization.get('abc_analysis', {}).get('classification_counts', {}).get('A', 0) + 
+                                          optimization.get('abc_analysis', {}).get('classification_counts', {}).get('B', 0) + 
+                                          optimization.get('abc_analysis', {}).get('classification_counts', {}).get('C', 0),
+                'generated_at': datetime.now()
+            })
+            
+        except Exception as e:
+            logger.error(f"Error en optimización de inventario: {str(e)}")
+            return Response({
+                'error': 'Error al optimizar inventario',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
     def post(self, request):
         company = get_user_company(request)
         if not company:
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            inventory_service = InventoryOptimizationService()
+            inventory_service = InventoryOptimizationService(company)
             optimization = inventory_service.comprehensive_inventory_optimization(
                 company=company,
                 **request.data

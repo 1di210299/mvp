@@ -25,7 +25,7 @@ from ..serializers import (
     FinancialScenarioSerializer, ProfitMarginAnalysisSerializer,
     FinancialTrendAnalysisSerializer
 )
-from ..services.advanced_ml_service import FinancialForecastingService
+from ..services.financial_forecasting_service import FinancialForecastingService
 from .base_views import ForecastPagination, get_user_company
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,33 @@ class RevenuePredictionViewSet(viewsets.ModelViewSet):
             model__company=company
         )
         
+        # Si no hay datos de revenue, generar automáticamente
+        if not queryset.exists():
+            try:
+                from forecasting.services.financial_forecasting_service import FinancialForecastingService
+                service = FinancialForecastingService(company)
+                
+                # Crear un modelo financiero básico primero
+                financial_model = service.create_revenue_forecast_model(
+                    metric_type='revenue',
+                    horizon_days=90
+                )
+                
+                # Generar predicciones de ingresos
+                revenue_predictions = service.generate_revenue_predictions(
+                    financial_model=financial_model,
+                    period_type='monthly',
+                    periods_ahead=6
+                )
+                logger.info(f"Generated {len(revenue_predictions)} revenue predictions for company {company.name}")
+                
+                # Refrescar queryset después de generar datos
+                queryset = RevenuePrediction.objects.select_related('model').filter(
+                    model__company=company
+                )
+            except Exception as e:
+                logger.error(f"Error auto-generating revenue data: {str(e)}")
+        
         # Filtros opcionales
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
@@ -118,10 +145,19 @@ class RevenuePredictionViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            financial_service = FinancialForecastingService()
+            financial_service = FinancialForecastingService(company)
+            
+            # Crear un modelo financiero básico primero
+            financial_model = financial_service.create_revenue_forecast_model(
+                metric_type='revenue',
+                horizon_days=90
+            )
+            
+            # Generar predicciones de ingresos
             predictions = financial_service.generate_revenue_predictions(
-                company=company,
-                **request.data
+                financial_model=financial_model,
+                period_type='monthly',
+                periods_ahead=6
             )
             
             serializer = self.get_serializer(predictions, many=True)
