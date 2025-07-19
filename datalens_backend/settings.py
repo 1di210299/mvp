@@ -581,7 +581,30 @@ MODEL_EVALUATION_CONFIG = {
 }
 
 # Configuración de OpenAI
+# OpenAI configuration
 OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
+
+# Frontend configuration
+FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:8080')
+
+# Google Cloud Configuration
+GOOGLE_CLOUD_PROJECT_ID = env('GOOGLE_CLOUD_PROJECT_ID', default='')
+GOOGLE_APPLICATION_CREDENTIALS = env('GOOGLE_APPLICATION_CREDENTIALS', default='')
+
+# Gmail API Configuration
+GMAIL_CLIENT_ID = env('GMAIL_CLIENT_ID', default='')
+GMAIL_CLIENT_SECRET = env('GMAIL_CLIENT_SECRET', default='')
+GMAIL_REDIRECT_URI = env('GMAIL_REDIRECT_URI', default='http://localhost:8000/api/inventory/gmail-oauth/auth/callback/')
+
+# Pub/Sub Configuration
+PUBSUB_TOPIC_NAME = env('PUBSUB_TOPIC_NAME', default='gmail-webhook-topic')
+PUBSUB_SUBSCRIPTION_NAME = env('PUBSUB_SUBSCRIPTION_NAME', default='gmail-webhook-subscription')
+PUBSUB_WEBHOOK_URL = env('PUBSUB_WEBHOOK_URL', default='http://localhost:8000/api/inventory/gmail-oauth/webhook/')
+PUBSUB_SUBSCRIPTION_NAME = env('PUBSUB_SUBSCRIPTION_NAME', default='gmail-webhook-subscription')
+PUBSUB_WEBHOOK_URL = env('PUBSUB_WEBHOOK_URL', default='')
+
+# Gmail Webhook Configuration
+GMAIL_WEBHOOK_SECRET = env('GMAIL_WEBHOOK_SECRET', default='your-webhook-secret-key-here')
 
 # Configuración de campos personalizados
 CUSTOM_FIELDS_CONFIG = {

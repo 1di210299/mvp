@@ -1,5 +1,6 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 from decimal import Decimal
 
 
@@ -241,6 +242,29 @@ class AlertRule(models.Model):
         choices=FREQUENCY_CHOICES,
         default='immediate',
         verbose_name="Frecuencia"
+    )
+    
+    # 🚨 NUEVA FUNCIONALIDAD: Órdenes de compra automáticas
+    auto_generate_purchase_orders = models.BooleanField(
+        default=False,
+        verbose_name="Generar órdenes de compra automáticamente",
+        help_text="Generar automáticamente órdenes de compra cuando se detecte stock bajo"
+    )
+    auto_send_purchase_emails = models.BooleanField(
+        default=True,
+        verbose_name="Enviar emails de órdenes automáticamente",
+        help_text="Enviar automáticamente emails de órdenes de compra a proveedores"
+    )
+    purchase_order_priority = models.CharField(
+        max_length=10,
+        choices=[
+            ('low', 'Baja'),
+            ('medium', 'Media'),
+            ('high', 'Alta'),
+            ('urgent', 'Urgente'),
+        ],
+        default='medium',
+        verbose_name="Prioridad de órdenes automáticas"
     )
     
     # Destinatarios

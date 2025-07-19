@@ -1,6 +1,14 @@
+"""
+URLs principales del módulo inventory
+"""
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from .. import views
+from ..views.purchase_order_views import (
+    PurchaseOrderViewSet, 
+    PurchaseOrderTrackingViewSet, 
+    PurchaseOrderEmailLogViewSet
+)
 
 router = DefaultRouter()
 router.register(r'categories', views.CategoryViewSet)
@@ -16,12 +24,26 @@ router.register(r'locations', views.LocationViewSet)
 router.register(r'inventory-items', views.InventoryItemViewSet)
 router.register(r'opportunities', views.OpportunityViewSet)
 
+# 🚨 NUEVAS RUTAS: Sistema de Órdenes de Compra Automáticas
+router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchase-orders')
+router.register(r'purchase-order-tracking', PurchaseOrderTrackingViewSet, basename='purchase-order-tracking')
+router.register(r'purchase-order-emails', PurchaseOrderEmailLogViewSet, basename='purchase-order-emails')
+
 urlpatterns = [
     # 🔧 FIX: Rutas específicas ANTES del router para evitar conflictos
     # Nuevos endpoints de inteligencia de productos
     path('products/intelligence/', views.ProductIntelligenceView.as_view(), name='product-intelligence'),
     path('products/smart-filters/', views.ProductSmartFiltersView.as_view(), name='product-smart-filters'),
     path('products/actions/', views.ProductActionView.as_view(), name='product-actions'),
+    
+    # 📧 EMAIL TRACKING SERVICE - Nuevas URLs
+    path('email-tracking/', include('inventory.urls.email_tracking_urls')),
+    
+    # 🔗 GMAIL WEBHOOKS & OAUTH - Nuevas URLs
+    path('gmail-oauth/', include('inventory.urls.gmail_webhook_urls')),
+    
+    # 📄 PDF ANALYSIS & AUTOMATION - Nuevas URLs
+    path('pdf-analysis/', include('inventory.urls.pdf_automation_urls')),
     
     # Vistas adicionales de inventario
     path('dashboard/', views.DashboardView.as_view(), name='dashboard'),

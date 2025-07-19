@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Supplier, Product, Sale, Alert, InventoryHistory, Transaction, Customer, Lead, InventoryItem, Location
+from ..models import Category, Supplier, Product, Sale, Alert, InventoryHistory, Transaction, Customer, Lead, InventoryItem, Location
 
 
 class CategorySerializer(serializers.ModelSerializer):

@@ -380,7 +380,8 @@ class AlertService:
                 threshold = float(product.min_stock or 0)
             
             if current_stock <= threshold:
-                return self._create_alert_if_not_exists(
+                # Crear alerta de stock bajo
+                alert_created = self._create_alert_if_not_exists(
                     rule=rule,
                     product=product,
                     title=f"Stock bajo: {product.name}",
@@ -389,6 +390,17 @@ class AlertService:
                     current_value=Decimal(str(current_stock)),
                     threshold_value=Decimal(str(threshold))
                 )
+                
+                # 🚨 NUEVA FUNCIONALIDAD: Intentar generar orden de compra automática
+                if alert_created and getattr(rule, 'auto_generate_purchase_orders', False):
+                    try:
+                        purchase_order_generated = self.check_and_generate_purchase_orders(rule, product)
+                        if purchase_order_generated:
+                            logger.info(f"Orden de compra automática generada para {product.name} debido a stock bajo")
+                    except Exception as e:
+                        logger.error(f"Error generando orden automática para {product.name}: {str(e)}")
+                
+                return alert_created
             
             return False
             
@@ -791,6 +803,149 @@ class AlertService:
                 'error': str(e),
                 'test_timestamp': timezone.now().isoformat()
             }
+    
+    def check_and_generate_purchase_orders(self, rule, product):
+        """
+        🚨 NUEVA FUNCIONALIDAD: Verificar si se debe generar orden de compra automática
+        """
+        try:
+            # Solo para alertas de stock bajo
+            if rule.alert_type != 'low_stock':
+                return False
+            
+            # Verificar configuración de órdenes automáticas
+            if not getattr(rule, 'auto_generate_purchase_orders', False):
+                return False
+            
+            # Importar servicio de órdenes (lazy import para evitar dependencias circulares)
+            from inventory.services.purchase_order_service import PurchaseOrderService
+            
+            purchase_service = PurchaseOrderService()
+            
+            # Verificar si ya existe una orden pendiente reciente
+            if purchase_service._has_pending_order(product):
+                logger.info(f"Producto {product.name} ya tiene orden pendiente, saltando")
+                return False
+            
+            # Calcular cantidad a ordenar
+            quantity_to_order = purchase_service._calculate_order_quantity(product)
+            
+            if quantity_to_order <= 0:
+                return False
+            
+            # Generar orden de compra
+            purchase_order = purchase_service._create_purchase_order(product, quantity_to_order)
+            
+            if purchase_order:
+                # Enviar email automáticamente si está configurado
+                if purchase_service._should_send_email_automatically(purchase_order):
+                    email_sent = purchase_service._send_purchase_order_email(purchase_order)
+                    
+                    if email_sent:
+                        logger.info(f"Email de orden automática enviado: {purchase_order.order_number}")
+                
+                # Crear alerta de seguimiento
+                self._create_purchase_order_alert(purchase_order)
+                
+                logger.info(f"Orden automática generada: {purchase_order.order_number} para {product.name}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error generando orden automática para {product.name}: {str(e)}")
+            return False
+    
+    def check_and_generate_purchase_orders(self, rule, product):
+        """
+        Verificar si un producto necesita orden de compra automática
+        Integra el AlertService con el PurchaseOrderService
+        """
+        try:
+            # Verificar si la regla tiene habilitadas las órdenes automáticas
+            if not getattr(rule, 'auto_generate_purchase_orders', False):
+                return False
+            
+            # Solo generar para alertas de stock bajo
+            if rule.alert_type != 'low_stock':
+                return False
+            
+            # Verificar si ya existe una orden pendiente reciente
+            from inventory.models import PurchaseOrder
+            recent_order_exists = PurchaseOrder.objects.filter(
+                product=product,
+                status__in=['draft', 'sent', 'confirmed'],
+                created_at__gte=timezone.now() - timedelta(days=7)
+            ).exists()
+            
+            if recent_order_exists:
+                logger.info(f"Ya existe orden reciente para {product.name}, omitiendo")
+                return False
+            
+            # Usar el servicio de órdenes de compra para generar automáticamente
+            from inventory.services.purchase_order_service import PurchaseOrderService
+            
+            purchase_service = PurchaseOrderService()
+            
+            # Calcular cantidad necesaria
+            current_stock = product.current_stock or 0
+            min_stock = product.min_stock or 10
+            max_stock = product.max_stock or (min_stock * 3)
+            
+            # Cantidad básica para llevar al máximo
+            quantity_needed = max(max_stock - current_stock, min_stock)
+            
+            if quantity_needed <= 0:
+                return False
+            
+            # Crear la orden de compra
+            purchase_order = purchase_service._create_purchase_order(product, quantity_needed)
+            
+            if purchase_order:
+                # Intentar enviar email automáticamente
+                if purchase_service._should_send_email_automatically(purchase_order):
+                    email_sent = purchase_service._send_purchase_order_email(purchase_order)
+                    logger.info(f"Email {'enviado' if email_sent else 'falló'} para orden {purchase_order.order_number}")
+                
+                # Crear alerta de seguimiento
+                self._create_purchase_order_alert(purchase_order)
+                
+                logger.info(f"Orden automática generada: {purchase_order.order_number} para {product.name}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error generando orden automática para {product.name}: {str(e)}")
+            return False
+    
+    def _create_purchase_order_alert(self, purchase_order):
+        """Crear alerta de seguimiento para orden de compra generada"""
+        try:
+            Alert.objects.create(
+                company=purchase_order.company,
+                product=purchase_order.product,
+                title=f"✅ Orden de Compra Generada: {purchase_order.product.name}",
+                message=f"Se ha generado automáticamente la orden {purchase_order.order_number} "
+                       f"para reabastecer {purchase_order.quantity} unidades. "
+                       f"{'Email enviado al proveedor.' if purchase_order.email_sent else 'Pendiente envío de email.'}",
+                severity='low',  # Baja porque es informativa
+                status='active',
+                source='system',
+                current_value=purchase_order.quantity,
+                threshold_value=purchase_order.product.min_stock,
+                context_data={
+                    'purchase_order_id': purchase_order.id,
+                    'order_number': purchase_order.order_number,
+                    'auto_generated': True,
+                    'email_sent': purchase_order.email_sent,
+                    'supplier_email': purchase_order.supplier_email
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Error creando alerta de orden {purchase_order.order_number}: {str(e)}")
+
 
 # Crear instancia global del servicio de notificaciones
 notification_service = NotificationService()

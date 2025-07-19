@@ -11,12 +11,12 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from drf_spectacular.utils import extend_schema
 from datalens_backend.utils import get_default_company, get_company_for_user
-from .models import Category, Supplier, Product, Sale, Alert, InventoryHistory, Transaction, Customer, Lead, InventoryItem, Location
+from ..models import Category, Supplier, Product, Sale, Alert, InventoryHistory, Transaction, Customer, Lead, InventoryItem, Location
 
 # Import forecasting models
 from forecasting.models import DemandForecast, ReorderRecommendation
 
-from .serializers import (
+from ..serializers import (
     CategorySerializer, SupplierSerializer, ProductSerializer, SaleSerializer, 
     AlertSerializer, InventoryHistorySerializer, DashboardStatsSerializer, TransactionSerializer,
     CustomerSerializer, LeadSerializer, LocationSerializer, InventoryItemSerializer, OpportunitySerializer
