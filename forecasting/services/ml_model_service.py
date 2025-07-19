@@ -14,14 +14,25 @@ from django.utils import timezone
 from django.db import transaction, models as django_models
 
 from ..models import ForecastModel, ModelTrainingJob, DemandForecast
-from ..ml_algorithms.model_trainer import ModelTrainer
-from ..ml_algorithms.prophet_forecaster import ProphetForecaster
-from ..ml_algorithms.arima_forecaster import ARIMAForecaster
-from ..ml_algorithms.ensemble_forecaster import EnsembleForecaster
 from inventory.models import Product, Transaction, Category
 from authentication.models import Company
 
 logger = logging.getLogger(__name__)
+
+# Conditional imports for ML algorithms - graceful fallback for production
+try:
+    from ..ml_algorithms.model_trainer import ModelTrainer
+    from ..ml_algorithms.prophet_forecaster import ProphetForecaster
+    from ..ml_algorithms.arima_forecaster import ARIMAForecaster
+    from ..ml_algorithms.ensemble_forecaster import EnsembleForecaster
+    ML_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"ML algorithms not available: {e}")
+    ModelTrainer = None
+    ProphetForecaster = None
+    ARIMAForecaster = None
+    EnsembleForecaster = None
+    ML_AVAILABLE = False
 
 
 class MLModelService:
