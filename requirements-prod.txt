@@ -43,5 +43,5 @@ gunicorn==21.2.0
 # Monitoring
 sentry-sdk[django]==1.38.0
 
-# Security
-cryptography==41.0.8
+# Security - usar última versión estable
+cryptography
