@@ -5,3 +5,6 @@ from .main import *
 
 # Import serializers from specific serializer modules
 from .purchase_order_serializers import *
+
+# Import dashboard serializers
+from .dashboard_serializers import *

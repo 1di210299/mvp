@@ -1,14 +1,18 @@
-"""
-URLs principales del módulo inventory
-"""
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .. import views
-from ..views.purchase_order_views import (
+from . import views
+from .views.purchase_order_views import (
     PurchaseOrderViewSet, 
     PurchaseOrderTrackingViewSet, 
     PurchaseOrderEmailLogViewSet
 )
+from .views.dashboard_views import (
+    DashboardAPIViewSet,
+    PurchaseOrderDashboardViewSet,
+    EmailTrackingDashboardViewSet
+)
+
+print("🔥 URLs.py recargado - Dashboard URLs incluidos v3")
 
 router = DefaultRouter()
 router.register(r'categories', views.CategoryViewSet)
@@ -29,6 +33,22 @@ router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchase-ord
 router.register(r'purchase-order-tracking', PurchaseOrderTrackingViewSet, basename='purchase-order-tracking')
 router.register(r'purchase-order-emails', PurchaseOrderEmailLogViewSet, basename='purchase-order-emails')
 
+# 📊 DASHBOARD API ViewSets - Movido a dashboard_urls.py separado
+# print("🚀 Iniciando registro de Dashboard ViewSets...")
+# try:
+#     print("📝 Registrando DashboardAPIViewSet...")
+#     router.register(r'dashboards/dashboard', DashboardAPIViewSet, basename='dashboard-api')
+#     print("📝 Registrando PurchaseOrderDashboardViewSet...")
+#     router.register(r'dashboards/purchase-orders-dashboard', PurchaseOrderDashboardViewSet, basename='purchase-orders-dashboard')
+#     print("📝 Registrando EmailTrackingDashboardViewSet...")
+#     router.register(r'dashboards/email-tracking-dashboard', EmailTrackingDashboardViewSet, basename='email-tracking-dashboard')
+#     print("✅ Dashboard ViewSets registrados exitosamente")
+#     print(f"🔍 Router URLs ahora: {len(router.urls)} rutas registradas")
+# except Exception as e:
+#     print(f"❌ Error registrando Dashboard ViewSets: {e}")
+#     import traceback
+#     traceback.print_exc()
+
 urlpatterns = [
     # 🔧 FIX: Rutas específicas ANTES del router para evitar conflictos
     # Nuevos endpoints de inteligencia de productos
@@ -45,7 +65,7 @@ urlpatterns = [
     # 📄 PDF ANALYSIS & AUTOMATION - Nuevas URLs
     path('pdf-analysis/', include('inventory.urls.pdf_automation_urls')),
     
-    # 📊 MVP DASHBOARDS - Rutas incluidas desde dashboard_urls.py
+    # 📊 MVP DASHBOARDS - Rutas incluidas directamente en el router principal
     path('dashboards/', include('inventory.urls.dashboard_urls')),
     
     # Vistas adicionales de inventario

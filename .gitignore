@@ -153,3 +153,5 @@ dump.rdb
 *.temp
 *.bak
 *.backup
+
+*.credentials

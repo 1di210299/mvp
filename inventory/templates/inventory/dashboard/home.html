@@ -1,0 +1,263 @@
+{% extends 'inventory/dashboard/base.html' %}
+
+{% block title %}Dashboard Principal{% endblock %}
+
+{% block page_title %}Dashboard Principal{% endblock %}
+{% block page_description %}Resumen general del sistema de gestión y email tracking{% endblock %}
+
+{% block content %}
+<!-- Métricas principales -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="metric-card text-center">
+            <div class="metric-label">
+                <i class="fas fa-shopping-cart text-primary"></i>
+                Purchase Orders
+            </div>
+            <div class="metric-value text-primary">{{ total_purchase_orders }}</div>
+            <div class="metric-change positive">
+                <i class="fas fa-arrow-up"></i> +12% este mes
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="metric-card text-center">
+            <div class="metric-label">
+                <i class="fas fa-truck text-success"></i>
+                Proveedores Activos
+            </div>
+            <div class="metric-value text-success">{{ total_suppliers }}</div>
+            <div class="metric-change positive">
+                <i class="fas fa-arrow-up"></i> +5% este mes
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="metric-card text-center">
+            <div class="metric-label">
+                <i class="fas fa-envelope text-warning"></i>
+                Emails Tracked
+            </div>
+            <div class="metric-value text-warning">{{ total_emails_tracked }}</div>
+            <div class="metric-change positive">
+                <i class="fas fa-arrow-up"></i> +28% este mes
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="metric-card text-center">
+            <div class="metric-label">
+                <i class="fas fa-bullseye text-info"></i>
+                Campañas Activas
+            </div>
+            <div class="metric-value text-info">{{ active_campaigns }}</div>
+            <div class="metric-change positive">
+                <i class="fas fa-arrow-up"></i> +15% este mes
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navegación rápida -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="metric-card">
+            <h5 class="mb-3">
+                <i class="fas fa-rocket text-primary"></i>
+                Acceso Rápido
+            </h5>
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <a href="{% url 'dashboard:purchase_orders' %}" class="btn btn-outline-primary w-100 p-3">
+                        <i class="fas fa-shopping-cart fa-2x mb-2 d-block"></i>
+                        <strong>Purchase Orders</strong>
+                        <br>
+                        <small class="text-muted">Gestiona órdenes de compra</small>
+                    </a>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <a href="{% url 'dashboard:email_tracking' %}" class="btn btn-outline-success w-100 p-3">
+                        <i class="fas fa-envelope-open-text fa-2x mb-2 d-block"></i>
+                        <strong>Email Tracking</strong>
+                        <br>
+                        <small class="text-muted">Analiza comunicaciones</small>
+                    </a>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <button class="btn btn-outline-info w-100 p-3" onclick="showAIInsights()">
+                        <i class="fas fa-brain fa-2x mb-2 d-block"></i>
+                        <strong>IA Insights</strong>
+                        <br>
+                        <small class="text-muted">Recomendaciones inteligentes</small>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumen de actividad reciente -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="metric-card">
+            <h5 class="mb-3">
+                <i class="fas fa-chart-line text-primary"></i>
+                Actividad Reciente
+            </h5>
+            
+            <div class="chart-container">
+                <canvas id="activityChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="metric-card">
+            <h5 class="mb-3">
+                <i class="fas fa-bell text-warning"></i>
+                Notificaciones
+            </h5>
+            
+            <div class="list-group list-group-flush">
+                <div class="list-group-item border-0 px-0">
+                    <div class="d-flex">
+                        <div class="flex-shrink-0">
+                            <div class="bg-success rounded-circle p-2">
+                                <i class="fas fa-check text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-1">Sistema funcionando</h6>
+                            <p class="mb-1 small text-muted">Email tracking activo</p>
+                            <small class="text-muted">Hace 2 minutos</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="list-group-item border-0 px-0">
+                    <div class="d-flex">
+                        <div class="flex-shrink-0">
+                            <div class="bg-primary rounded-circle p-2">
+                                <i class="fas fa-envelope text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-1">Nuevo email tracked</h6>
+                            <p class="mb-1 small text-muted">PO-2024-001 confirmado</p>
+                            <small class="text-muted">Hace 15 minutos</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="list-group-item border-0 px-0">
+                    <div class="d-flex">
+                        <div class="flex-shrink-0">
+                            <div class="bg-info rounded-circle p-2">
+                                <i class="fas fa-robot text-white"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-1">IA procesando</h6>
+                            <p class="mb-1 small text-muted">Analizando patrones</p>
+                            <small class="text-muted">Hace 1 hora</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para AI Insights -->
+<div class="modal fade" id="aiInsightsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-brain text-primary"></i>
+                    Insights de Inteligencia Artificial
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-lightbulb text-warning"></i> Recomendaciones</h6>
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success"></i>
+                                Optimizar horarios de envío de emails
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success"></i>
+                                Seguimiento automático funcionando
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-exclamation-triangle text-warning"></i>
+                                Revisar emails sin respuesta
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-chart-bar text-info"></i> Métricas IA</h6>
+                        <p><strong>Accuracy:</strong> 94.5%</p>
+                        <p><strong>Emails procesados:</strong> {{ total_emails_tracked }}</p>
+                        <p><strong>Automatizaciones:</strong> 15 reglas activas</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Gráfico de actividad
+    const ctx = document.getElementById('activityChart').getContext('2d');
+    const activityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+            datasets: [{
+                label: 'Purchase Orders',
+                data: [12, 19, 15, 17, 22, 8, 14],
+                borderColor: '#4f46e5',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                tension: 0.4
+            }, {
+                label: 'Emails Tracked',
+                data: [5, 12, 8, 15, 18, 6, 11],
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // Función para mostrar AI Insights
+    function showAIInsights() {
+        const modal = new bootstrap.Modal(document.getElementById('aiInsightsModal'));
+        modal.show();
+    }
+</script>
+{% endblock %}
