@@ -25,9 +25,9 @@ numpy==1.24.3
 openai==1.52.0
 requests==2.31.0
 
-# ML Libraries - optimized versions for production
+# ML Libraries - optimized versions for production (compatible with OpenAI)
 scikit-learn==1.3.2
-tensorflow-cpu==2.13.0
+tensorflow-cpu==2.15.0
 joblib==1.3.2
 
 # Google Cloud & Email
