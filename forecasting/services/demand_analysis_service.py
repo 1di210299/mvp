@@ -236,13 +236,12 @@ class DemandAnalysisService:
         end_date = timezone.now().date()
         start_date = end_date - timedelta(days=days_back)
         
-        # Obtener transacciones de venta agrupadas por día
-        daily_demand = Transaction.objects.filter(
+        # Obtener ventas agrupadas por día - USAR Sale en lugar de Transaction
+        daily_demand = Sale.objects.filter(
             product=product,
-            transaction_type='sale',
-            transaction_date__date__range=[start_date, end_date]
+            date_sold__date__range=[start_date, end_date]
         ).extra(
-            select={'date': 'DATE(transaction_date)'}
+            select={'date': 'DATE(date_sold)'}
         ).values('date').annotate(
             total_demand=Sum('quantity')
         ).order_by('date')
@@ -362,19 +361,45 @@ class DemandAnalysisService:
         if len(demand_data) == 0:
             return 0.0
         
+        demand_values = demand_data['demand'].values
+        
+        # Si no hay variación, no hay patrón
+        if len(set(demand_values)) <= 1:
+            return 0.1  # Patrón muy débil pero no cero
+        
         # Coeficiente de variación como medida de consistencia
         mean_demand = demand_data['demand'].mean()
         std_demand = demand_data['demand'].std()
         
         if mean_demand == 0:
-            return 0.0
+            return 0.1
         
         cv = std_demand / mean_demand
         
-        # Convertir a score de fuerza (0-1, donde 1 es muy fuerte/consistente)
-        strength = max(0, 1 - cv)
+        # Calcular autocorrelación para detectar patrones temporales
+        autocorr_strength = 0
+        if len(demand_values) >= 7:
+            # Autocorrelación semanal
+            weekly_corr = np.corrcoef(demand_values[:-7], demand_values[7:])[0, 1]
+            if not np.isnan(weekly_corr):
+                autocorr_strength += abs(weekly_corr) * 0.4
         
-        return min(1.0, strength)
+        if len(demand_values) >= 30:
+            # Autocorrelación mensual
+            monthly_corr = np.corrcoef(demand_values[:-30], demand_values[30:])[0, 1]
+            if not np.isnan(monthly_corr):
+                autocorr_strength += abs(monthly_corr) * 0.6
+        
+        # Combinar variabilidad con autocorrelación
+        # CV bajo (poca variación) + autocorrelación alta = patrón fuerte
+        variability_score = max(0, 1 - cv)  # Menos variación = mejor
+        pattern_score = autocorr_strength   # Más autocorrelación = mejor patrón
+        
+        # Score final: combinación de consistencia y patrones temporales
+        final_strength = (variability_score * 0.4) + (pattern_score * 0.6)
+        
+        # Asegurar que esté en rango [0.1, 1.0] (mínimo 0.1 para datos reales)
+        return min(1.0, max(0.1, final_strength))
     
     def _calculate_predictability_score(self, demand_data: pd.DataFrame) -> float:
         """Calcular score de predictibilidad basado en autocorrelación"""
@@ -477,19 +502,18 @@ class DemandAnalysisService:
     def _get_price_demand_data(self, product: Product) -> List[Dict]:
         """Obtener datos históricos de precio y demanda"""
         
-        # Obtener transacciones de venta con precios
-        transactions = Transaction.objects.filter(
+        # Obtener ventas con precios - USAR Sale en lugar de Transaction
+        sales = Sale.objects.filter(
             product=product,
-            transaction_type='sale',
-            transaction_date__gte=timezone.now() - timedelta(days=365)
+            date_sold__gte=timezone.now() - timedelta(days=365)
         ).extra(
-            select={'date': 'DATE(transaction_date)'}
+            select={'date': 'DATE(date_sold)'}
         ).values('date').annotate(
             total_demand=Sum('quantity'),
-            avg_price=Avg('product__sale_price')
+            avg_price=Avg('unit_price')  # Usar unit_price de Sale
         ).order_by('date')
         
-        return list(transactions)
+        return list(sales)
     
     def _calculate_price_elasticity(self, price_demand_data: List[Dict]) -> Dict:
         """Calcular elasticidad de precios usando regresión"""
@@ -621,17 +645,15 @@ class DemandAnalysisService:
     def _analyze_sales_velocity(self, product: Product) -> Dict:
         """Analizar velocidad de ventas y sus cambios"""
         
-        # Comparar último mes vs mes anterior
-        current_month_sales = Transaction.objects.filter(
+        # Comparar último mes vs mes anterior - USAR Sale
+        current_month_sales = Sale.objects.filter(
             product=product,
-            transaction_type='sale',
-            transaction_date__gte=timezone.now() - timedelta(days=30)
+            date_sold__gte=timezone.now() - timedelta(days=30)
         ).aggregate(total=Sum('quantity'))['total'] or 0
         
-        previous_month_sales = Transaction.objects.filter(
+        previous_month_sales = Sale.objects.filter(
             product=product,
-            transaction_type='sale',
-            transaction_date__range=[
+            date_sold__range=[
                 timezone.now() - timedelta(days=60),
                 timezone.now() - timedelta(days=30)
             ]
@@ -658,10 +680,9 @@ class DemandAnalysisService:
             week_start = timezone.now() - timedelta(weeks=week+1)
             week_end = timezone.now() - timedelta(weeks=week)
             
-            week_sales = Transaction.objects.filter(
+            week_sales = Sale.objects.filter(
                 product=product,
-                transaction_type='sale',
-                transaction_date__range=[week_start, week_end]
+                date_sold__range=[week_start, week_end]
             ).aggregate(total=Sum('quantity'))['total'] or 0
             
             weekly_sales.append(float(week_sales))
@@ -730,11 +751,10 @@ class DemandAnalysisService:
     def _predict_growth_metrics(self, product: Product, trending_score: float) -> Dict:
         """Predecir métricas de crecimiento"""
         
-        # Obtener sales históricas
-        recent_sales = Transaction.objects.filter(
+        # Obtener sales históricas - USAR Sale
+        recent_sales = Sale.objects.filter(
             product=product,
-            transaction_type='sale',
-            transaction_date__gte=timezone.now() - timedelta(days=30)
+            date_sold__gte=timezone.now() - timedelta(days=30)
         ).aggregate(total=Sum('quantity'))['total'] or 0
         
         # Proyectar crecimiento basado en trending score

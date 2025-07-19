@@ -34,6 +34,8 @@ class InventoryOptimizationService:
         products = Product.objects.filter(company=self.company, is_active=True)
         optimal_levels = []
         
+        print(f"🔍 DEBUG: Encontrados {products.count()} productos para optimizar")
+        
         # FIX: Crear o usar un modelo de optimización por defecto
         optimization_model, created = InventoryOptimizationModel.objects.get_or_create(
             company=self.company,
@@ -51,15 +53,21 @@ class InventoryOptimizationService:
         )
         
         for product in products:
+            print(f"🔍 DEBUG: Procesando producto {product.name} (ID: {product.id})")
+            
             # Obtener datos necesarios para cálculo
             demand_data = self._get_demand_statistics(product)
+            print(f"🔍 DEBUG: Demanda promedio para {product.name}: {demand_data['average_demand']}")
+            
             cost_data = self._get_cost_parameters(product)
             
             if demand_data['average_demand'] <= 0:
+                print(f"⚠️ DEBUG: Saltando {product.name} - sin demanda")
                 continue  # Saltar productos sin demanda
             
             # Calcular cantidad óptima usando EOQ modificado
             optimal_quantity = self._calculate_eoq(demand_data, cost_data)
+            print(f"🔍 DEBUG: EOQ para {product.name}: {optimal_quantity}")
             
             # Calcular safety stock dinámico
             safety_stock = self._calculate_dynamic_safety_stock(demand_data)
@@ -76,6 +84,8 @@ class InventoryOptimizationService:
                 priority = 'high' if current_stock <= safety_stock else 'medium'
             else:
                 priority = 'low'
+            
+            print(f"🔍 DEBUG: Creando StockLevelRecommendation para {product.name}")
             
             # FIX: Usar StockLevelRecommendation en lugar de OptimalStockLevel
             optimal_level = StockLevelRecommendation.objects.update_or_create(
@@ -96,7 +106,9 @@ class InventoryOptimizationService:
             optimal_level.economic_order_quantity = optimal_quantity
             
             optimal_levels.append(optimal_level)
+            print(f"✅ DEBUG: StockLevelRecommendation creada para {product.name}")
         
+        print(f"🔍 DEBUG: Total de niveles óptimos calculados: {len(optimal_levels)}")
         return optimal_levels
     
     def predict_stockouts(self, days_ahead: int = 30) -> List[Dict[str, Any]]:
@@ -108,12 +120,19 @@ class InventoryOptimizationService:
         products = Product.objects.filter(company=self.company, is_active=True)
         predictions = []
         
+        print(f"🔍 DEBUG: Prediciendo stockouts para {products.count()} productos")
+        
         for product in products:
+            print(f"🔍 DEBUG: Analizando stockout para {product.name}")
+            
             # Obtener datos de demanda y stock actuales
             current_stock = float(product.stock or 0)
             demand_data = self._get_demand_statistics(product, days_back=90)
             
+            print(f"🔍 DEBUG: {product.name} - Stock actual: {current_stock}, Demanda promedio: {demand_data['average_demand']}")
+            
             if demand_data['average_demand'] <= 0:
+                print(f"⚠️ DEBUG: Saltando {product.name} - sin demanda")
                 continue  # Saltar productos sin demanda
             
             # Predecir fecha de stockout
@@ -122,6 +141,8 @@ class InventoryOptimizationService:
             )
             
             if stockout_prediction['days_until_stockout'] <= days_ahead:
+                print(f"🔍 DEBUG: Stockout predicho para {product.name} en {stockout_prediction['days_until_stockout']} días")
+                
                 # Calcular impacto estimado
                 impact_data = self._calculate_stockout_impact(product, stockout_prediction)
                 
@@ -147,7 +168,9 @@ class InventoryOptimizationService:
                 }
                 
                 predictions.append(prediction_dict)
+                print(f"✅ DEBUG: Predicción de stockout creada para {product.name}")
         
+        print(f"🔍 DEBUG: Total de predicciones de stockout: {len(predictions)}")
         return predictions
     
     def comprehensive_inventory_optimization(self, company: Company, **kwargs) -> Dict[str, Any]:

@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from datetime import datetime, timedelta
 import logging
 
@@ -43,21 +44,39 @@ class DemandPatternViewSet(viewsets.ModelViewSet):
         if not company:
             return DemandPattern.objects.none()
         
+        print(f"🔍 DEBUG: Buscando DemandPattern para company {company.name}")
+        
+        # FIX: Verificar si necesitamos regenerar patrones (si tienen pattern_strength = 0)
+        existing_patterns = DemandPattern.objects.filter(product__company=company)
+        needs_regeneration = not existing_patterns.exists() or existing_patterns.filter(pattern_strength=0).count() > 0
+        
+        print(f"🔍 DEBUG: Encontrados {existing_patterns.count()} DemandPattern existentes")
+        print(f"🔍 DEBUG: Patrones con strength=0: {existing_patterns.filter(pattern_strength=0).count()}")
+        print(f"🔍 DEBUG: Necesita regeneración: {needs_regeneration}")
+        
+        if needs_regeneration:
+            try:
+                print("🔍 DEBUG: Regenerando patrones de demanda...")
+                
+                # Limpiar patrones viejos con strength=0
+                existing_patterns.filter(pattern_strength=0).delete()
+                
+                service = DemandAnalysisService(company)
+                patterns = service.analyze_seasonal_patterns()
+                print(f"🔍 DEBUG: Generados {len(patterns)} SeasonalityPattern nuevos")
+                
+                # FIX: Convertir SeasonalityPattern a DemandPattern
+                self._convert_seasonality_to_demand_patterns(patterns, company)
+                
+            except Exception as e:
+                print(f"❌ DEBUG: Error regenerating demand patterns: {str(e)}")
+                logger.error(f"Error regenerating demand patterns: {str(e)}")
+        
+        # Obtener todos los patrones (regenerados o existentes)
         queryset = DemandPattern.objects.select_related('product').filter(
             product__company=company
         )
-        
-        if not queryset.exists():
-            try:
-                service = DemandAnalysisService(company)
-                patterns = service.analyze_seasonal_patterns()
-                logger.info(f"Generated {len(patterns)} demand patterns for company {company.name}")
-                
-                queryset = DemandPattern.objects.select_related('product').filter(
-                    product__company=company
-                )
-            except Exception as e:
-                logger.error(f"Error auto-generating demand patterns: {str(e)}")
+        print(f"🔍 DEBUG: Total final de DemandPattern: {queryset.count()}")
         
         product_id = self.request.query_params.get('product_id')
         pattern_type = self.request.query_params.get('pattern_type')
@@ -74,6 +93,44 @@ class DemandPatternViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(pattern_date__lte=end_date)
             
         return queryset.order_by('-pattern_date')
+    
+    def _convert_seasonality_to_demand_patterns(self, seasonality_patterns, company):
+        """Convertir SeasonalityPattern a DemandPattern"""
+        print(f"🔍 DEBUG: Convirtiendo {len(seasonality_patterns)} patrones estacionales")
+        
+        for pattern in seasonality_patterns:
+            try:
+                # Crear múltiples DemandPattern por cada SeasonalityPattern
+                peak_periods = pattern.peak_periods if hasattr(pattern, 'peak_periods') else []
+                
+                if peak_periods:
+                    for peak in peak_periods:
+                        DemandPattern.objects.update_or_create(
+                            product=pattern.product,
+                            pattern_type='seasonal_peak',
+                            pattern_date=timezone.now().date(),
+                            defaults={
+                                'pattern_strength': float(pattern.pattern_strength or 0),
+                                'frequency': 'monthly'
+                            }
+                        )
+                        print(f"✅ DEBUG: DemandPattern creado para {pattern.product.name}")
+                else:
+                    # Crear patrón genérico si no hay picos específicos
+                    DemandPattern.objects.update_or_create(
+                        product=pattern.product,
+                        pattern_type='seasonal',
+                        pattern_date=timezone.now().date(),
+                        defaults={
+                            'pattern_strength': float(pattern.pattern_strength or 0),
+                            'frequency': 'monthly'
+                        }
+                    )
+                    print(f"✅ DEBUG: DemandPattern genérico creado para {pattern.product.name}")
+                    
+            except Exception as e:
+                print(f"❌ DEBUG: Error convirtiendo patrón para {pattern.product.name}: {str(e)}")
+                continue
     
     @action(detail=False, methods=['post'])
     def analyze_patterns(self, request):
