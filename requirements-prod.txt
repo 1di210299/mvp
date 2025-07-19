@@ -1,15 +1,47 @@
-# Configuración para producción con gunicorn
+# Core Django - Dependencias esenciales para producción
+Django==4.2.7
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-extensions==3.2.3
+
+# Database
+psycopg2-binary==2.9.9
+django-environ==0.11.2
+dj-database-url==2.1.0
+
+# Authentication & Security
+djangorestframework-simplejwt==5.3.0
+django-oauth-toolkit==1.7.1
+
+# File handling & Storage
+Pillow==10.1.0
+django-storages==1.14.2
+boto3==1.34.0
+
+# Essential libraries only
+pandas==2.1.4
+numpy==1.24.3
+openai==1.52.0
+requests==2.31.0
+
+# Google Cloud & Email
+google-cloud-pubsub==2.18.4
+google-cloud-storage==2.10.0
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+google-api-python-client==2.108.0
+
+# Email & Communication
+celery==5.3.4
+redis==5.0.1
+twilio==8.10.3
+
+# Production server
 gunicorn==21.2.0
 
-# Para PostgreSQL en producción
-psycopg2-binary==2.9.9
-
-# Para AWS (si se despliega en AWS)
-boto3==1.34.0
-django-storages==1.14.2
-
-# Para monitoreo
+# Monitoring
 sentry-sdk[django]==1.38.0
 
-# Para SSL y seguridad
+# Security
 cryptography==41.0.8
