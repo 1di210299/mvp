@@ -175,6 +175,62 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
+    @action(detail=True, methods=['post'], url_path='send-whatsapp')
+    def send_whatsapp(self, request, pk=None):
+        """
+        Enviar orden de compra por WhatsApp
+        POST /api/purchase-orders/{id}/send-whatsapp/
+        """
+        purchase_order = self.get_object()
+        
+        try:
+            # Importar servicio WhatsApp
+            from inventory.services.whatsapp_service import whatsapp_service
+            
+            # Determinar destinatario
+            recipient_number = request.data.get('recipient_number')
+            if not recipient_number:
+                recipient_number = purchase_order.supplier_whatsapp
+                if not recipient_number and purchase_order.supplier:
+                    recipient_number = purchase_order.supplier.whatsapp_number
+            
+            if not recipient_number:
+                return Response(
+                    {'error': 'No hay número WhatsApp configurado'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Enviar WhatsApp
+            result = whatsapp_service.send_purchase_order_message(
+                purchase_order,
+                recipient_number
+            )
+            
+            if result['success']:
+                # Reload el objeto para obtener datos actualizados
+                purchase_order.refresh_from_db()
+                serializer = self.get_serializer(purchase_order)
+                
+                return Response({
+                    'success': True,
+                    'message': 'WhatsApp enviado exitosamente',
+                    'message_id': result.get('message_id'),
+                    'service': result.get('service'),
+                    'recipient': recipient_number,
+                    'purchase_order': serializer.data
+                })
+            else:
+                return Response(
+                    {'error': result.get('error', 'Error desconocido')},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except Exception as e:
+            return Response(
+                {'error': f'Error enviando WhatsApp: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @action(detail=True, methods=['post'], url_path='update-status')
     def update_status(self, request, pk=None):
         """

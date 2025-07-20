@@ -492,6 +492,171 @@ class ProductForecastSummaryView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class ModelPerformanceView(APIView):
+    """Vista para métricas de performance de modelos ML"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """
+        Obtiene métricas de performance detalladas de todos los modelos
+        
+        Query Parameters:
+        - model_id: ID específico del modelo (opcional)
+        - days_back: Días hacia atrás para evaluar (default: 30)
+        - include_realtime: Incluir métricas en tiempo real (default: true)
+        """
+        company = get_user_company(request)
+        if not company:
+            return Response({'error': 'No company found'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        model_id = request.query_params.get('model_id')
+        days_back = int(request.query_params.get('days_back', 30))
+        include_realtime = request.query_params.get('include_realtime', 'true').lower() == 'true'
+        
+        try:
+            evaluation_service = EvaluationService()
+            
+            if model_id:
+                # Performance de un modelo específico
+                try:
+                    model_id = int(model_id)
+                    model = ForecastModel.objects.get(id=model_id, company=company)
+                    
+                    # Métricas almacenadas del modelo
+                    stored_metrics = {
+                        'model_id': model.id,
+                        'model_name': model.name,
+                        'model_type': model.model_type,
+                        'status': model.status,
+                        'last_training': model.training_completed_at,
+                        'stored_metrics': {
+                            'mae': float(model.mae or 0),
+                            'mape': float(model.mape or 0),
+                            'rmse': float(model.rmse or 0),
+                            'r2_score': float(model.r2_score or 0)
+                        }
+                    }
+                    
+                    # Métricas en tiempo real si se solicitan
+                    if include_realtime:
+                        realtime_metrics = evaluation_service.evaluate_forecast_accuracy_realtime(
+                            model_id, days_back
+                        )
+                        stored_metrics['realtime_metrics'] = realtime_metrics
+                    
+                    return Response({
+                        'performance': stored_metrics,
+                        'evaluation_period_days': days_back,
+                        'generated_at': datetime.now()
+                    })
+                    
+                except ForecastModel.DoesNotExist:
+                    return Response({
+                        'error': f'Modelo {model_id} no encontrado'
+                    }, status=status.HTTP_404_NOT_FOUND)
+                except ValueError:
+                    return Response({
+                        'error': 'model_id debe ser un número entero válido'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            else:
+                # Performance de todos los modelos de la empresa
+                models = ForecastModel.objects.filter(
+                    company=company,
+                    status__in=['active', 'deprecated']
+                ).order_by('-training_completed_at')
+                
+                performance_data = []
+                overall_metrics = {
+                    'total_models': models.count(),
+                    'active_models': models.filter(status='active').count(),
+                    'average_mae': 0,
+                    'average_mape': 0,
+                    'average_rmse': 0,
+                    'average_r2': 0,
+                    'best_performing_model': None
+                }
+                
+                total_mae = 0
+                total_mape = 0
+                total_rmse = 0
+                total_r2 = 0
+                valid_models = 0
+                best_model = None
+                best_r2 = -float('inf')
+                
+                for model in models:
+                    model_performance = {
+                        'model_id': model.id,
+                        'model_name': model.name,
+                        'model_type': model.model_type,
+                        'status': model.status,
+                        'last_training': model.training_completed_at,
+                        'metrics': {
+                            'mae': float(model.mae or 0),
+                            'mape': float(model.mape or 0),
+                            'rmse': float(model.rmse or 0),
+                            'r2_score': float(model.r2_score or 0)
+                        }
+                    }
+                    
+                    # Agregar métricas en tiempo real si se solicita
+                    if include_realtime:
+                        try:
+                            realtime_metrics = evaluation_service.evaluate_forecast_accuracy_realtime(
+                                model.id, days_back
+                            )
+                            model_performance['realtime_metrics'] = realtime_metrics
+                        except Exception as e:
+                            logger.warning(f"Error obteniendo métricas en tiempo real para modelo {model.id}: {str(e)}")
+                            model_performance['realtime_metrics'] = {'error': str(e)}
+                    
+                    performance_data.append(model_performance)
+                    
+                    # Calcular promedios generales
+                    if model.mae and model.mape and model.rmse and model.r2_score:
+                        total_mae += float(model.mae)
+                        total_mape += float(model.mape)
+                        total_rmse += float(model.rmse)
+                        total_r2 += float(model.r2_score)
+                        valid_models += 1
+                        
+                        # Encontrar el mejor modelo por R²
+                        if float(model.r2_score) > best_r2:
+                            best_r2 = float(model.r2_score)
+                            best_model = {
+                                'model_id': model.id,
+                                'model_name': model.name,
+                                'model_type': model.model_type,
+                                'r2_score': best_r2
+                            }
+                
+                # Calcular promedios
+                if valid_models > 0:
+                    overall_metrics.update({
+                        'average_mae': round(total_mae / valid_models, 4),
+                        'average_mape': round(total_mape / valid_models, 4),
+                        'average_rmse': round(total_rmse / valid_models, 4),
+                        'average_r2': round(total_r2 / valid_models, 4),
+                        'best_performing_model': best_model
+                    })
+                
+                return Response({
+                    'overall_metrics': overall_metrics,
+                    'models_performance': performance_data,
+                    'evaluation_period_days': days_back,
+                    'include_realtime_metrics': include_realtime,
+                    'generated_at': datetime.now()
+                })
+            
+        except Exception as e:
+            logger.error(f"Error en model performance: {str(e)}")
+            return Response({
+                'error': 'Error al obtener métricas de performance',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 __all__ = [
     'ForecastModelViewSet',
     'DemandForecastViewSet', 
@@ -499,6 +664,7 @@ __all__ = [
     'PredictDemandView',
     'TrainModelView',
     'ModelComparisonView',
+    'ModelPerformanceView',
     'ForecastChartView',
     'ProductForecastSummaryView'
 ]

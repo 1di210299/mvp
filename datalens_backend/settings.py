@@ -371,11 +371,17 @@ TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID', default='')
 TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN', default='')
 TWILIO_WHATSAPP_FROM = env('TWILIO_WHATSAPP_FROM', default='whatsapp:+14155238886')  # Twilio Sandbox number
 
+# Meta WhatsApp Business Cloud API (GRATIS - Recomendado)
+META_WHATSAPP_TOKEN = env('META_WHATSAPP_TOKEN', default='')
+META_WHATSAPP_PHONE_ID = env('META_WHATSAPP_PHONE_ID', default='')
+META_WHATSAPP_VERIFY_TOKEN = env('META_WHATSAPP_VERIFY_TOKEN', default='datalens_webhook_token')
+
 # Notification Configuration
 NOTIFICATION_SETTINGS = {
     'email_enabled': env('EMAIL_NOTIFICATIONS_ENABLED', default=True),
     'whatsapp_enabled': env('WHATSAPP_NOTIFICATIONS_ENABLED', default=True),
     'default_country_code': env('DEFAULT_COUNTRY_CODE', default='+51'),  # Perú
+    'auto_send_purchase_orders': env('AUTO_SEND_PURCHASE_ORDERS', default=True),
 }
 
 # CONFIGURACIÓN CRÍTICA PARA EVITAR ERROR 431

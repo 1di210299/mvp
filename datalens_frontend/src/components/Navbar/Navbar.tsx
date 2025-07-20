@@ -23,7 +23,8 @@ import {
   ChevronDown,
   Bell,
   Search,
-  Upload  // Agregamos el icono para importación
+  Upload,  // Agregamos el icono para importación
+  MessageCircle  // Agregamos el icono para WhatsApp
 } from '../ui/icons';
 import { ThemeToggle } from '../theme/ThemeToggle';
 import './Navbar.css';
@@ -216,6 +217,17 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
             )}
           </div>
 
+          {/* WhatsApp Configuration */}
+          <Link
+            to="/app/whatsapp"
+            className={`nav-item ${isActive('/app/whatsapp') ? 'active' : ''}`}
+          >
+            <div className="nav-icon">
+              <MessageCircle size={18} />
+            </div>
+            <span className="nav-label">WhatsApp</span>
+          </Link>
+
           {/* Configuraciones */}
           <Link
             to="/app/settings"
@@ -375,6 +387,18 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
                 );
               })}
             </div>
+
+            {/* WhatsApp Configuration */}
+            <Link
+              to="/app/whatsapp"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`nav-item ${isActive('/app/whatsapp') ? 'active' : ''}`}
+            >
+              <div className="nav-icon">
+                <MessageCircle size={20} />
+              </div>
+              <span className="nav-label">WhatsApp</span>
+            </Link>
 
             {/* Configuraciones */}
             <Link

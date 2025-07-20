@@ -170,3 +170,48 @@ class CustomerSegmentationRequestSerializer(serializers.Serializer):
     """Serializer para request de segmentación de clientes"""
     company_id = serializers.IntegerField()
     min_transactions = serializers.IntegerField(default=2, min_value=1, max_value=10)
+
+
+class ModelPerformanceResponseSerializer(serializers.Serializer):
+    """Serializer para respuesta de performance de modelos"""
+    model_id = serializers.IntegerField()
+    model_name = serializers.CharField()
+    model_type = serializers.CharField()
+    status = serializers.CharField()
+    last_training = serializers.DateTimeField(allow_null=True)
+    
+    class MetricsSerializer(serializers.Serializer):
+        mae = serializers.FloatField()
+        mape = serializers.FloatField()
+        rmse = serializers.FloatField()
+        r2_score = serializers.FloatField()
+    
+    metrics = MetricsSerializer()
+    realtime_metrics = serializers.DictField(required=False)
+
+
+class OverallPerformanceMetricsSerializer(serializers.Serializer):
+    """Serializer para métricas generales de performance"""
+    total_models = serializers.IntegerField()
+    active_models = serializers.IntegerField()
+    average_mae = serializers.FloatField()
+    average_mape = serializers.FloatField()
+    average_rmse = serializers.FloatField()
+    average_r2 = serializers.FloatField()
+    
+    class BestModelSerializer(serializers.Serializer):
+        model_id = serializers.IntegerField()
+        model_name = serializers.CharField()
+        model_type = serializers.CharField()
+        r2_score = serializers.FloatField()
+    
+    best_performing_model = BestModelSerializer(allow_null=True)
+
+
+class ModelPerformanceListResponseSerializer(serializers.Serializer):
+    """Serializer para lista completa de performance de modelos"""
+    overall_metrics = OverallPerformanceMetricsSerializer()
+    models_performance = ModelPerformanceResponseSerializer(many=True)
+    evaluation_period_days = serializers.IntegerField()
+    include_realtime_metrics = serializers.BooleanField()
+    generated_at = serializers.DateTimeField()

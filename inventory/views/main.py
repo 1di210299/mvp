@@ -1626,7 +1626,7 @@ class InventoryDashboardView(APIView):
                 total_sales=Sum(
                     Case(
                         When(product__sale_price__isnull=False,
-                             then=F('quantity') * F('product__sale_price') * -1),  # Convertir a positivo
+                             then=F('quantity') * F('product__sale_price')),  # Ventas como valores positivos
                         default=Value(0),
                         output_field=DecimalField(max_digits=15, decimal_places=2)
                     )

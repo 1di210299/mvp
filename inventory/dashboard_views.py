@@ -3,7 +3,8 @@ from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
 from decimal import Decimal
-from inventory.models import Product, Sale, Alert, InventoryHistory
+from inventory.models import Product, Category, Supplier, Transaction
+from alerts.models import Alert
 from django.db import models
 
 
@@ -12,8 +13,13 @@ def dashboard_stats(request):
     Vista mejorada para obtener estadísticas completas del dashboard
     """
     try:
-        # Obtener productos
-        products = Product.objects.all()
+        # Obtener productos de la empresa del usuario
+        user_company = request.user.company if hasattr(request.user, 'company') else None
+        if user_company:
+            products = Product.objects.filter(company=user_company)
+        else:
+            products = Product.objects.all()
+        
         total_products = products.count()
         
         # Calcular valor total del inventario
@@ -21,27 +27,50 @@ def dashboard_stats(request):
         low_stock_count = 0
         
         for product in products:
-            if product.stock and product.price:
-                total_stock_value += float(product.stock * product.price)
+            if product.stock and product.cost_price:
+                total_stock_value += float(product.stock * product.cost_price)
             
             # Contar productos con stock bajo
-            if product.stock and product.stock < 10:
+            if product.stock and product.stock <= product.min_stock:
                 low_stock_count += 1
         
-        # Ventas recientes (últimas 24 horas)
-        yesterday = timezone.now() - timedelta(days=1)
-        recent_sales_count = Sale.objects.filter(
-            date_sold__gte=yesterday
-        ).count()
+        # Transacciones recientes (últimos 7 días)
+        week_ago = timezone.now() - timedelta(days=7)
+        if user_company:
+            recent_transactions = Transaction.objects.filter(
+                company=user_company,
+                transaction_date__gte=week_ago
+            )
+        else:
+            recent_transactions = Transaction.objects.filter(
+                transaction_date__gte=week_ago
+            )
         
-        # Top productos (los que más se han vendido)
+        # Ventas y compras de los últimos 7 días
+        sales_transactions = recent_transactions.filter(transaction_type='sale')
+        purchase_transactions = recent_transactions.filter(transaction_type='purchase')
+        
+        total_sales_value = sum(
+            float(t.total_price) for t in sales_transactions if t.total_price
+        )
+        total_purchases_value = sum(
+            float(t.total_price) for t in purchase_transactions if t.total_price
+        )
+        
+        # Alertas activas
+        if user_company:
+            active_alerts = Alert.objects.filter(company=user_company, is_resolved=False).count()
+        else:
+            active_alerts = Alert.objects.filter(is_resolved=False).count()
+        
+        # Top productos más vendidos
         top_products = []
-        top_sales = Sale.objects.values('product').annotate(
+        top_sales_data = sales_transactions.values('product').annotate(
             total_quantity=Sum('quantity'),
-            total_amount=Sum('total_amount')
+            total_amount=Sum('total_price')
         ).order_by('-total_quantity')[:5]
         
-        for sale_data in top_sales:
+        for sale_data in top_sales_data:
             try:
                 product = Product.objects.get(id=sale_data['product'])
                 top_products.append({
@@ -49,7 +78,8 @@ def dashboard_stats(request):
                         'id': product.id,
                         'name': product.name,
                         'description': product.description or '',
-                        'price': float(product.price) if product.price else 0,
+                        'cost_price': float(product.cost_price) if product.cost_price else 0,
+                        'sale_price': float(product.sale_price) if product.sale_price else 0,
                         'stock': float(product.stock) if product.stock else 0,
                         'created_at': product.created_at.isoformat()
                     },
@@ -75,32 +105,28 @@ def dashboard_stats(request):
             'total_stock': sum(float(p.stock or 0) for p in products)
         })
         
-        # Actividad reciente (ventas de los últimos 7 días)
-        week_ago = timezone.now() - timedelta(days=7)
+        # Actividad reciente (transacciones de los últimos 7 días)
         recent_activity = []
-        recent_sales = Sale.objects.filter(
-            date_sold__gte=week_ago
-        ).order_by('-date_sold')[:10]
+        recent_trans = recent_transactions.order_by('-transaction_date')[:10]
         
-        for sale in recent_sales:
+        for transaction in recent_trans:
             recent_activity.append({
-                'id': sale.id,
-                'product_name': sale.product.name if sale.product else 'Producto desconocido',
-                'quantity': float(sale.quantity) if sale.quantity else 0,
-                'customer_name': sale.customer_name or 'Cliente anónimo',
-                'total_amount': float(sale.total_amount) if sale.total_amount else 0,
-                'date_sold': sale.date_sold.isoformat(),
+                'id': transaction.id,
+                'product_name': transaction.product.name if transaction.product else 'Producto desconocido',
+                'quantity': float(transaction.quantity) if transaction.quantity else 0,
+                'transaction_type': transaction.transaction_type,
+                'total_amount': float(transaction.total_price) if transaction.total_price else 0,
+                'date': transaction.transaction_date.isoformat(),
             })
-        
-        # Alertas activas
-        active_alerts = Alert.objects.filter(is_active=True).count()
         
         # Respuesta completa
         data = {
             'total_products': total_products,
             'total_stock_value': total_stock_value,
             'low_stock_alerts': low_stock_count,
-            'recent_transactions': recent_sales_count,
+            'sales_last_7_days': total_sales_value,
+            'purchases_last_7_days': total_purchases_value,
+            'recent_transactions': recent_transactions.count(),
             'active_alerts': active_alerts,
             'top_products': top_products,
             'stock_levels': stock_levels,
@@ -112,11 +138,15 @@ def dashboard_stats(request):
         
     except Exception as e:
         print(f"Error en dashboard_stats: {str(e)}")  # Para debugging
+        import traceback
+        traceback.print_exc()
         return JsonResponse({
             'error': str(e),
             'total_products': 0,
             'total_stock_value': 0,
             'low_stock_alerts': 0,
+            'sales_last_7_days': 0,
+            'purchases_last_7_days': 0,
             'recent_transactions': 0,
             'active_alerts': 0,
             'top_products': [],

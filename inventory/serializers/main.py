@@ -27,7 +27,11 @@ class SupplierSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'contact_name', 'email', 'phone', 'address',
             'city', 'country', 'tax_id', 'payment_terms', 'products_count',
-            'is_active', 'created_at', 'updated_at'
+            'is_active', 'created_at', 'updated_at',
+            # Campos WhatsApp
+            'whatsapp_number', 'whatsapp_enabled', 'prefers_whatsapp',
+            # Campos configuración de órdenes
+            'minimum_order_quantity', 'delivery_days'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     

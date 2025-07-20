@@ -21,13 +21,41 @@ User = get_user_model()
 class SupplierSerializer(serializers.ModelSerializer):
     """Serializer para Supplier"""
     
+    # ✅ NUEVO: Campos calculados
+    preferred_contact_method = serializers.CharField(read_only=True)
+    contact_info = serializers.SerializerMethodField()
+    
     class Meta:
         model = Supplier
         fields = [
-            'id', 'name', 'email', 'phone', 'address',
-            'contact_name', 'is_active', 'created_at', 'updated_at'
+            'id', 'name', 'email', 'phone', 'address', 'contact_name',
+            
+            # ✅ NUEVO: Campos WhatsApp
+            'whatsapp_number', 'whatsapp_enabled', 'prefers_whatsapp',
+            
+            # ✅ NUEVO: Configuraciones de orden
+            'minimum_order_quantity', 'delivery_days',
+            
+            'city', 'country', 'tax_id', 'payment_terms',
+            'preferred_contact_method', 'contact_info',
+            'is_active', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'preferred_contact_method', 'contact_info', 'created_at', 'updated_at']
+    
+    def get_contact_info(self, obj):
+        """Obtener información de contacto completa"""
+        return obj.get_contact_info()
+    
+    def validate_whatsapp_number(self, value):
+        """Validar número de WhatsApp"""
+        if value:
+            normalized = Supplier.normalize_whatsapp_number(value)
+            if not normalized:
+                raise serializers.ValidationError(
+                    "Formato de número WhatsApp inválido. Use formato: +51999999999"
+                )
+            return normalized
+        return value
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -39,8 +67,8 @@ class CategorySerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
-class ProductSerializer(serializers.ModelSerializer):
-    """Serializer para Product"""
+class DashboardProductSerializer(serializers.ModelSerializer):
+    """Serializer para Product en dashboard (sin campos de stock)"""
     category_name = serializers.CharField(source='category.name', read_only=True)
     
     class Meta:

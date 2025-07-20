@@ -1,493 +1,291 @@
-# 🗄️ ESQUEMA DE BASE DE DATOS - DataLens MVP
+# DataLens MVP - Database Structure
 
-## 📊 **RESUMEN GENERAL**
+## 📊 Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SISTEMA DATALENS MVP                        │
-│                     Base de Datos Django                       │
-│                                                                 │
-│  🏢 Empresas → 👥 Usuarios → 📦 Productos → 📊 Analytics        │
-└─────────────────────────────────────────────────────────────────┘
-```
+**DataLens MVP** is a comprehensive inventory management and business intelligence platform built with Django. The database is designed to handle inventory tracking, demand forecasting, financial analysis, supplier management, and AI-powered insights.
 
-### 📈 **Estadísticas de la DB**
-- **Módulos**: 8 aplicaciones Django
-- **Tablas principales**: ~20 modelos
-- **Relaciones**: Multi-tenant (por empresa)
-- **Motor**: PostgreSQL/SQLite
-- **ORM**: Django ORM
+### Database Stats
+- **Engine**: SQLite3 (`db.sqlite3`)
+- **Total Tables**: 117
+- **Django Models**: 99
+- **Total Relationships**: 157
+- **Current Records**: 108
+- **Database Size**: 4.90 MB
 
 ---
 
-## 🏗️ **ARQUITECTURA MODULAR**
+## 🏗️ Database Architecture
 
-```
-📁 APLICACIONES DJANGO
-├── 🔐 authentication/     # Usuarios y empresas
-├── 📦 inventory/          # Productos, stock, transacciones
-├── 🚨 alerts/             # Sistema de alertas
-├── 📊 forecasting/        # Predicciones ML
-├── 📋 reports/            # Reportes y análisis
-├── 📤 data_import/        # Importación de datos
-├── 🤖 chatbot/           # Asistente IA
-└── 🧠 intelligence/       # Analytics avanzados
-```
+The database is organized into **7 main applications**, each handling specific business domains:
 
----
+### 1. 🔐 Authentication (`authentication`)
+**Core user and company management**
 
-## 🔗 **DIAGRAMA DE RELACIONES PRINCIPALES**
+| Model | Purpose | Key Fields |
+|-------|---------|------------|
+| `Company` | Multi-tenant company data | `name`, `ruc`, `industry`, `subscription_type` |
+| `User` | User accounts with role-based access | `company`, `role`, `position`, `department` |
 
-```mermaid
-erDiagram
-    Company ||--o{ User : has
-    Company ||--o{ Product : owns
-    Company ||--o{ AlertRecipient : configures
-    
-    User ||--o{ Transaction : creates
-    User ||--o{ Lead : manages
-    
-    Category ||--o{ Product : contains
-    Supplier ||--o{ Product : supplies
-    Product ||--o{ InventoryItem : located_in
-    Product ||--o{ Transaction : tracked_by
-    Product ||--o{ Sale : sold_in
-    Product ||--o{ Alert : triggers
-    
-    Location ||--o{ InventoryItem : stores
-    Location ||--o{ Transaction : occurs_at
-    
-    Customer ||--o{ Sale : purchases
-    Lead ||--o{ Product : interested_in
-```
+**Records**: 2 (1 company, 1 user)
 
 ---
 
-## 📋 **MODELOS DETALLADOS**
+### 2. 📦 Inventory (`inventory`)
+**Complete inventory and supply chain management**
 
-### 🔐 **AUTHENTICATION** (Usuarios y Empresas)
+#### Core Inventory
+| Model | Purpose | Records |
+|-------|---------|---------|
+| `Product` | Product catalog | 21 |
+| `Category` | Product categorization | 1 |
+| `Supplier` | Supplier management | 4 |
+| `Customer` | Customer database | 1 |
+| `Location` | Storage locations | 0 |
+| `InventoryItem` | Stock tracking by location/batch | 0 |
 
-#### **Company** (Empresa)
-```sql
-┌─────────────────────────────────────────────┐
-│                 COMPANY                     │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 📝 name (CharField)                        │
-│ 🏢 ruc (CharField, unique)                 │
-│ 📍 address (TextField)                     │
-│ 📞 phone (CharField)                       │
-│ 📧 email (EmailField)                      │
-│ 🏭 industry (CharField)                    │
-│ 🌐 website (URLField)                      │
-│ 👥 max_users (PositiveIntegerField)        │
-│ 💎 subscription_type (CharField)           │
-│ ✅ is_active (BooleanField)                │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-└─────────────────────────────────────────────┘
-```
+#### Transactions & Operations
+| Model | Purpose | Records |
+|-------|---------|---------|
+| `Transaction` | Inventory movements | 0 |
+| `Sale` | Sales records | 0 |
+| `PurchaseOrder` | Purchase order management | 21 |
+| `PurchaseOrderTracking` | PO status tracking | 0 |
 
-#### **User** (Usuario) - Extends AbstractUser
-```sql
-┌─────────────────────────────────────────────┐
-│                  USER                       │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 👤 username (CharField, unique)            │
-│ 📧 email (EmailField)                      │
-│ 🔒 password (CharField)                    │
-│ 👤 first_name (CharField)                  │
-│ 👤 last_name (CharField)                   │
-│ 🏢 company (ForeignKey → Company)          │
-│ 👨‍💼 role (CharField)                        │
-│ 📞 phone (CharField)                       │
-│ ✅ is_active (BooleanField)                │
-│ 📅 date_joined (DateTimeField)             │
-└─────────────────────────────────────────────┘
-```
+#### Email & Communication
+| Model | Purpose | Records |
+|-------|---------|---------|
+| `EmailCampaign` | Email marketing campaigns | 4 |
+| `TrackedEmail` | Email tracking analytics | 51 |
+| `EmailClick` | Click tracking | 0 |
+| `EmailPattern` | Email behavior patterns | 0 |
+| `EmailInsight` | AI-generated email insights | 0 |
+
+**Total Records**: 103
 
 ---
 
-### 📦 **INVENTORY** (Gestión de Inventario)
+### 3. 🤖 Forecasting (`forecasting`)
+**Advanced ML/AI forecasting and optimization**
 
-#### **Category** (Categoría)
-```sql
-┌─────────────────────────────────────────────┐
-│                CATEGORY                     │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 📝 name (CharField, unique)                │
-│ 📄 description (TextField)                 │
-│ ✅ is_active (BooleanField)                │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-└─────────────────────────────────────────────┘
+#### Machine Learning Models
+| Model Category | Models |
+|---------------|---------|
+| **Core ML** | `ForecastModel`, `MLModelVersion`, `MLExperiment`, `MLModelRegistry` |
+| **Demand Forecasting** | `DemandForecast`, `ForecastAccuracy`, `ReorderRecommendation` |
+| **Financial Forecasting** | `RevenueForecasting`, `CashFlowForecast`, `ProfitabilityAnalysis` |
+| **Customer Analytics** | `CustomerLifetimeValue`, `ChurnPrediction`, `CustomerSegmentation` |
+| **Supply Chain** | `SupplierPerformanceModel`, `ProcurementOptimization`, `InventoryOptimization` |
+| **AI Integration** | `AIPromptVersion`, `AIAPIUsage`, `AIInsight`, `HybridMLAIPrediction` |
+
+#### Key Features
+- **50+ ML/AI models** for comprehensive business intelligence
+- **Hybrid ML-AI predictions** combining traditional ML with LLM insights
+- **Customer behavior analysis** (CLV, churn, segmentation)
+- **Financial forecasting** (revenue, cash flow, profitability)
+- **Supply chain optimization** (supplier ROI, procurement)
+- **Price optimization** and elasticity analysis
+
+**Current Records**: 0 (models ready for training)
+
+---
+
+### 4. 🚨 Alerts (`alerts`)
+**Intelligent alerting system**
+
+| Model | Purpose |
+|-------|---------|
+| `AlertRule` | Configurable alert conditions |
+| `Alert` | Generated alerts |
+| `AlertRecipient` | Alert distribution lists |
+| `NotificationLog` | Alert delivery tracking |
+
+**Features**: Multi-channel notifications (email, WhatsApp), auto-purchase order generation
+
+---
+
+### 5. 📊 Reports (`reports`)
+**Business intelligence and KPI tracking**
+
+| Model | Purpose |
+|-------|---------|
+| `ReportTemplate` | Reusable report configurations |
+| `Report` | Generated reports |
+| `KPIDefinition` | Custom KPI definitions |
+| `KPIValue` | Historical KPI data |
+| `ReportSchedule` | Automated report generation |
+
+---
+
+### 6. 📥 Data Import (`data_import`)
+**Data integration and ETL**
+
+| Model | Purpose |
+|-------|---------|
+| `DataImportSession` | Import job tracking |
+| `ColumnMapping` | Field mapping configurations |
+| `ImportTemplate` | Reusable import templates |
+| `FieldDefinition` | Import field definitions |
+
+---
+
+### 7. 🧠 Intelligence (`intelligence`)
+**AI-powered business insights**
+
+| Model | Purpose | Records |
+|-------|---------|---------|
+| `IntelligenceBriefing` | Daily business briefings | 3 |
+| `IntelligenceInsight` | AI-generated insights | 0 |
+| `IntelligenceMetric` | Intelligence metrics | 0 |
+
+---
+
+## 🔗 Key Relationships
+
+### Core Entity Relationships
+```
+Company (1) → (N) User
+Company (1) → (N) Product
+Product (N) → (1) Category
+Product (N) → (1) Supplier
+Product (1) → (N) InventoryItem
+Location (1) → (N) InventoryItem
 ```
 
-#### **Supplier** (Proveedor)
-```sql
-┌─────────────────────────────────────────────┐
-│               SUPPLIER                      │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 🏢 name (CharField)                        │
-│ 👤 contact_name (CharField)                │
-│ 📧 email (EmailField)                      │
-│ 📞 phone (CharField)                       │
-│ 📍 address (TextField)                     │
-│ 🏙️ city (CharField)                        │
-│ 🌍 country (CharField)                     │
-│ 🆔 tax_id (CharField)                      │
-│ 💳 payment_terms (CharField)               │
-│ ✅ is_active (BooleanField)                │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-└─────────────────────────────────────────────┘
+### Forecasting Relationships
+```
+Company (1) → (N) ForecastModel
+ForecastModel (1) → (N) DemandForecast
+Product (1) → (N) DemandForecast
+Customer (1) → (1) CustomerLifetimeValue
+Customer (1) → (1) ChurnPrediction
 ```
 
-#### **Product** (Producto) - MODELO CENTRAL
-```sql
-┌─────────────────────────────────────────────┐
-│                PRODUCT                      │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 📝 name (CharField)                        │
-│ 🏷️ sku (CharField, unique)                 │
-│ 📄 description (TextField)                 │
-│ 🏢 company (FK → Company)                  │
-│ 📂 category (FK → Category)                │
-│ 🏭 supplier (FK → Supplier)                │
-│ 💰 cost_price (DecimalField)               │
-│ 💲 sale_price (DecimalField)               │
-│ 📦 stock (IntegerField)                    │
-│ 📉 min_stock (IntegerField)                │
-│ 📈 max_stock (IntegerField)                │
-│ 🔄 reorder_point (IntegerField)            │
-│ 📏 unit (CharField)                        │
-│ 🏷️ barcode (CharField)                     │
-│ ⚖️ weight (DecimalField)                   │
-│ 📐 dimensions (CharField)                  │
-│ 🏷️ track_batches (BooleanField)            │
-│ ⏰ has_expiration (BooleanField)           │
-│ 📅 shelf_life_days (PositiveIntegerField)  │
-│ ✅ is_active (BooleanField)                │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-└─────────────────────────────────────────────┘
+### Alert System
 ```
-
-#### **Location** (Ubicación)
-```sql
-┌─────────────────────────────────────────────┐
-│               LOCATION                      │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 📝 name (CharField)                        │
-│ 🔖 code (CharField, unique)                │
-│ 📄 description (TextField)                 │
-│ 🏪 warehouse (CharField)                   │
-│ 🗺️ zone (CharField)                        │
-│ 🛤️ aisle (CharField)                       │
-│ 🗄️ rack (CharField)                        │
-│ 📚 shelf (CharField)                       │
-│ ✅ is_active (BooleanField)                │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-└─────────────────────────────────────────────┘
-```
-
-#### **Transaction** (Transacción de Inventario)
-```sql
-┌─────────────────────────────────────────────┐
-│              TRANSACTION                    │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 📦 product (FK → Product)                  │
-│ 📍 location (FK → Location)                │
-│ 🔄 transaction_type (CharField)            │
-│   • sale, purchase, adjustment,            │
-│   • transfer, return, waste, usage         │
-│ 📊 quantity (DecimalField)                 │
-│ 💰 unit_cost (DecimalField)                │
-│ 📋 reference_number (CharField)            │
-│ 📝 notes (TextField)                       │
-│ 📅 transaction_date (DateTimeField)        │
-│ 👤 created_by (FK → User)                  │
-└─────────────────────────────────────────────┘
-```
-
-#### **Sale** (Venta)
-```sql
-┌─────────────────────────────────────────────┐
-│                 SALE                        │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 📦 product (FK → Product)                  │
-│ 📊 quantity (IntegerField)                 │
-│ 💲 unit_price (DecimalField)               │
-│ 💰 total_amount (DecimalField)             │
-│ 📅 date_sold (DateTimeField)               │
-│ 👤 customer_name (CharField)               │
-└─────────────────────────────────────────────┘
-```
-
-#### **Customer** (Cliente)
-```sql
-┌─────────────────────────────────────────────┐
-│               CUSTOMER                      │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 👤 name (CharField)                        │
-│ 📧 email (EmailField)                      │
-│ 📞 phone (CharField)                       │
-│ 📍 address (TextField)                     │
-│ 🏙️ city (CharField)                        │
-│ 🌍 country (CharField)                     │
-│ 🆔 tax_id (CharField)                      │
-│ 👔 customer_type (CharField)               │
-│   • individual, business                   │
-│ 💳 credit_limit (DecimalField)             │
-│ ✅ is_active (BooleanField)                │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-└─────────────────────────────────────────────┘
-```
-
-#### **Lead** (Prospecto)
-```sql
-┌─────────────────────────────────────────────┐
-│                 LEAD                        │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 👤 name (CharField)                        │
-│ 📧 email (EmailField)                      │
-│ 📞 phone (CharField)                       │
-│ 🏢 company (CharField)                     │
-│ 📊 source (CharField)                      │
-│   • web, phone, email, referral, social    │
-│ 📈 status (CharField)                      │
-│   • new, contacted, qualified, proposal,   │
-│   • negotiation, won, lost                 │
-│ 📦 interested_products (M2M → Product)     │
-│ 📝 notes (TextField)                       │
-│ 💰 estimated_value (DecimalField)          │
-│ 📅 expected_close_date (DateField)         │
-│ 👤 assigned_to (FK → User)                 │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-└─────────────────────────────────────────────┘
+Company (1) → (N) AlertRule
+AlertRule (1) → (N) Alert
+Product (1) → (N) Alert
+Alert (1) → (N) NotificationLog
 ```
 
 ---
 
-### 🚨 **ALERTS** (Sistema de Alertas)
+## 📈 Data Distribution
 
-#### **AlertRecipient** (Destinatario de Alertas)
-```sql
-┌─────────────────────────────────────────────┐
-│            ALERT_RECIPIENT                  │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 🏢 company (FK → Company)                  │
-│ 👤 name (CharField)                        │
-│ 📧 email (EmailField)                      │
-│ 📞 phone (CharField)                       │
-│ 📢 notification_type (CharField)           │
-│   • email, whatsapp, both                  │
-│ 🔔 receive_all_alerts (BooleanField)       │
-│ 🚨 receive_critical_only (BooleanField)    │
-│ ⚠️ receive_high_and_critical (Boolean)     │
-│ 📋 alert_types (JSONField)                 │
-│ ✅ is_active (BooleanField)                │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-│ 👤 created_by (FK → User)                  │
-└─────────────────────────────────────────────┘
-```
+### Current Data Status
+| Application | Records | Percentage |
+|------------|---------|------------|
+| **Inventory** | 103 | 95.4% |
+| **Intelligence** | 3 | 2.8% |
+| **Authentication** | 2 | 1.8% |
+| **Other Apps** | 0 | 0% |
 
-#### **Alert** (Alerta)
-```sql
-┌─────────────────────────────────────────────┐
-│                ALERT                        │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 📝 message (TextField)                     │
-│ ⚠️ severity (CharField)                     │
-│   • low, medium, high                      │
-│ ✅ is_active (BooleanField)                │
-│ 📅 created_at (DateTimeField)              │
-│ 📦 product (FK → Product)                  │
-└─────────────────────────────────────────────┘
-```
+### Top Tables by Records
+1. **TrackedEmail**: 51 records (47.2%)
+2. **Product**: 21 records (19.4%)
+3. **PurchaseOrder**: 21 records (19.4%)
+4. **Supplier**: 4 records (3.7%)
+5. **EmailCampaign**: 4 records (3.7%)
 
 ---
 
-### 📊 **FORECASTING** (Predicciones ML)
+## 🔧 Technical Details
 
-#### **ForecastModel** (Modelo de Predicción)
-```sql
-┌─────────────────────────────────────────────┐
-│            FORECAST_MODEL                   │
-├─────────────────────────────────────────────┤
-│ 🔑 id (AutoField)                          │
-│ 🏢 company (FK → Company)                  │
-│ 📝 name (CharField)                        │
-│ 📄 description (TextField)                 │
-│ 🤖 model_type (CharField)                  │
-│   • prophet, arima, linear_regression,     │
-│   • random_forest, lstm                    │
-│ 📊 status (CharField)                      │
-│   • training, active, deprecated, failed   │
-│ 📦 products (M2M → Product)                │
-│ 📂 categories (M2M → Category)             │
-│ 📅 created_at (DateTimeField)              │
-│ 📅 updated_at (DateTimeField)              │
-└─────────────────────────────────────────────┘
-```
+### Database Engine
+- **Type**: SQLite3
+- **File**: `db.sqlite3`
+- **Size**: 4.90 MB
+- **Avg Record Size**: 8.5 KB
+
+### Performance Optimization
+- **289 indexes** for query optimization
+- **157 foreign key relationships** for data integrity
+- **Unique constraints** on critical business fields
+- **Composite indexes** on frequently queried combinations
+
+### Data Integrity
+- ✅ No integrity violations detected
+- ✅ All foreign key constraints valid
+- ✅ Unique constraints properly enforced
 
 ---
 
-## 🔗 **RELACIONES PRINCIPALES**
+## 🚀 Getting Started
 
-### **One-to-Many (1:N)**
-```
-Company (1) ←→ (N) User
-Company (1) ←→ (N) Product
-Company (1) ←→ (N) AlertRecipient
-Category (1) ←→ (N) Product
-Supplier (1) ←→ (N) Product
-Product (1) ←→ (N) Transaction
-Product (1) ←→ (N) Sale
-Product (1) ←→ (N) Alert
-Location (1) ←→ (N) InventoryItem
-User (1) ←→ (N) Transaction
-User (1) ←→ (N) Lead
-```
-
-### **Many-to-Many (N:N)**
-```
-Lead (N) ←→ (N) Product (interested_products)
-ForecastModel (N) ←→ (N) Product
-ForecastModel (N) ←→ (N) Category
-```
-
----
-
-## 📊 **DATOS DE EJEMPLO ACTUALES**
-
-### **Categorías** (15 categorías)
-```
-🥤 Bebidas (6 productos)
-🛒 Abarrotes Básicos (4 productos)  
-🥛 Lácteos y Derivados (4 productos)
-🧴 Cuidado Personal (3 productos)
-🍿 Snacks y Dulces (3 productos)
-🍞 Panadería y Repostería (2 productos)
-... y 9 categorías más
-```
-
-### **Productos** (29 productos activos)
-```
-Precio promedio: S/10.06 - S/18.01
-Rango: S/3.34 - S/39.99
-Stock actual: Variable por producto
-Margen promedio: ~29.5%
-```
-
----
-
-## 🎯 **ÍNDICES Y OPTIMIZACIONES**
-
-### **Índices Principales**
-```sql
--- Búsquedas frecuentes
-CREATE INDEX idx_product_sku ON inventory_product(sku);
-CREATE INDEX idx_product_company ON inventory_product(company_id);
-CREATE INDEX idx_transaction_date ON inventory_transaction(transaction_date);
-CREATE INDEX idx_transaction_product ON inventory_transaction(product_id);
-
--- Filtros por estado
-CREATE INDEX idx_product_active ON inventory_product(is_active);
-CREATE INDEX idx_category_active ON inventory_category(is_active);
-
--- Analytics
-CREATE INDEX idx_sale_date ON inventory_sale(date_sold);
-CREATE INDEX idx_alert_created ON alerts_alert(created_at);
-```
-
-### **Constrains de Integridad**
-```sql
--- Unicidad
-UNIQUE(sku) -- Productos únicos
-UNIQUE(company_id, email) -- Destinatarios únicos por empresa
-UNIQUE(ruc) -- RUC único por empresa
-
--- Referencias foráneas
-ON DELETE CASCADE -- Company → Product
-ON DELETE SET_NULL -- Supplier → Product
-ON DELETE PROTECT -- Category → Product (con productos)
-```
-
----
-
-## 🚀 **FUTURAS EXPANSIONES**
-
-### **Nuevas Tablas Propuestas**
-```
-📊 CategoryAnalytics      # Métricas por categoría
-📈 SalesTrend            # Tendencias de ventas
-🔄 StockMovement         # Movimientos detallados
-💰 PriceHistory          # Histórico de precios
-📱 NotificationLog       # Log de notificaciones
-🎯 BusinessRule          # Reglas de negocio
-📋 ReportTemplate        # Plantillas de reportes
-🔗 Integration           # Integraciones externas
-```
-
-### **Optimizaciones Futuras**
-```
-🔍 Full-text search en productos
-📊 Vistas materializadas para analytics
-🗂️ Particionado por fecha en transacciones
-📱 Replicación read-only para reportes
-💾 Archivado automático de datos antiguos
-```
-
----
-
-## 📝 **COMANDOS ÚTILES**
-
-### **Inspeccionar la DB**
+### Database Setup
 ```bash
-# Ver estructura
-python manage.py inspectdb
-
-# Generar migraciones
-python manage.py makemigrations
-
-# Aplicar migraciones
+# Apply migrations
 python manage.py migrate
 
-# Ver estado de migraciones
-python manage.py showmigrations
+# Create superuser
+python manage.py createsuperuser
+
+# Load sample data (if available)
+python manage.py loaddata fixtures/sample_data.json
 ```
 
-### **Consultas de Análisis**
+### Key Configuration
+- **Multi-tenancy**: All models are company-scoped
+- **Audit trails**: Created/updated timestamps on all models
+- **Soft deletes**: `is_active` flags for logical deletion
+- **JSON fields**: Flexible metadata storage
+
+---
+
+## 📝 Model Conventions
+
+### Naming Patterns
+- **Primary Keys**: `BigAutoField` (64-bit integers)
+- **Foreign Keys**: `company`, `created_by`, `updated_by`
+- **Timestamps**: `created_at`, `updated_at`
+- **Flags**: `is_active`, `is_deleted`
+
+### Common Fields
 ```python
-# Productos por categoría
-Category.objects.annotate(product_count=Count('products'))
+# Standard audit fields
+created_at = models.DateTimeField(auto_now_add=True)
+updated_at = models.DateTimeField(auto_now=True)
+is_active = models.BooleanField(default=True)
 
-# Ventas del mes
-Sale.objects.filter(date_sold__gte=datetime.now().replace(day=1))
+# Multi-tenancy
+company = models.ForeignKey(Company, on_delete=models.CASCADE)
 
-# Productos con stock bajo
-Product.objects.filter(stock__lt=F('min_stock'))
-
-# Empresas activas
-Company.objects.filter(is_active=True)
+# User tracking
+created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
 ```
 
 ---
 
-*🎯 **Esta base de datos está diseñada para escalabilidad, multi-tenancy y analytics avanzados, siendo la base sólida para el sistema DataLens MVP.***
+## 🔮 Future Enhancements
+
+### Planned Features
+- **Real-time analytics** with streaming data
+- **Advanced ML pipelines** for automated retraining
+- **Multi-warehouse support** with complex location hierarchies
+- **Integration APIs** for external systems
+- **Mobile app support** with offline capabilities
+
+### Scalability Considerations
+- **Database migration** to PostgreSQL for production
+- **Data partitioning** for historical data
+- **Caching layer** with Redis
+- **Search engine** integration (Elasticsearch)
+
+---
+
+## 📚 Documentation
+
+### Related Documentation
+- [API Documentation](./docs/api.md)
+- [Model Reference](./docs/models.md)
+- [Business Logic](./docs/business_logic.md)
+- [Deployment Guide](./docs/deployment.md)
+
+### Support
+For questions about the database structure or data models, please refer to the technical documentation or contact the development team.
+
+---
+
+*Last Updated: July 19, 2025*
+*Database Version: v1.0.0*
+*Analysis Generated: 2025-07-19 15:45:48*

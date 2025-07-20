@@ -1,0 +1,2616 @@
+🗄️  ANÁLISIS DE ESTRUCTURA DE BASE DE DATOS
+📅 Fecha: 2025-07-19 15:45:48
+📍 Proyecto: DataLens MVP
+================================================================================
+
+============================================================
+📊 ESTRUCTURA DE LA BASE DE DATOS
+============================================================
+
+--- Información General ---
+Motor: django.db.backends.sqlite3
+Nombre BD: db.sqlite3
+Total tablas en BD: 117
+
+--- Modelos Django y sus Tablas ---
+Total modelos Django: 99
+
+🔹 admin.LogEntry
+   Tabla: django_admin_log
+   Registros: 0
+   Campos:
+     • id: AutoField [PK, UNIQUE, NOT NULL]
+     • action_time: DateTimeField [NOT NULL]
+     • user: ForeignKey [NOT NULL, FK→User]
+     • content_type: ForeignKey [FK→ContentType]
+     • object_id: TextField
+     • object_repr: CharField [NOT NULL]
+     • action_flag: PositiveSmallIntegerField [NOT NULL]
+     • change_message: TextField [NOT NULL]
+
+🔹 auth.Permission
+   Tabla: auth_permission
+   Registros: 396
+   Campos:
+     • id: AutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • content_type: ForeignKey [NOT NULL, FK→ContentType]
+     • codename: CharField [NOT NULL]
+
+🔹 auth.Group
+   Tabla: auth_group
+   Registros: 0
+   Campos:
+     • id: AutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [UNIQUE, NOT NULL]
+
+🔹 contenttypes.ContentType
+   Tabla: django_content_type
+   Registros: 99
+   Campos:
+     • id: AutoField [PK, UNIQUE, NOT NULL]
+     • app_label: CharField [NOT NULL]
+     • model: CharField [NOT NULL]
+
+🔹 sessions.Session
+   Tabla: django_session
+   Registros: 0
+   Campos:
+     • session_key: CharField [PK, UNIQUE, NOT NULL]
+     • session_data: TextField [NOT NULL]
+     • expire_date: DateTimeField [NOT NULL]
+
+🔹 authentication.Company
+   Tabla: authentication_company
+   Registros: 1
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • ruc: CharField [UNIQUE, NOT NULL]
+     • address: TextField [NOT NULL]
+     • phone: CharField [NOT NULL]
+     • email: EmailField [NOT NULL]
+     • industry: CharField [NOT NULL]
+     • website: URLField [NOT NULL]
+     • max_users: PositiveIntegerField [NOT NULL]
+     • subscription_type: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+
+🔹 authentication.User
+   Tabla: authentication_user
+   Registros: 1
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • password: CharField [NOT NULL]
+     • last_login: DateTimeField
+     • is_superuser: BooleanField [NOT NULL]
+     • username: CharField [UNIQUE, NOT NULL]
+     • first_name: CharField [NOT NULL]
+     • last_name: CharField [NOT NULL]
+     • email: EmailField [NOT NULL]
+     • is_staff: BooleanField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • date_joined: DateTimeField [NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • role: CharField [NOT NULL]
+     • phone: CharField [NOT NULL]
+     • position: CharField [NOT NULL]
+     • department: CharField [NOT NULL]
+     • email_notifications: BooleanField [NOT NULL]
+     • whatsapp_notifications: BooleanField [NOT NULL]
+     • dashboard_preferences: JSONField [NOT NULL]
+     • last_login_ip: GenericIPAddressField
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.Category
+   Tabla: inventory_category
+   Registros: 1
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [UNIQUE, NOT NULL]
+     • description: TextField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.Supplier
+   Tabla: inventory_supplier
+   Registros: 4
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • contact_name: CharField [NOT NULL]
+     • email: EmailField [NOT NULL]
+     • phone: CharField [NOT NULL]
+     • address: TextField [NOT NULL]
+     • city: CharField [NOT NULL]
+     • country: CharField [NOT NULL]
+     • tax_id: CharField [NOT NULL]
+     • payment_terms: CharField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.Location
+   Tabla: inventory_location
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • code: CharField [UNIQUE, NOT NULL]
+     • description: TextField [NOT NULL]
+     • warehouse: CharField [NOT NULL]
+     • zone: CharField [NOT NULL]
+     • aisle: CharField [NOT NULL]
+     • rack: CharField [NOT NULL]
+     • shelf: CharField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.Product
+   Tabla: inventory_product
+   Registros: 21
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • sku: CharField [UNIQUE, NOT NULL]
+     • description: TextField [NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • category: ForeignKey [FK→Category]
+     • supplier: ForeignKey [FK→Supplier]
+     • cost_price: DecimalField [NOT NULL]
+     • sale_price: DecimalField [NOT NULL]
+     • stock: IntegerField [NOT NULL]
+     • min_stock: IntegerField [NOT NULL]
+     • max_stock: IntegerField [NOT NULL]
+     • reorder_point: IntegerField [NOT NULL]
+     • unit: CharField [NOT NULL]
+     • barcode: CharField [NOT NULL]
+     • weight: DecimalField
+     • dimensions: CharField [NOT NULL]
+     • track_batches: BooleanField [NOT NULL]
+     • has_expiration: BooleanField [NOT NULL]
+     • shelf_life_days: PositiveIntegerField
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.InventoryItem
+   Tabla: inventory_inventoryitem
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • location: ForeignKey [NOT NULL, FK→Location]
+     • quantity: DecimalField [NOT NULL]
+     • reserved_quantity: DecimalField [NOT NULL]
+     • unit_cost: DecimalField [NOT NULL]
+     • batch_number: CharField [NOT NULL]
+     • manufacturing_date: DateField
+     • expiration_date: DateField
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.Transaction
+   Tabla: inventory_transaction
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • location: ForeignKey [FK→Location]
+     • transaction_type: CharField [NOT NULL]
+     • quantity: DecimalField [NOT NULL]
+     • unit_cost: DecimalField
+     • reference_number: CharField [NOT NULL]
+     • notes: TextField [NOT NULL]
+     • transaction_date: DateTimeField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+
+🔹 inventory.Sale
+   Tabla: inventory_sale
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • quantity: IntegerField [NOT NULL]
+     • unit_price: DecimalField [NOT NULL]
+     • total_amount: DecimalField [NOT NULL]
+     • date_sold: DateTimeField [NOT NULL]
+     • customer_name: CharField [NOT NULL]
+
+🔹 inventory.Customer
+   Tabla: inventory_customer
+   Registros: 1
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • email: EmailField [NOT NULL]
+     • phone: CharField [NOT NULL]
+     • address: TextField [NOT NULL]
+     • city: CharField [NOT NULL]
+     • country: CharField [NOT NULL]
+     • tax_id: CharField [NOT NULL]
+     • customer_type: CharField [NOT NULL]
+     • credit_limit: DecimalField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.Lead
+   Tabla: inventory_lead
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • email: EmailField [NOT NULL]
+     • phone: CharField [NOT NULL]
+     • company: CharField [NOT NULL]
+     • source: CharField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • notes: TextField [NOT NULL]
+     • estimated_value: DecimalField [NOT NULL]
+     • expected_close_date: DateField
+     • assigned_to: ForeignKey [FK→User]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.Alert
+   Tabla: inventory_alert
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • message: TextField [NOT NULL]
+     • severity: CharField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • product: ForeignKey [FK→Product]
+
+🔹 inventory.InventoryHistory
+   Tabla: inventory_inventoryhistory
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • stock_before: IntegerField [NOT NULL]
+     • stock_after: IntegerField [NOT NULL]
+     • change_reason: CharField [NOT NULL]
+     • date_changed: DateTimeField [NOT NULL]
+     • user: ForeignKey [FK→User]
+
+🔹 inventory.PurchaseOrder
+   Tabla: inventory_purchaseorder
+   Registros: 21
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • order_number: CharField [UNIQUE, NOT NULL]
+     • uuid: UUIDField [UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • supplier: ForeignKey [FK→Supplier]
+     • alert: ForeignKey [FK→Alert]
+     • quantity: PositiveIntegerField [NOT NULL]
+     • unit_price: DecimalField [NOT NULL]
+     • total_amount: DecimalField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • priority: CharField [NOT NULL]
+     • supplier_email: EmailField
+     • supplier_phone: CharField
+     • expected_delivery_date: DateField
+     • actual_delivery_date: DateField
+     • email_sent: BooleanField [NOT NULL]
+     • email_sent_at: DateTimeField
+     • email_sent_to: EmailField
+     • tracking_id: CharField
+     • email_tracking_campaign_id: UUIDField
+     • email_subject: CharField
+     • email_content: TextField
+     • notes: TextField
+     • supplier_response: TextField
+     • created_by: ForeignKey [FK→User]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • ai_generated: BooleanField [NOT NULL]
+     • ai_confidence_score: FloatField
+
+🔹 inventory.PurchaseOrderTracking
+   Tabla: inventory_purchaseordertracking
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • purchase_order: ForeignKey [NOT NULL, FK→PurchaseOrder]
+     • status: CharField [NOT NULL]
+     • notes: TextField
+     • created_by: ForeignKey [FK→User]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 inventory.PurchaseOrderEmailLog
+   Tabla: inventory_purchaseorderemaillog
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • purchase_order: ForeignKey [NOT NULL, FK→PurchaseOrder]
+     • email_type: CharField [NOT NULL]
+     • recipient_email: EmailField [NOT NULL]
+     • subject: CharField [NOT NULL]
+     • content: TextField [NOT NULL]
+     • sent_successfully: BooleanField [NOT NULL]
+     • error_message: TextField
+     • email_service: CharField [NOT NULL]
+     • sent_at: DateTimeField [NOT NULL]
+
+🔹 inventory.EmailCampaign
+   Tabla: inventory_emailcampaign
+   Registros: 4
+   Campos:
+     • id: UUIDField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • created_by: ForeignKey [FK→User]
+     • track_opens: BooleanField [NOT NULL]
+     • track_clicks: BooleanField [NOT NULL]
+     • total_sent: IntegerField [NOT NULL]
+     • total_delivered: IntegerField [NOT NULL]
+     • total_opened: IntegerField [NOT NULL]
+     • total_clicked: IntegerField [NOT NULL]
+     • total_bounced: IntegerField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+
+🔹 inventory.TrackedEmail
+   Tabla: inventory_trackedemail
+   Registros: 51
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • email_id: CharField [UNIQUE, NOT NULL]
+     • tracking_id: CharField [UNIQUE, NOT NULL]
+     • campaign: ForeignKey [FK→EmailCampaign]
+     • recipient_email: EmailField [NOT NULL]
+     • recipient_name: CharField [NOT NULL]
+     • subject: CharField [NOT NULL]
+     • content_preview: TextField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • sent_at: DateTimeField
+     • delivered_at: DateTimeField
+     • first_opened_at: DateTimeField
+     • last_opened_at: DateTimeField
+     • first_clicked_at: DateTimeField
+     • last_clicked_at: DateTimeField
+     • replied_at: DateTimeField
+     • bounced_at: DateTimeField
+     • open_count: IntegerField [NOT NULL]
+     • click_count: IntegerField [NOT NULL]
+     • user_agent: TextField [NOT NULL]
+     • ip_address: GenericIPAddressField
+     • location_data: JSONField [NOT NULL]
+     • device_info: JSONField [NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 inventory.EmailClick
+   Tabla: inventory_emailclick
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • tracked_email: ForeignKey [NOT NULL, FK→TrackedEmail]
+     • url: URLField [NOT NULL]
+     • link_text: CharField [NOT NULL]
+     • position: IntegerField
+     • clicked_at: DateTimeField [NOT NULL]
+     • user_agent: TextField [NOT NULL]
+     • ip_address: GenericIPAddressField
+     • referrer: URLField [NOT NULL]
+     • device_type: CharField [NOT NULL]
+     • browser: CharField [NOT NULL]
+     • os: CharField [NOT NULL]
+
+🔹 inventory.EmailPattern
+   Tabla: inventory_emailpattern
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • pattern_type: CharField [NOT NULL]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • frequency: IntegerField [NOT NULL]
+     • confidence: FloatField [NOT NULL]
+     • impact_score: FloatField [NOT NULL]
+     • pattern_data: JSONField [NOT NULL]
+     • examples: JSONField [NOT NULL]
+     • recommendation: TextField [NOT NULL]
+     • action_items: JSONField [NOT NULL]
+     • detected_at: DateTimeField [NOT NULL]
+     • period_start: DateTimeField [NOT NULL]
+     • period_end: DateTimeField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+
+🔹 inventory.EmailInsight
+   Tabla: inventory_emailinsight
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • insight_type: CharField [NOT NULL]
+     • priority: CharField [NOT NULL]
+     • title: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • confidence_score: FloatField [NOT NULL]
+     • impact_potential: FloatField [NOT NULL]
+     • action_items: JSONField [NOT NULL]
+     • expected_outcome: TextField [NOT NULL]
+     • is_implemented: BooleanField [NOT NULL]
+     • implemented_at: DateTimeField
+     • implementation_notes: TextField [NOT NULL]
+     • generated_at: DateTimeField [NOT NULL]
+     • generated_by_ai: BooleanField [NOT NULL]
+     • source_data_period: JSONField [NOT NULL]
+
+🔹 inventory.GmailWebhookLog
+   Tabla: inventory_gmailwebhooklog
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • history_id: CharField [NOT NULL]
+     • email_address: EmailField [NOT NULL]
+     • raw_payload: JSONField [NOT NULL]
+     • processed_changes: JSONField [NOT NULL]
+     • processed_at: DateTimeField [NOT NULL]
+     • processing_success: BooleanField [NOT NULL]
+     • error_message: TextField [NOT NULL]
+
+🔹 forecasting.ForecastModel
+   Tabla: forecasting_forecastmodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • model_type: CharField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • forecast_horizon_days: PositiveIntegerField [NOT NULL]
+     • training_period_days: PositiveIntegerField [NOT NULL]
+     • confidence_interval: DecimalField [NOT NULL]
+     • hyperparameters: JSONField [NOT NULL]
+     • mae: DecimalField
+     • mape: DecimalField
+     • rmse: DecimalField
+     • r2_score: DecimalField
+     • model_file_path: CharField [NOT NULL]
+     • model_size_mb: DecimalField
+     • version: CharField [NOT NULL]
+     • parent_model: ForeignKey [FK→ForecastModel]
+     • training_started_at: DateTimeField
+     • training_completed_at: DateTimeField
+     • last_prediction_at: DateTimeField
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+
+🔹 forecasting.DemandForecast
+   Tabla: forecasting_demandforecast
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • model: ForeignKey [NOT NULL, FK→ForecastModel]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • location: ForeignKey [FK→Location]
+     • forecast_date: DateField [NOT NULL]
+     • forecast_type: CharField [NOT NULL]
+     • predicted_demand: DecimalField [NOT NULL]
+     • lower_bound: DecimalField [NOT NULL]
+     • upper_bound: DecimalField [NOT NULL]
+     • confidence_level: DecimalField [NOT NULL]
+     • seasonality_factor: DecimalField
+     • trend_factor: DecimalField
+     • external_factors: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.ForecastAccuracy
+   Tabla: forecasting_forecastaccuracy
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • forecast: OneToOneField [UNIQUE, NOT NULL, FK→DemandForecast]
+     • actual_demand: DecimalField [NOT NULL]
+     • absolute_error: DecimalField [NOT NULL]
+     • percentage_error: DecimalField [NOT NULL]
+     • squared_error: DecimalField [NOT NULL]
+     • within_bounds: BooleanField [NOT NULL]
+     • bias: DecimalField [NOT NULL]
+     • evaluated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.ReorderRecommendation
+   Tabla: forecasting_reorderrecommendation
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • location: ForeignKey [FK→Location]
+     • recommended_quantity: DecimalField [NOT NULL]
+     • current_stock: DecimalField [NOT NULL]
+     • projected_demand: DecimalField [NOT NULL]
+     • recommended_order_date: DateField [NOT NULL]
+     • expected_stockout_date: DateField
+     • lead_time_days: PositiveIntegerField [NOT NULL]
+     • priority: CharField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • estimated_cost: DecimalField [NOT NULL]
+     • potential_lost_sales: DecimalField
+     • forecast_model: ForeignKey [FK→ForecastModel]
+     • notes: TextField [NOT NULL]
+     • justification: TextField [NOT NULL]
+     • approved_by: ForeignKey [FK→User]
+     • approved_at: DateTimeField
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.ModelTrainingJob
+   Tabla: forecasting_modeltrainingjob
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • model: ForeignKey [NOT NULL, FK→ForecastModel]
+     • status: CharField [NOT NULL]
+     • started_at: DateTimeField
+     • completed_at: DateTimeField
+     • metrics: JSONField [NOT NULL]
+     • error_message: TextField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+
+🔹 forecasting.MLModelVersion
+   Tabla: forecasting_mlmodelversion
+   Registros: 0
+   Campos:
+     • id: UUIDField [PK, UNIQUE, NOT NULL]
+     • forecast_model: ForeignKey [NOT NULL, FK→ForecastModel]
+     • version: CharField [NOT NULL]
+     • parent_version: ForeignKey [FK→MLModelVersion]
+     • deployment_status: CharField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • model_binary: BinaryField
+     • model_path: CharField [NOT NULL]
+     • model_size_mb: DecimalField
+     • training_accuracy: DecimalField
+     • validation_accuracy: DecimalField
+     • test_accuracy: DecimalField
+     • training_start: DateTimeField
+     • training_end: DateTimeField
+     • training_duration_seconds: PositiveIntegerField
+     • training_samples: PositiveIntegerField
+     • changelog: TextField [NOT NULL]
+     • notes: TextField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+     • approved_by: ForeignKey [FK→User]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.MLMetric
+   Tabla: forecasting_mlmetric
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • model_version: ForeignKey [NOT NULL, FK→MLModelVersion]
+     • metric_type: CharField [NOT NULL]
+     • metric_name: CharField [NOT NULL]
+     • metric_value: DecimalField [NOT NULL]
+     • metric_context: CharField [NOT NULL]
+     • calculation_date: DateTimeField [NOT NULL]
+     • dataset_size: PositiveIntegerField
+     • time_period_start: DateTimeField
+     • time_period_end: DateTimeField
+     • metric_config: JSONField [NOT NULL]
+
+🔹 forecasting.MLExperiment
+   Tabla: forecasting_mlexperiment
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • experiment_id: CharField [UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • base_model: ForeignKey [NOT NULL, FK→ForecastModel]
+     • status: CharField [NOT NULL]
+     • algorithms_tested: JSONField [NOT NULL]
+     • hyperparameters: JSONField [NOT NULL]
+     • dataset_config: JSONField [NOT NULL]
+     • best_algorithm: CharField [NOT NULL]
+     • best_metric_value: DecimalField
+     • winning_config: JSONField [NOT NULL]
+     • start_time: DateTimeField
+     • end_time: DateTimeField
+     • duration_minutes: PositiveIntegerField
+     • created_by: ForeignKey [FK→User]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.MLModelRegistry
+   Tabla: forecasting_mlmodelregistry
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • model_version: OneToOneField [UNIQUE, NOT NULL, FK→MLModelVersion]
+     • governance_status: CharField [NOT NULL]
+     • reviewer: ForeignKey [FK→User]
+     • review_notes: TextField [NOT NULL]
+     • review_date: DateTimeField
+     • passes_validation: BooleanField [NOT NULL]
+     • validation_report: JSONField [NOT NULL]
+     • compliance_checks: JSONField [NOT NULL]
+     • min_accuracy_threshold: DecimalField [NOT NULL]
+     • current_accuracy: DecimalField
+     • performance_degradation_alert: BooleanField [NOT NULL]
+     • deployed_to_production: BooleanField [NOT NULL]
+     • deployment_date: DateTimeField
+     • rollback_plan: TextField [NOT NULL]
+     • last_health_check: DateTimeField
+     • health_status: CharField [NOT NULL]
+     • monitoring_enabled: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.MLDatasetVersion
+   Tabla: forecasting_mldatasetversion
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • version: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • total_samples: PositiveIntegerField [NOT NULL]
+     • training_samples: PositiveIntegerField [NOT NULL]
+     • validation_samples: PositiveIntegerField [NOT NULL]
+     • test_samples: PositiveIntegerField [NOT NULL]
+     • missing_values_percent: DecimalField [NOT NULL]
+     • outliers_percent: DecimalField [NOT NULL]
+     • data_quality_score: DecimalField [NOT NULL]
+     • data_start_date: DateTimeField [NOT NULL]
+     • data_end_date: DateTimeField [NOT NULL]
+     • feature_columns: JSONField [NOT NULL]
+     • target_columns: JSONField [NOT NULL]
+     • feature_engineering_steps: JSONField [NOT NULL]
+     • dataset_path: CharField [NOT NULL]
+     • dataset_size_mb: DecimalField [NOT NULL]
+     • checksum: CharField [NOT NULL]
+     • transformation_pipeline: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.RevenueForecasting
+   Tabla: forecasting_revenueforecasting
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • forecast_date: DateField [NOT NULL]
+     • forecast_type: CharField [NOT NULL]
+     • predicted_revenue: DecimalField [NOT NULL]
+     • predicted_margin: DecimalField [NOT NULL]
+     • predicted_cashflow: DecimalField [NOT NULL]
+     • revenue_lower_bound: DecimalField [NOT NULL]
+     • revenue_upper_bound: DecimalField [NOT NULL]
+     • category_breakdown: JSONField [NOT NULL]
+     • seasonality_impact: DecimalField
+     • trend_impact: DecimalField
+     • currency: CharField [NOT NULL]
+     • confidence_level: DecimalField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.FinancialForecastModel
+   Tabla: forecasting_financialforecastmodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • name: CharField [NOT NULL]
+     • model_type: CharField [NOT NULL]
+     • base_model: ForeignKey [FK→ForecastModel]
+     • metric_type: CharField [NOT NULL]
+     • currency: CharField [NOT NULL]
+     • include_supplier_analysis: BooleanField [NOT NULL]
+     • include_cost_tracking: BooleanField [NOT NULL]
+     • forecast_horizon_months: PositiveIntegerField [NOT NULL]
+     • include_seasonality: BooleanField [NOT NULL]
+     • include_external_factors: BooleanField [NOT NULL]
+     • accuracy_score: DecimalField
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.RevenuePrediction
+   Tabla: forecasting_revenueprediction
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • model: ForeignKey [NOT NULL, FK→FinancialForecastModel]
+     • prediction_date: DateField [NOT NULL]
+     • predicted_revenue: DecimalField [NOT NULL]
+     • confidence_level: DecimalField [NOT NULL]
+     • category_breakdown: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.CashFlowForecast
+   Tabla: forecasting_cashflowforecast
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • model: ForeignKey [NOT NULL, FK→FinancialForecastModel]
+     • forecast_type: CharField [NOT NULL]
+     • period_start: DateField [NOT NULL]
+     • period_end: DateField [NOT NULL]
+     • predicted_amount: DecimalField [NOT NULL]
+     • confidence_level: FloatField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.ProfitabilityAnalysis
+   Tabla: forecasting_profitabilityanalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • analysis_type: CharField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • profit_margin: FloatField [NOT NULL]
+     • revenue: DecimalField [NOT NULL]
+     • costs: DecimalField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.FinancialRiskAssessment
+   Tabla: forecasting_financialriskassessment
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • risk_type: CharField [NOT NULL]
+     • risk_level: CharField [NOT NULL]
+     • assessment_date: DateField [NOT NULL]
+     • probability: FloatField [NOT NULL]
+     • impact_score: FloatField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.SeasonalityAnalysis
+   Tabla: forecasting_seasonalityanalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • season_type: CharField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • seasonal_factor: FloatField [NOT NULL]
+     • peak_period: CharField [NOT NULL]
+     • low_period: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.CostOptimizationModel
+   Tabla: forecasting_costoptimizationmodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • optimization_type: CharField [NOT NULL]
+     • current_cost: DecimalField [NOT NULL]
+     • optimized_cost: DecimalField [NOT NULL]
+     • savings_potential: DecimalField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.RevenueBreakdown
+   Tabla: forecasting_revenuebreakdown
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • breakdown_type: CharField [NOT NULL]
+     • period_start: DateField [NOT NULL]
+     • period_end: DateField [NOT NULL]
+     • revenue_amount: DecimalField [NOT NULL]
+     • percentage_of_total: FloatField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.FinancialScenario
+   Tabla: forecasting_financialscenario
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • scenario_type: CharField [NOT NULL]
+     • scenario_name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • probability: FloatField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.ProfitMarginAnalysis
+   Tabla: forecasting_profitmarginanalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • margin_type: CharField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • gross_margin: FloatField [NOT NULL]
+     • net_margin: FloatField [NOT NULL]
+     • trend_direction: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.FinancialTrendAnalysis
+   Tabla: forecasting_financialtrendanalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • trend_type: CharField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • trend_strength: FloatField [NOT NULL]
+     • trend_direction: CharField [NOT NULL]
+     • forecast_reliability: FloatField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.DemandPatternAnalysis
+   Tabla: forecasting_demandpatternanalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • has_weekly_pattern: BooleanField [NOT NULL]
+     • has_monthly_pattern: BooleanField [NOT NULL]
+     • has_seasonal_pattern: BooleanField [NOT NULL]
+     • weekly_strength: DecimalField
+     • monthly_strength: DecimalField
+     • seasonal_strength: DecimalField
+     • pattern_data: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.PriceElasticity
+   Tabla: forecasting_priceelasticity
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: OneToOneField [UNIQUE, NOT NULL, FK→Product]
+     • elasticity_coefficient: DecimalField [NOT NULL]
+     • demand_sensitivity: CharField [NOT NULL]
+     • optimal_price: DecimalField [NOT NULL]
+     • current_price: DecimalField [NOT NULL]
+     • recommended_price_change: DecimalField [NOT NULL]
+     • estimated_demand_change: DecimalField [NOT NULL]
+     • estimated_revenue_impact: DecimalField [NOT NULL]
+     • analysis_period_days: PositiveIntegerField [NOT NULL]
+     • price_points_analyzed: PositiveIntegerField [NOT NULL]
+     • calculated_at: DateTimeField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.SeasonalityPattern
+   Tabla: forecasting_seasonalitypattern
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • pattern_type: CharField [NOT NULL]
+     • pattern_strength: DecimalField [NOT NULL]
+     • peak_periods: JSONField [NOT NULL]
+     • low_periods: JSONField [NOT NULL]
+     • seasonal_multipliers: JSONField [NOT NULL]
+     • data_points_analyzed: PositiveIntegerField [NOT NULL]
+     • pattern_confidence: DecimalField [NOT NULL]
+     • next_peak_date: DateField
+     • next_low_date: DateField
+     • detected_at: DateTimeField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.OptimalStockLevel
+   Tabla: forecasting_optimalstocklevel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: OneToOneField [UNIQUE, NOT NULL, FK→Product]
+     • location: ForeignKey [FK→Location]
+     • optimal_stock: DecimalField [NOT NULL]
+     • safety_stock: DecimalField [NOT NULL]
+     • reorder_point: DecimalField [NOT NULL]
+     • economic_order_quantity: DecimalField [NOT NULL]
+     • holding_cost_rate: DecimalField [NOT NULL]
+     • ordering_cost: DecimalField [NOT NULL]
+     • stockout_cost: DecimalField [NOT NULL]
+     • avg_daily_demand: DecimalField [NOT NULL]
+     • demand_variability: DecimalField [NOT NULL]
+     • lead_time_variability: DecimalField [NOT NULL]
+     • expected_stockout_frequency: DecimalField [NOT NULL]
+     • expected_annual_cost: DecimalField [NOT NULL]
+     • service_level: DecimalField [NOT NULL]
+     • calculated_at: DateTimeField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.DemandPattern
+   Tabla: forecasting_demandpattern
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • pattern_type: CharField [NOT NULL]
+     • pattern_date: DateField [NOT NULL]
+     • pattern_strength: FloatField [NOT NULL]
+     • frequency: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.AdvancedDemandForecast
+   Tabla: forecasting_advanceddemandforecast
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • model: ForeignKey [NOT NULL, FK→ForecastModel]
+     • forecast_type: CharField [NOT NULL]
+     • forecast_date: DateField [NOT NULL]
+     • predicted_demand: FloatField [NOT NULL]
+     • confidence_interval: JSONField [NOT NULL]
+     • external_factors: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.SeasonalPattern
+   Tabla: forecasting_seasonalpattern
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • season_type: CharField [NOT NULL]
+     • seasonal_factor: FloatField [NOT NULL]
+     • start_date: DateField [NOT NULL]
+     • end_date: DateField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.InventoryOptimizationModel
+   Tabla: forecasting_inventoryoptimizationmodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • model_type: CharField [NOT NULL]
+     • optimization_algorithm: CharField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • parameters: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.StockLevelRecommendation
+   Tabla: forecasting_stocklevelrecommendation
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • model: ForeignKey [NOT NULL, FK→InventoryOptimizationModel]
+     • recommendation_type: CharField [NOT NULL]
+     • recommended_stock: FloatField [NOT NULL]
+     • current_stock: FloatField [NOT NULL]
+     • safety_stock: FloatField [NOT NULL]
+     • priority: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.SupplierPerformanceModel
+   Tabla: forecasting_supplierperformancemodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • supplier: ForeignKey [NOT NULL, FK→Supplier]
+     • analysis_date: DateField [NOT NULL]
+     • performance_score: FloatField [NOT NULL]
+     • delivery_reliability: FloatField [NOT NULL]
+     • quality_score: FloatField [NOT NULL]
+     • cost_effectiveness: FloatField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.ProcurementOptimization
+   Tabla: forecasting_procurementoptimization
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • supplier: ForeignKey [NOT NULL, FK→Supplier]
+     • optimization_type: CharField [NOT NULL]
+     • recommended_quantity: FloatField [NOT NULL]
+     • recommended_timing: DateField [NOT NULL]
+     • cost_savings: DecimalField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.SupplierRiskAnalysis
+   Tabla: forecasting_supplierriskanalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • supplier: ForeignKey [NOT NULL, FK→Supplier]
+     • risk_type: CharField [NOT NULL]
+     • risk_level: CharField [NOT NULL]
+     • probability: FloatField [NOT NULL]
+     • impact_score: FloatField [NOT NULL]
+     • mitigation_strategy: TextField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.InventoryTurnoverAnalysis
+   Tabla: forecasting_inventoryturnoveranalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • period_type: CharField [NOT NULL]
+     • turnover_ratio: FloatField [NOT NULL]
+     • days_in_inventory: IntegerField [NOT NULL]
+     • performance_category: CharField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.CustomerLifetimeValue
+   Tabla: forecasting_customerlifetimevalue
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: OneToOneField [UNIQUE, NOT NULL, FK→Customer]
+     • predicted_clv: DecimalField [NOT NULL]
+     • current_value: DecimalField [NOT NULL]
+     • predicted_lifetime_months: PositiveIntegerField [NOT NULL]
+     • clv_confidence: DecimalField [NOT NULL]
+     • average_order_value: DecimalField [NOT NULL]
+     • customer_lifespan_months: PositiveIntegerField [NOT NULL]
+     • recency_days: PositiveIntegerField [NOT NULL]
+     • frequency_score: PositiveIntegerField [NOT NULL]
+     • monetary_score: PositiveIntegerField [NOT NULL]
+     • rfm_segment: CharField [NOT NULL]
+     • churn_probability: DecimalField [NOT NULL]
+     • next_purchase_probability: DecimalField [NOT NULL]
+     • avg_order_value: DecimalField [NOT NULL]
+     • purchase_frequency: DecimalField [NOT NULL]
+     • last_purchase_date: DateField
+     • customer_segment: CharField [NOT NULL]
+     • next_best_products: JSONField [NOT NULL]
+     • calculated_at: DateTimeField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.ChurnPrediction
+   Tabla: forecasting_churnprediction
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: OneToOneField [UNIQUE, NOT NULL, FK→Customer]
+     • churn_probability: DecimalField [NOT NULL]
+     • risk_level: CharField [NOT NULL]
+     • churn_risk_level: CharField [NOT NULL]
+     • declining_order_value: BooleanField [NOT NULL]
+     • declining_purchase_frequency: BooleanField [NOT NULL]
+     • engagement_score: DecimalField [NOT NULL]
+     • loyalty_score: DecimalField [NOT NULL]
+     • negative_trend_months: PositiveIntegerField [NOT NULL]
+     • recommended_action_priority: CharField [NOT NULL]
+     • days_since_last_purchase: PositiveIntegerField [NOT NULL]
+     • purchase_frequency_decline: DecimalField [NOT NULL]
+     • value_decline: DecimalField [NOT NULL]
+     • risk_factors: JSONField [NOT NULL]
+     • retention_strategy: CharField [NOT NULL]
+     • retention_budget: DecimalField
+     • strategy_applied: BooleanField [NOT NULL]
+     • strategy_effective: BooleanField
+     • predicted_at: DateTimeField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.MarketBasketAnalysis
+   Tabla: forecasting_marketbasketanalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • product_a: ForeignKey [NOT NULL, FK→Product]
+     • product_b: ForeignKey [NOT NULL, FK→Product]
+     • support: DecimalField [NOT NULL]
+     • confidence: DecimalField [NOT NULL]
+     • lift: DecimalField [NOT NULL]
+     • transactions_with_both: PositiveIntegerField [NOT NULL]
+     • transactions_with_a: PositiveIntegerField [NOT NULL]
+     • total_transactions: PositiveIntegerField [NOT NULL]
+     • recommendation_strength: CharField [NOT NULL]
+     • analysis_start_date: DateField [NOT NULL]
+     • analysis_end_date: DateField [NOT NULL]
+     • calculated_at: DateTimeField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.ProductRecommendation
+   Tabla: forecasting_productrecommendation
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: ForeignKey [NOT NULL, FK→Customer]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • next_purchase: ForeignKey [FK→NextPurchasePrediction]
+     • recommendation_type: CharField [NOT NULL]
+     • confidence_score: DecimalField [NOT NULL]
+     • purchase_probability: DecimalField [NOT NULL]
+     • expected_quantity: DecimalField [NOT NULL]
+     • expected_revenue: DecimalField [NOT NULL]
+     • reasoning: TextField [NOT NULL]
+     • similar_customers: JSONField [NOT NULL]
+     • best_contact_time: DateTimeField
+     • expires_at: DateTimeField [NOT NULL]
+     • presented_to_customer: BooleanField [NOT NULL]
+     • customer_response: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.NextPurchasePrediction
+   Tabla: forecasting_nextpurchaseprediction
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: ForeignKey [NOT NULL, FK→Customer]
+     • predicted_date: DateField [NOT NULL]
+     • days_until_purchase: PositiveIntegerField [NOT NULL]
+     • confidence_level: DecimalField [NOT NULL]
+     • predicted_value: DecimalField [NOT NULL]
+     • predicted_quantity: DecimalField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.CustomerSegmentation
+   Tabla: forecasting_customersegmentation
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: OneToOneField [UNIQUE, NOT NULL, FK→Customer]
+     • primary_segment: CharField [NOT NULL]
+     • value_score: DecimalField [NOT NULL]
+     • frequency_score: DecimalField [NOT NULL]
+     • recency_score: DecimalField [NOT NULL]
+     • segment_attributes: JSONField [NOT NULL]
+     • marketing_strategy: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.CustomerBehaviorPattern
+   Tabla: forecasting_customerbehaviorpattern
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: ForeignKey [NOT NULL, FK→Customer]
+     • pattern_type: CharField [NOT NULL]
+     • behavior_category: CharField [NOT NULL]
+     • pattern_strength: FloatField [NOT NULL]
+     • frequency: CharField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.PriceOptimization
+   Tabla: forecasting_priceoptimization
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • optimization_type: CharField [NOT NULL]
+     • current_price: DecimalField [NOT NULL]
+     • recommended_price: DecimalField [NOT NULL]
+     • expected_demand_change: FloatField [NOT NULL]
+     • revenue_impact: DecimalField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.CrossSellModel
+   Tabla: forecasting_crosssellmodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • recommended_product: ForeignKey [NOT NULL, FK→Product]
+     • recommendation_score: FloatField [NOT NULL]
+     • confidence_level: FloatField [NOT NULL]
+     • historical_data_support: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.CustomerSatisfactionModel
+   Tabla: forecasting_customersatisfactionmodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: ForeignKey [NOT NULL, FK→Customer]
+     • satisfaction_score: FloatField [NOT NULL]
+     • feedback_sentiment: CharField [NOT NULL]
+     • key_factors: JSONField [NOT NULL]
+     • improvement_suggestions: TextField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.LoyaltyProgramModel
+   Tabla: forecasting_loyaltyprogrammodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: ForeignKey [NOT NULL, FK→Customer]
+     • loyalty_score: FloatField [NOT NULL]
+     • loyalty_tier: CharField [NOT NULL]
+     • points_balance: IntegerField [NOT NULL]
+     • engagement_level: CharField [NOT NULL]
+     • next_reward_threshold: IntegerField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.CustomerEngagementModel
+   Tabla: forecasting_customerengagementmodel
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • customer: ForeignKey [NOT NULL, FK→Customer]
+     • engagement_score: FloatField [NOT NULL]
+     • engagement_level: CharField [NOT NULL]
+     • interaction_frequency: FloatField [NOT NULL]
+     • preferred_channels: JSONField [NOT NULL]
+     • last_interaction: DateTimeField [NOT NULL]
+     • analysis_date: DateField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.SupplierROIAnalysis
+   Tabla: forecasting_supplierroianalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • supplier: OneToOneField [UNIQUE, NOT NULL, FK→Supplier]
+     • total_cost: DecimalField [NOT NULL]
+     • total_revenue: DecimalField [NOT NULL]
+     • gross_profit: DecimalField [NOT NULL]
+     • roi_percentage: DecimalField [NOT NULL]
+     • avg_delivery_time: DecimalField [NOT NULL]
+     • quality_score: DecimalField [NOT NULL]
+     • on_time_delivery_rate: DecimalField [NOT NULL]
+     • cost_per_unit: DecimalField [NOT NULL]
+     • cost_trend: CharField [NOT NULL]
+     • performance_rating: CharField [NOT NULL]
+     • recommendations: JSONField [NOT NULL]
+     • analysis_start_date: DateField [NOT NULL]
+     • analysis_end_date: DateField [NOT NULL]
+     • calculated_at: DateTimeField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.PriceElasticityAnalysis
+   Tabla: forecasting_priceelasticityanalysis
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: OneToOneField [UNIQUE, NOT NULL, FK→Product]
+     • elasticity_coefficient: DecimalField [NOT NULL]
+     • r_squared: DecimalField [NOT NULL]
+     • optimal_price: DecimalField [NOT NULL]
+     • price_sensitivity: CharField [NOT NULL]
+     • data_points: PositiveIntegerField [NOT NULL]
+     • analysis_period_days: PositiveIntegerField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.TrendingProductPrediction
+   Tabla: forecasting_trendingproductprediction
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • prediction_date: DateField [NOT NULL]
+     • trend_score: DecimalField [NOT NULL]
+     • growth_rate: DecimalField [NOT NULL]
+     • confidence: DecimalField [NOT NULL]
+     • factors: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.StockoutPrediction
+   Tabla: forecasting_stockoutprediction
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • product: ForeignKey [NOT NULL, FK→Product]
+     • prediction_date: DateField [NOT NULL]
+     • predicted_stockout_date: DateField
+     • stockout_probability: DecimalField [NOT NULL]
+     • days_until_stockout: PositiveIntegerField
+     • current_stock: DecimalField [NOT NULL]
+     • predicted_demand: DecimalField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.AIPromptVersion
+   Tabla: forecasting_aipromptversion
+   Registros: 0
+   Campos:
+     • id: UUIDField [PK, UNIQUE, NOT NULL]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • prompt_type: CharField [NOT NULL]
+     • version: CharField [NOT NULL]
+     • parent_version: ForeignKey [FK→AIPromptVersion]
+     • status: CharField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • system_prompt: TextField [NOT NULL]
+     • user_prompt_template: TextField [NOT NULL]
+     • assistant_prompt: TextField [NOT NULL]
+     • ai_model: CharField [NOT NULL]
+     • temperature: DecimalField [NOT NULL]
+     • max_tokens: PositiveIntegerField [NOT NULL]
+     • top_p: DecimalField [NOT NULL]
+     • avg_response_time_ms: PositiveIntegerField
+     • success_rate: DecimalField
+     • avg_tokens_used: PositiveIntegerField
+     • test_group: CharField [NOT NULL]
+     • conversion_rate: DecimalField
+     • created_by: ForeignKey [FK→User]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.AIAPIUsage
+   Tabla: forecasting_aiapiusage
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • prompt_version: ForeignKey [FK→AIPromptVersion]
+     • api_provider: CharField [NOT NULL]
+     • model_name: CharField [NOT NULL]
+     • request_type: CharField [NOT NULL]
+     • input_tokens: PositiveIntegerField [NOT NULL]
+     • output_tokens: PositiveIntegerField [NOT NULL]
+     • total_tokens: PositiveIntegerField [NOT NULL]
+     • input_cost: DecimalField [NOT NULL]
+     • output_cost: DecimalField [NOT NULL]
+     • total_cost: DecimalField [NOT NULL]
+     • response_time_ms: PositiveIntegerField
+     • status_code: PositiveIntegerField [NOT NULL]
+     • success: BooleanField [NOT NULL]
+     • error_message: TextField [NOT NULL]
+     • user: ForeignKey [FK→User]
+     • session_id: CharField [NOT NULL]
+     • request_context: JSONField [NOT NULL]
+     • requested_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.AIInsight
+   Tabla: forecasting_aiinsight
+   Registros: 0
+   Campos:
+     • id: UUIDField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • insight_type: CharField [NOT NULL]
+     • title: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • insight_data: JSONField [NOT NULL]
+     • raw_ai_response: TextField [NOT NULL]
+     • sentiment_score: CharField [NOT NULL]
+     • sentiment_confidence: DecimalField
+     • recommendations: JSONField [NOT NULL]
+     • priority_level: CharField [NOT NULL]
+     • confidence_level: CharField [NOT NULL]
+     • confidence_score: DecimalField [NOT NULL]
+     • human_validated: BooleanField [NOT NULL]
+     • validation_feedback: TextField [NOT NULL]
+     • validated_by: ForeignKey [FK→User]
+     • impact_score: DecimalField
+     • business_value: DecimalField
+     • implemented: BooleanField [NOT NULL]
+     • implementation_notes: TextField [NOT NULL]
+     • implementation_date: DateTimeField
+     • api_usage: ForeignKey [FK→AIAPIUsage]
+     • prompt_version: ForeignKey [FK→AIPromptVersion]
+     • created_by: ForeignKey [FK→User]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 forecasting.HybridMLAIPrediction
+   Tabla: forecasting_hybridmlaiprediction
+   Registros: 0
+   Campos:
+     • id: UUIDField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • prediction_type: CharField [NOT NULL]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • ml_model: ForeignKey [FK→ForecastModel]
+     • ml_prediction: JSONField [NOT NULL]
+     • ml_confidence: DecimalField
+     • ai_insight: ForeignKey [FK→AIInsight]
+     • ai_prediction: JSONField [NOT NULL]
+     • ai_confidence: DecimalField
+     • final_prediction: JSONField [NOT NULL]
+     • hybrid_confidence: DecimalField
+     • ml_weight: DecimalField [NOT NULL]
+     • ai_weight: DecimalField [NOT NULL]
+     • actual_outcome: JSONField [NOT NULL]
+     • accuracy_ml: DecimalField
+     • accuracy_ai: DecimalField
+     • accuracy_hybrid: DecimalField
+     • created_by: ForeignKey [FK→User]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 alerts.AlertRecipient
+   Tabla: alerts_alertrecipient
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • name: CharField [NOT NULL]
+     • email: EmailField
+     • phone: CharField
+     • notification_type: CharField [NOT NULL]
+     • receive_all_alerts: BooleanField [NOT NULL]
+     • receive_critical_only: BooleanField [NOT NULL]
+     • receive_high_and_critical: BooleanField [NOT NULL]
+     • alert_types: JSONField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+
+🔹 alerts.AlertRule
+   Tabla: alerts_alertrule
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • alert_type: CharField [NOT NULL]
+     • threshold_value: DecimalField
+     • threshold_percentage: DecimalField
+     • days_before_expiration: PositiveIntegerField
+     • forecast_horizon_days: PositiveIntegerField
+     • accuracy_threshold: DecimalField
+     • seasonal_factor_threshold: DecimalField
+     • send_email: BooleanField [NOT NULL]
+     • send_whatsapp: BooleanField [NOT NULL]
+     • send_notification: BooleanField [NOT NULL]
+     • frequency: CharField [NOT NULL]
+     • auto_generate_purchase_orders: BooleanField [NOT NULL]
+     • auto_send_purchase_emails: BooleanField [NOT NULL]
+     • purchase_order_priority: CharField [NOT NULL]
+     • additional_emails: TextField [NOT NULL]
+     • additional_phones: TextField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+
+🔹 alerts.Alert
+   Tabla: alerts_alert
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • rule: ForeignKey [FK→AlertRule]
+     • title: CharField [NOT NULL]
+     • message: TextField [NOT NULL]
+     • severity: CharField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • source: CharField [NOT NULL]
+     • product: ForeignKey [FK→Product]
+     • location: ForeignKey [FK→Location]
+     • current_value: DecimalField
+     • threshold_value: DecimalField
+     • forecast_model: ForeignKey [FK→ForecastModel]
+     • demand_forecast: ForeignKey [FK→DemandForecast]
+     • reorder_recommendation: ForeignKey [FK→ReorderRecommendation]
+     • context_data: JSONField [NOT NULL]
+     • recommended_actions: JSONField [NOT NULL]
+     • priority_score: IntegerField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • acknowledged_at: DateTimeField
+     • resolved_at: DateTimeField
+     • acknowledged_by: ForeignKey [FK→User]
+     • resolved_by: ForeignKey [FK→User]
+
+🔹 alerts.NotificationLog
+   Tabla: alerts_notificationlog
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • alert: ForeignKey [NOT NULL, FK→Alert]
+     • notification_type: CharField [NOT NULL]
+     • recipient: CharField [NOT NULL]
+     • subject: CharField [NOT NULL]
+     • content: TextField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • sent_at: DateTimeField
+     • delivered_at: DateTimeField
+     • error_message: TextField [NOT NULL]
+     • whatsapp_message_id: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 reports.ReportTemplate
+   Tabla: reports_reporttemplate
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • report_type: CharField [NOT NULL]
+     • default_format: CharField [NOT NULL]
+     • frequency: CharField [NOT NULL]
+     • default_filters: JSONField [NOT NULL]
+     • columns_config: JSONField [NOT NULL]
+     • charts_config: JSONField [NOT NULL]
+     • grouping_config: JSONField [NOT NULL]
+     • sorting_config: JSONField [NOT NULL]
+     • auto_send: BooleanField [NOT NULL]
+     • additional_emails: TextField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • is_system_template: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+
+🔹 reports.Report
+   Tabla: reports_report
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • template: ForeignKey [NOT NULL, FK→ReportTemplate]
+     • title: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • parameters: JSONField [NOT NULL]
+     • filters_applied: JSONField [NOT NULL]
+     • date_from: DateField [NOT NULL]
+     • date_to: DateField [NOT NULL]
+     • file_format: CharField [NOT NULL]
+     • file_path: CharField [NOT NULL]
+     • file_size_mb: DecimalField
+     • total_records: PositiveIntegerField
+     • generation_time_seconds: PositiveIntegerField
+     • error_message: TextField [NOT NULL]
+     • execution_log: TextField [NOT NULL]
+     • requested_by: ForeignKey [FK→User]
+     • generated_at: DateTimeField
+     • sent_at: DateTimeField
+     • expires_at: DateTimeField
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 reports.KPIDefinition
+   Tabla: reports_kpidefinition
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • code: CharField [NOT NULL]
+     • calculation_type: CharField [NOT NULL]
+     • data_source: CharField [NOT NULL]
+     • formula: TextField [NOT NULL]
+     • default_filters: JSONField [NOT NULL]
+     • unit: CharField [NOT NULL]
+     • decimal_places: PositiveIntegerField [NOT NULL]
+     • show_as_percentage: BooleanField [NOT NULL]
+     • good_threshold: DecimalField
+     • warning_threshold: DecimalField
+     • critical_threshold: DecimalField
+     • track_trend: BooleanField [NOT NULL]
+     • trend_periods: PositiveIntegerField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • is_system_kpi: BooleanField [NOT NULL]
+     • sort_order: PositiveIntegerField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+
+🔹 reports.KPIValue
+   Tabla: reports_kpivalue
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • kpi_definition: ForeignKey [NOT NULL, FK→KPIDefinition]
+     • period_start: DateField [NOT NULL]
+     • period_end: DateField [NOT NULL]
+     • period_type: CharField [NOT NULL]
+     • value: DecimalField [NOT NULL]
+     • context_data: JSONField [NOT NULL]
+     • calculated_at: DateTimeField [NOT NULL]
+     • calculation_duration_ms: PositiveIntegerField
+
+🔹 reports.ReportSchedule
+   Tabla: reports_reportschedule
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • template: ForeignKey [NOT NULL, FK→ReportTemplate]
+     • name: CharField [NOT NULL]
+     • schedule_type: CharField [NOT NULL]
+     • hour: PositiveIntegerField [NOT NULL]
+     • minute: PositiveIntegerField [NOT NULL]
+     • day_of_week: PositiveIntegerField
+     • day_of_month: PositiveIntegerField
+     • is_active: BooleanField [NOT NULL]
+     • last_run_at: DateTimeField
+     • next_run_at: DateTimeField
+     • last_run_status: CharField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • created_by: ForeignKey [FK→User]
+
+🔹 reports.ReportDistribution
+   Tabla: reports_reportdistribution
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • report: ForeignKey [NOT NULL, FK→Report]
+     • distribution_type: CharField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • recipients: JSONField [NOT NULL]
+     • sent_at: DateTimeField
+     • delivered_at: DateTimeField
+     • error_message: TextField [NOT NULL]
+     • delivery_details: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 data_import.DataImportSession
+   Tabla: data_import_dataimportsession
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • user: ForeignKey [NOT NULL, FK→User]
+     • import_type: CharField [NOT NULL]
+     • status: CharField [NOT NULL]
+     • original_filename: CharField [NOT NULL]
+     • file_path: CharField [NOT NULL]
+     • file_size: BigIntegerField [NOT NULL]
+     • total_rows: IntegerField [NOT NULL]
+     • header_row: IntegerField [NOT NULL]
+     • detected_columns: JSONField [NOT NULL]
+     • processed_rows: IntegerField [NOT NULL]
+     • successful_rows: IntegerField [NOT NULL]
+     • failed_rows: IntegerField [NOT NULL]
+     • error_log: JSONField [NOT NULL]
+     • skip_duplicates: BooleanField [NOT NULL]
+     • update_existing: BooleanField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+     • completed_at: DateTimeField
+
+🔹 data_import.ColumnMapping
+   Tabla: data_import_columnmapping
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • import_session: ForeignKey [NOT NULL, FK→DataImportSession]
+     • source_column: CharField [NOT NULL]
+     • source_index: IntegerField [NOT NULL]
+     • target_field: CharField [NOT NULL]
+     • field_type: CharField [NOT NULL]
+     • is_required: BooleanField [NOT NULL]
+     • default_value: TextField [NOT NULL]
+     • transformation_rules: JSONField [NOT NULL]
+     • sample_values: JSONField [NOT NULL]
+     • validation_errors: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+
+🔹 data_import.ImportTemplate
+   Tabla: data_import_importtemplate
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • user: ForeignKey [NOT NULL, FK→User]
+     • name: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • import_type: CharField [NOT NULL]
+     • column_mappings: JSONField [NOT NULL]
+     • import_settings: JSONField [NOT NULL]
+     • is_default: BooleanField [NOT NULL]
+     • usage_count: IntegerField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • updated_at: DateTimeField [NOT NULL]
+
+🔹 data_import.FieldDefinition
+   Tabla: data_import_fielddefinition
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • import_type: CharField [NOT NULL]
+     • field_name: CharField [NOT NULL]
+     • display_name: CharField [NOT NULL]
+     • field_type: CharField [NOT NULL]
+     • description: TextField [NOT NULL]
+     • is_required: BooleanField [NOT NULL]
+     • is_unique: BooleanField [NOT NULL]
+     • default_value: TextField [NOT NULL]
+     • related_model: CharField [NOT NULL]
+     • lookup_field: CharField [NOT NULL]
+     • choices: JSONField [NOT NULL]
+     • min_length: IntegerField
+     • max_length: IntegerField
+     • min_value: DecimalField
+     • max_value: DecimalField
+     • regex_pattern: CharField [NOT NULL]
+     • order: IntegerField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+
+🔹 intelligence.IntelligenceBriefing
+   Tabla: intelligence_briefing
+   Registros: 3
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • briefing_type: CharField [NOT NULL]
+     • generated_at: DateTimeField [NOT NULL]
+     • generated_by: ForeignKey [FK→User]
+     • greeting: TextField [NOT NULL]
+     • summary: TextField [NOT NULL]
+     • priorities_json: JSONField [NOT NULL]
+     • opportunities_json: JSONField [NOT NULL]
+     • recommendations_json: JSONField [NOT NULL]
+     • metrics_json: JSONField [NOT NULL]
+     • data_snapshot_json: JSONField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+
+🔹 intelligence.IntelligenceInsight
+   Tabla: intelligence_insight
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • insight_type: CharField [NOT NULL]
+     • priority: CharField [NOT NULL]
+     • title: CharField [NOT NULL]
+     • message: TextField [NOT NULL]
+     • actions_json: JSONField [NOT NULL]
+     • created_at: DateTimeField [NOT NULL]
+     • is_active: BooleanField [NOT NULL]
+     • is_resolved: BooleanField [NOT NULL]
+     • resolved_at: DateTimeField
+     • resolved_by: ForeignKey [FK→User]
+     • source_data_json: JSONField [NOT NULL]
+     • confidence_score: FloatField [NOT NULL]
+
+🔹 intelligence.IntelligenceMetric
+   Tabla: intelligence_metric
+   Registros: 0
+   Campos:
+     • id: BigAutoField [PK, UNIQUE, NOT NULL]
+     • company: ForeignKey [NOT NULL, FK→Company]
+     • metric_type: CharField [NOT NULL]
+     • current_value: FloatField [NOT NULL]
+     • previous_value: FloatField
+     • change_percentage: FloatField
+     • trend: CharField [NOT NULL]
+     • period_start: DateTimeField [NOT NULL]
+     • period_end: DateTimeField [NOT NULL]
+     • comparison_period_start: DateTimeField
+     • comparison_period_end: DateTimeField
+     • calculated_at: DateTimeField [NOT NULL]
+     • calculation_method: CharField [NOT NULL]
+     • raw_data_json: JSONField [NOT NULL]
+
+============================================================
+📊 RELACIONES ENTRE TABLAS
+============================================================
+Total relaciones: 157
+
+--- Relaciones en admin ---
+  admin.LogEntry.user → authentication.User (ForeignKey)
+  admin.LogEntry.content_type → contenttypes.ContentType (ForeignKey)
+
+--- Relaciones en auth ---
+  auth.Permission.content_type → contenttypes.ContentType (ForeignKey)
+
+--- Relaciones en authentication ---
+  authentication.User.company → authentication.Company (ForeignKey)
+
+--- Relaciones en inventory ---
+  inventory.Product.company → authentication.Company (ForeignKey)
+  inventory.Product.category → inventory.Category (ForeignKey)
+  inventory.Product.supplier → inventory.Supplier (ForeignKey)
+  inventory.InventoryItem.product → inventory.Product (ForeignKey)
+  inventory.InventoryItem.location → inventory.Location (ForeignKey)
+  inventory.Transaction.product → inventory.Product (ForeignKey)
+  inventory.Transaction.location → inventory.Location (ForeignKey)
+  inventory.Transaction.created_by → authentication.User (ForeignKey)
+  inventory.Sale.product → inventory.Product (ForeignKey)
+  inventory.Lead.assigned_to → authentication.User (ForeignKey)
+  inventory.Alert.product → inventory.Product (ForeignKey)
+  inventory.InventoryHistory.product → inventory.Product (ForeignKey)
+  inventory.InventoryHistory.user → authentication.User (ForeignKey)
+  inventory.PurchaseOrder.company → authentication.Company (ForeignKey)
+  inventory.PurchaseOrder.product → inventory.Product (ForeignKey)
+  inventory.PurchaseOrder.supplier → inventory.Supplier (ForeignKey)
+  inventory.PurchaseOrder.alert → alerts.Alert (ForeignKey)
+  inventory.PurchaseOrder.created_by → authentication.User (ForeignKey)
+  inventory.PurchaseOrderTracking.purchase_order → inventory.PurchaseOrder (ForeignKey)
+  inventory.PurchaseOrderTracking.created_by → authentication.User (ForeignKey)
+  inventory.PurchaseOrderEmailLog.purchase_order → inventory.PurchaseOrder (ForeignKey)
+  inventory.EmailCampaign.company → authentication.Company (ForeignKey)
+  inventory.EmailCampaign.created_by → authentication.User (ForeignKey)
+  inventory.TrackedEmail.campaign → inventory.EmailCampaign (ForeignKey)
+  inventory.TrackedEmail.company → authentication.Company (ForeignKey)
+  inventory.EmailClick.tracked_email → inventory.TrackedEmail (ForeignKey)
+  inventory.EmailPattern.company → authentication.Company (ForeignKey)
+  inventory.EmailInsight.company → authentication.Company (ForeignKey)
+  inventory.GmailWebhookLog.company → authentication.Company (ForeignKey)
+
+--- Relaciones en forecasting ---
+  forecasting.ForecastModel.company → authentication.Company (ForeignKey)
+  forecasting.ForecastModel.parent_model → forecasting.ForecastModel (ForeignKey)
+  forecasting.ForecastModel.created_by → authentication.User (ForeignKey)
+  forecasting.DemandForecast.model → forecasting.ForecastModel (ForeignKey)
+  forecasting.DemandForecast.product → inventory.Product (ForeignKey)
+  forecasting.DemandForecast.location → inventory.Location (ForeignKey)
+  forecasting.ForecastAccuracy.forecast → forecasting.DemandForecast (OneToOneField)
+  forecasting.ReorderRecommendation.product → inventory.Product (ForeignKey)
+  forecasting.ReorderRecommendation.location → inventory.Location (ForeignKey)
+  forecasting.ReorderRecommendation.forecast_model → forecasting.ForecastModel (ForeignKey)
+  forecasting.ReorderRecommendation.approved_by → authentication.User (ForeignKey)
+  forecasting.ModelTrainingJob.model → forecasting.ForecastModel (ForeignKey)
+  forecasting.ModelTrainingJob.created_by → authentication.User (ForeignKey)
+  forecasting.MLModelVersion.forecast_model → forecasting.ForecastModel (ForeignKey)
+  forecasting.MLModelVersion.parent_version → forecasting.MLModelVersion (ForeignKey)
+  forecasting.MLModelVersion.created_by → authentication.User (ForeignKey)
+  forecasting.MLModelVersion.approved_by → authentication.User (ForeignKey)
+  forecasting.MLMetric.model_version → forecasting.MLModelVersion (ForeignKey)
+  forecasting.MLExperiment.company → authentication.Company (ForeignKey)
+  forecasting.MLExperiment.base_model → forecasting.ForecastModel (ForeignKey)
+  forecasting.MLExperiment.created_by → authentication.User (ForeignKey)
+  forecasting.MLModelRegistry.model_version → forecasting.MLModelVersion (OneToOneField)
+  forecasting.MLModelRegistry.reviewer → authentication.User (ForeignKey)
+  forecasting.MLDatasetVersion.company → authentication.Company (ForeignKey)
+  forecasting.RevenueForecasting.company → authentication.Company (ForeignKey)
+  forecasting.FinancialForecastModel.company → authentication.Company (ForeignKey)
+  forecasting.FinancialForecastModel.base_model → forecasting.ForecastModel (ForeignKey)
+  forecasting.RevenuePrediction.model → forecasting.FinancialForecastModel (ForeignKey)
+  forecasting.CashFlowForecast.model → forecasting.FinancialForecastModel (ForeignKey)
+  forecasting.ProfitabilityAnalysis.product → inventory.Product (ForeignKey)
+  forecasting.FinancialRiskAssessment.company → authentication.Company (ForeignKey)
+  forecasting.SeasonalityAnalysis.product → inventory.Product (ForeignKey)
+  forecasting.CostOptimizationModel.company → authentication.Company (ForeignKey)
+  forecasting.RevenueBreakdown.product → inventory.Product (ForeignKey)
+  forecasting.FinancialScenario.company → authentication.Company (ForeignKey)
+  forecasting.ProfitMarginAnalysis.product → inventory.Product (ForeignKey)
+  forecasting.FinancialTrendAnalysis.company → authentication.Company (ForeignKey)
+  forecasting.DemandPatternAnalysis.product → inventory.Product (ForeignKey)
+  forecasting.PriceElasticity.product → inventory.Product (OneToOneField)
+  forecasting.SeasonalityPattern.company → authentication.Company (ForeignKey)
+  forecasting.SeasonalityPattern.product → inventory.Product (ForeignKey)
+  forecasting.OptimalStockLevel.product → inventory.Product (OneToOneField)
+  forecasting.OptimalStockLevel.location → inventory.Location (ForeignKey)
+  forecasting.DemandPattern.product → inventory.Product (ForeignKey)
+  forecasting.AdvancedDemandForecast.product → inventory.Product (ForeignKey)
+  forecasting.AdvancedDemandForecast.model → forecasting.ForecastModel (ForeignKey)
+  forecasting.SeasonalPattern.product → inventory.Product (ForeignKey)
+  forecasting.InventoryOptimizationModel.company → authentication.Company (ForeignKey)
+  forecasting.StockLevelRecommendation.product → inventory.Product (ForeignKey)
+  forecasting.StockLevelRecommendation.model → forecasting.InventoryOptimizationModel (ForeignKey)
+  forecasting.SupplierPerformanceModel.supplier → inventory.Supplier (ForeignKey)
+  forecasting.ProcurementOptimization.product → inventory.Product (ForeignKey)
+  forecasting.ProcurementOptimization.supplier → inventory.Supplier (ForeignKey)
+  forecasting.SupplierRiskAnalysis.supplier → inventory.Supplier (ForeignKey)
+  forecasting.InventoryTurnoverAnalysis.product → inventory.Product (ForeignKey)
+  forecasting.CustomerLifetimeValue.customer → inventory.Customer (OneToOneField)
+  forecasting.ChurnPrediction.customer → inventory.Customer (OneToOneField)
+  forecasting.MarketBasketAnalysis.company → authentication.Company (ForeignKey)
+  forecasting.MarketBasketAnalysis.product_a → inventory.Product (ForeignKey)
+  forecasting.MarketBasketAnalysis.product_b → inventory.Product (ForeignKey)
+  forecasting.ProductRecommendation.customer → inventory.Customer (ForeignKey)
+  forecasting.ProductRecommendation.product → inventory.Product (ForeignKey)
+  forecasting.ProductRecommendation.next_purchase → forecasting.NextPurchasePrediction (ForeignKey)
+  forecasting.NextPurchasePrediction.customer → inventory.Customer (ForeignKey)
+  forecasting.CustomerSegmentation.customer → inventory.Customer (OneToOneField)
+  forecasting.CustomerBehaviorPattern.customer → inventory.Customer (ForeignKey)
+  forecasting.PriceOptimization.product → inventory.Product (ForeignKey)
+  forecasting.CrossSellModel.product → inventory.Product (ForeignKey)
+  forecasting.CrossSellModel.recommended_product → inventory.Product (ForeignKey)
+  forecasting.CustomerSatisfactionModel.customer → inventory.Customer (ForeignKey)
+  forecasting.LoyaltyProgramModel.customer → inventory.Customer (ForeignKey)
+  forecasting.CustomerEngagementModel.customer → inventory.Customer (ForeignKey)
+  forecasting.SupplierROIAnalysis.supplier → inventory.Supplier (OneToOneField)
+  forecasting.PriceElasticityAnalysis.product → inventory.Product (OneToOneField)
+  forecasting.TrendingProductPrediction.product → inventory.Product (ForeignKey)
+  forecasting.StockoutPrediction.product → inventory.Product (ForeignKey)
+  forecasting.AIPromptVersion.parent_version → forecasting.AIPromptVersion (ForeignKey)
+  forecasting.AIPromptVersion.created_by → authentication.User (ForeignKey)
+  forecasting.AIAPIUsage.company → authentication.Company (ForeignKey)
+  forecasting.AIAPIUsage.prompt_version → forecasting.AIPromptVersion (ForeignKey)
+  forecasting.AIAPIUsage.user → authentication.User (ForeignKey)
+  forecasting.AIInsight.company → authentication.Company (ForeignKey)
+  forecasting.AIInsight.validated_by → authentication.User (ForeignKey)
+  forecasting.AIInsight.api_usage → forecasting.AIAPIUsage (ForeignKey)
+  forecasting.AIInsight.prompt_version → forecasting.AIPromptVersion (ForeignKey)
+  forecasting.AIInsight.created_by → authentication.User (ForeignKey)
+  forecasting.HybridMLAIPrediction.company → authentication.Company (ForeignKey)
+  forecasting.HybridMLAIPrediction.ml_model → forecasting.ForecastModel (ForeignKey)
+  forecasting.HybridMLAIPrediction.ai_insight → forecasting.AIInsight (ForeignKey)
+  forecasting.HybridMLAIPrediction.created_by → authentication.User (ForeignKey)
+
+--- Relaciones en alerts ---
+  alerts.AlertRecipient.company → authentication.Company (ForeignKey)
+  alerts.AlertRecipient.created_by → authentication.User (ForeignKey)
+  alerts.AlertRule.company → authentication.Company (ForeignKey)
+  alerts.AlertRule.created_by → authentication.User (ForeignKey)
+  alerts.Alert.company → authentication.Company (ForeignKey)
+  alerts.Alert.rule → alerts.AlertRule (ForeignKey)
+  alerts.Alert.product → inventory.Product (ForeignKey)
+  alerts.Alert.location → inventory.Location (ForeignKey)
+  alerts.Alert.forecast_model → forecasting.ForecastModel (ForeignKey)
+  alerts.Alert.demand_forecast → forecasting.DemandForecast (ForeignKey)
+  alerts.Alert.reorder_recommendation → forecasting.ReorderRecommendation (ForeignKey)
+  alerts.Alert.acknowledged_by → authentication.User (ForeignKey)
+  alerts.Alert.resolved_by → authentication.User (ForeignKey)
+  alerts.NotificationLog.alert → alerts.Alert (ForeignKey)
+
+--- Relaciones en reports ---
+  reports.ReportTemplate.company → authentication.Company (ForeignKey)
+  reports.ReportTemplate.created_by → authentication.User (ForeignKey)
+  reports.Report.template → reports.ReportTemplate (ForeignKey)
+  reports.Report.requested_by → authentication.User (ForeignKey)
+  reports.KPIDefinition.company → authentication.Company (ForeignKey)
+  reports.KPIDefinition.created_by → authentication.User (ForeignKey)
+  reports.KPIValue.kpi_definition → reports.KPIDefinition (ForeignKey)
+  reports.ReportSchedule.template → reports.ReportTemplate (ForeignKey)
+  reports.ReportSchedule.created_by → authentication.User (ForeignKey)
+  reports.ReportDistribution.report → reports.Report (ForeignKey)
+
+--- Relaciones en data_import ---
+  data_import.DataImportSession.company → authentication.Company (ForeignKey)
+  data_import.DataImportSession.user → authentication.User (ForeignKey)
+  data_import.ColumnMapping.import_session → data_import.DataImportSession (ForeignKey)
+  data_import.ImportTemplate.company → authentication.Company (ForeignKey)
+  data_import.ImportTemplate.user → authentication.User (ForeignKey)
+
+--- Relaciones en intelligence ---
+  intelligence.IntelligenceBriefing.company → authentication.Company (ForeignKey)
+  intelligence.IntelligenceBriefing.generated_by → authentication.User (ForeignKey)
+  intelligence.IntelligenceInsight.company → authentication.Company (ForeignKey)
+  intelligence.IntelligenceInsight.resolved_by → authentication.User (ForeignKey)
+  intelligence.IntelligenceMetric.company → authentication.Company (ForeignKey)
+
+============================================================
+📊 DISTRIBUCIÓN DE DATOS
+============================================================
+🎯 TOTAL REGISTROS EN BD: 108
+
+--- rest_framework (0 registros) ---
+
+--- rest_framework_simplejwt (0 registros) ---
+
+--- corsheaders (0 registros) ---
+
+--- drf_spectacular (0 registros) ---
+
+--- django_extensions (0 registros) ---
+
+--- authentication (2 registros) ---
+  • Company: 1 (0.9%)
+  • User: 1 (0.9%)
+
+--- inventory (103 registros) ---
+  • TrackedEmail: 51 (47.2%)
+  • Product: 21 (19.4%)
+  • PurchaseOrder: 21 (19.4%)
+  • Supplier: 4 (3.7%)
+  • EmailCampaign: 4 (3.7%)
+  • Category: 1 (0.9%)
+  • Customer: 1 (0.9%)
+  • Location: 0 (0.0%)
+  • InventoryItem: 0 (0.0%)
+  • Transaction: 0 (0.0%)
+  • Sale: 0 (0.0%)
+  • Lead: 0 (0.0%)
+  • Alert: 0 (0.0%)
+  • InventoryHistory: 0 (0.0%)
+  • PurchaseOrderTracking: 0 (0.0%)
+  • PurchaseOrderEmailLog: 0 (0.0%)
+  • EmailClick: 0 (0.0%)
+  • EmailPattern: 0 (0.0%)
+  • EmailInsight: 0 (0.0%)
+  • GmailWebhookLog: 0 (0.0%)
+
+--- forecasting (0 registros) ---
+  • ForecastModel: 0 (0.0%)
+  • DemandForecast: 0 (0.0%)
+  • ForecastAccuracy: 0 (0.0%)
+  • ReorderRecommendation: 0 (0.0%)
+  • ModelTrainingJob: 0 (0.0%)
+  • MLModelVersion: 0 (0.0%)
+  • MLMetric: 0 (0.0%)
+  • MLExperiment: 0 (0.0%)
+  • MLModelRegistry: 0 (0.0%)
+  • MLDatasetVersion: 0 (0.0%)
+  • RevenueForecasting: 0 (0.0%)
+  • FinancialForecastModel: 0 (0.0%)
+  • RevenuePrediction: 0 (0.0%)
+  • CashFlowForecast: 0 (0.0%)
+  • ProfitabilityAnalysis: 0 (0.0%)
+  • FinancialRiskAssessment: 0 (0.0%)
+  • SeasonalityAnalysis: 0 (0.0%)
+  • CostOptimizationModel: 0 (0.0%)
+  • RevenueBreakdown: 0 (0.0%)
+  • FinancialScenario: 0 (0.0%)
+  • ProfitMarginAnalysis: 0 (0.0%)
+  • FinancialTrendAnalysis: 0 (0.0%)
+  • DemandPatternAnalysis: 0 (0.0%)
+  • PriceElasticity: 0 (0.0%)
+  • SeasonalityPattern: 0 (0.0%)
+  • OptimalStockLevel: 0 (0.0%)
+  • DemandPattern: 0 (0.0%)
+  • AdvancedDemandForecast: 0 (0.0%)
+  • SeasonalPattern: 0 (0.0%)
+  • InventoryOptimizationModel: 0 (0.0%)
+  • StockLevelRecommendation: 0 (0.0%)
+  • SupplierPerformanceModel: 0 (0.0%)
+  • ProcurementOptimization: 0 (0.0%)
+  • SupplierRiskAnalysis: 0 (0.0%)
+  • InventoryTurnoverAnalysis: 0 (0.0%)
+  • CustomerLifetimeValue: 0 (0.0%)
+  • ChurnPrediction: 0 (0.0%)
+  • MarketBasketAnalysis: 0 (0.0%)
+  • ProductRecommendation: 0 (0.0%)
+  • NextPurchasePrediction: 0 (0.0%)
+  • CustomerSegmentation: 0 (0.0%)
+  • CustomerBehaviorPattern: 0 (0.0%)
+  • PriceOptimization: 0 (0.0%)
+  • CrossSellModel: 0 (0.0%)
+  • CustomerSatisfactionModel: 0 (0.0%)
+  • LoyaltyProgramModel: 0 (0.0%)
+  • CustomerEngagementModel: 0 (0.0%)
+  • SupplierROIAnalysis: 0 (0.0%)
+  • PriceElasticityAnalysis: 0 (0.0%)
+  • TrendingProductPrediction: 0 (0.0%)
+  • StockoutPrediction: 0 (0.0%)
+  • AIPromptVersion: 0 (0.0%)
+  • AIAPIUsage: 0 (0.0%)
+  • AIInsight: 0 (0.0%)
+  • HybridMLAIPrediction: 0 (0.0%)
+
+--- alerts (0 registros) ---
+  • AlertRecipient: 0 (0.0%)
+  • AlertRule: 0 (0.0%)
+  • Alert: 0 (0.0%)
+  • NotificationLog: 0 (0.0%)
+
+--- reports (0 registros) ---
+  • ReportTemplate: 0 (0.0%)
+  • Report: 0 (0.0%)
+  • KPIDefinition: 0 (0.0%)
+  • KPIValue: 0 (0.0%)
+  • ReportSchedule: 0 (0.0%)
+  • ReportDistribution: 0 (0.0%)
+
+--- data_import (0 registros) ---
+  • DataImportSession: 0 (0.0%)
+  • ColumnMapping: 0 (0.0%)
+  • ImportTemplate: 0 (0.0%)
+  • FieldDefinition: 0 (0.0%)
+
+--- intelligence (3 registros) ---
+  • IntelligenceBriefing: 3 (2.8%)
+  • IntelligenceInsight: 0 (0.0%)
+  • IntelligenceMetric: 0 (0.0%)
+
+============================================================
+📊 ÍNDICES Y RESTRICCIONES
+============================================================
+
+--- Índices (289 encontrados) ---
+
+📋 Tabla: alerts_alert
+  • alerts_alert_acknowledged_by_id_6e4e3b9d
+  • alerts_alert_company_id_c0252980
+  • alerts_alert_location_id_653a2a7e
+  • alerts_alert_product_id_45935427
+  • alerts_alert_resolved_by_id_b59cbeaf
+  • alerts_alert_rule_id_74644b2d
+  • alerts_alert_demand_forecast_id_8e01c775
+  • alerts_alert_forecast_model_id_4bf91fad
+  • alerts_alert_reorder_recommendation_id_3797e3f1
+  • alerts_aler_company_9bf118_idx
+  • alerts_aler_company_afdc3d_idx
+  • alerts_aler_product_ef7964_idx
+  • alerts_aler_priorit_27387c_idx
+
+📋 Tabla: alerts_alertrecipient
+  • alerts_alertrecipient_company_id_phone_26661d08_uniq
+  • alerts_alertrecipient_company_id_email_b9c107fc_uniq
+  • alerts_alertrecipient_company_id_4babd6fa
+  • alerts_alertrecipient_created_by_id_e57eb537
+
+📋 Tabla: alerts_alertrule
+  • alerts_alertrule_company_id_012e4bd9
+  • alerts_alertrule_created_by_id_05992d6e
+
+📋 Tabla: alerts_alertrule_categories
+  • alerts_alertrule_categories_alertrule_id_category_id_e32de10a_uniq
+  • alerts_alertrule_categories_alertrule_id_b81dc944
+  • alerts_alertrule_categories_category_id_f2ddcc52
+
+📋 Tabla: alerts_alertrule_locations
+  • alerts_alertrule_locations_alertrule_id_location_id_93c0bea2_uniq
+  • alerts_alertrule_locations_alertrule_id_78c6ac6f
+  • alerts_alertrule_locations_location_id_60fda19d
+
+📋 Tabla: alerts_alertrule_products
+  • alerts_alertrule_products_alertrule_id_product_id_820a4018_uniq
+  • alerts_alertrule_products_alertrule_id_ca64e8fc
+  • alerts_alertrule_products_product_id_9f2ffd74
+
+📋 Tabla: alerts_alertrule_recipients
+  • alerts_alertrule_recipients_alertrule_id_user_id_360463a3_uniq
+  • alerts_alertrule_recipients_alertrule_id_6941f669
+  • alerts_alertrule_recipients_user_id_218ba028
+
+📋 Tabla: alerts_notificationlog
+  • alerts_notificationlog_alert_id_32bc59cd
+
+📋 Tabla: auth_group_permissions
+  • auth_group_permissions_group_id_permission_id_0cd325b0_uniq
+  • auth_group_permissions_group_id_b120cbf9
+  • auth_group_permissions_permission_id_84c5c92e
+
+📋 Tabla: auth_permission
+  • auth_permission_content_type_id_codename_01ab375a_uniq
+  • auth_permission_content_type_id_2f476e4b
+
+📋 Tabla: authentication_user
+  • authentication_user_company_id_a38f3939
+
+📋 Tabla: authentication_user_groups
+  • authentication_user_groups_user_id_group_id_8af031ac_uniq
+  • authentication_user_groups_user_id_30868577
+  • authentication_user_groups_group_id_6b5c44b7
+
+📋 Tabla: authentication_user_user_permissions
+  • authentication_user_user_permissions_user_id_permission_id_ec51b09f_uniq
+  • authentication_user_user_permissions_user_id_736ebf7e
+  • authentication_user_user_permissions_permission_id_ea6be19a
+
+📋 Tabla: data_import_columnmapping
+  • data_import_columnmapping_import_session_id_source_column_490f2f49_uniq
+  • data_import_columnmapping_import_session_id_77cb0e25
+
+📋 Tabla: data_import_dataimportsession
+  • data_import_dataimportsession_company_id_d5942d0d
+  • data_import_dataimportsession_user_id_99238428
+
+📋 Tabla: data_import_fielddefinition
+  • data_import_fielddefinition_import_type_field_name_7276465c_uniq
+
+📋 Tabla: data_import_importtemplate
+  • data_import_importtemplate_company_id_name_import_type_353a327d_uniq
+  • data_import_importtemplate_company_id_cef1f459
+  • data_import_importtemplate_user_id_34848479
+
+📋 Tabla: django_admin_log
+  • django_admin_log_content_type_id_c4bce8eb
+  • django_admin_log_user_id_c564eba6
+
+📋 Tabla: django_content_type
+  • django_content_type_app_label_model_76bd3d3b_uniq
+
+📋 Tabla: django_session
+  • django_session_expire_date_a5c62663
+
+📋 Tabla: forecasting_advanceddemandforecast
+  • forecasting_advanceddemandforecast_model_id_09d76394
+  • forecasting_advanceddemandforecast_product_id_232163e5
+
+📋 Tabla: forecasting_aiapiusage
+  • forecasting_company_aec0c4_idx
+  • forecasting_api_pro_f22d46_idx
+  • forecasting_success_995197_idx
+  • forecasting_total_c_3cabb8_idx
+  • forecasting_aiapiusage_company_id_0ddfd57c
+  • forecasting_aiapiusage_prompt_version_id_02c99e02
+  • forecasting_aiapiusage_user_id_09aa2639
+
+📋 Tabla: forecasting_aiinsight
+  • forecasting_company_bef148_idx
+  • forecasting_confide_aeb7d9_idx
+  • forecasting_priorit_d0bfe5_idx
+  • forecasting_sentime_9966d2_idx
+  • forecasting_aiinsight_api_usage_id_878d3c44
+  • forecasting_aiinsight_company_id_1723b7aa
+  • forecasting_aiinsight_created_by_id_f64bf69c
+  • forecasting_aiinsight_prompt_version_id_a3860b0c
+  • forecasting_aiinsight_validated_by_id_a5f5e9bb
+
+📋 Tabla: forecasting_aiinsight_related_customers
+  • forecasting_aiinsight_related_customers_aiinsight_id_customer_id_a7794fc2_uniq
+  • forecasting_aiinsight_related_customers_aiinsight_id_e366abac
+  • forecasting_aiinsight_related_customers_customer_id_1ea720da
+
+📋 Tabla: forecasting_aiinsight_related_products
+  • forecasting_aiinsight_related_products_aiinsight_id_product_id_083c935f_uniq
+  • forecasting_aiinsight_related_products_aiinsight_id_c3941396
+  • forecasting_aiinsight_related_products_product_id_32d677f2
+
+📋 Tabla: forecasting_aipromptversion
+  • forecasting_prompt__b00e00_idx
+  • forecasting_is_acti_64d02b_idx
+  • forecasting_created_619046_idx
+  • forecasting_aipromptversion_name_version_84cc0c60_uniq
+  • forecasting_aipromptversion_created_by_id_9c86b641
+  • forecasting_aipromptversion_parent_version_id_d2504654
+
+📋 Tabla: forecasting_cashflowforecast
+  • forecasting_cashflowforecast_model_id_18c27be4
+
+📋 Tabla: forecasting_churnprediction
+  • idx_churn_risk_level
+
+📋 Tabla: forecasting_costoptimizationmodel
+  • forecasting_costoptimizationmodel_company_id_3aabc78a
+
+📋 Tabla: forecasting_crosssellmodel
+  • forecasting_crosssellmodel_product_id_8df2b8ea
+  • forecasting_crosssellmodel_recommended_product_id_ec6d6173
+
+📋 Tabla: forecasting_customerbehaviorpattern
+  • forecasting_customerbehaviorpattern_customer_id_4f6f70bd
+
+📋 Tabla: forecasting_customerengagementmodel
+  • forecasting_customerengagementmodel_customer_id_abaf6604
+
+📋 Tabla: forecasting_customerlifetimevalue
+  • idx_customer_clv_score
+
+📋 Tabla: forecasting_customersatisfactionmodel
+  • forecasting_customersatisfactionmodel_customer_id_0eb54aa6
+
+📋 Tabla: forecasting_demandforecast
+  • forecasting_demandforecast_location_id_641cde90
+  • forecasting_demandforecast_model_id_81483f3a
+  • forecasting_demandforecast_product_id_ce0d67eb
+  • forecasting_product_820aef_idx
+  • forecasting_forecas_622006_idx
+  • forecasting_demandforecast_product_id_forecast_date_forecast_type_location_id_09f190d6_uniq
+
+📋 Tabla: forecasting_demandpattern
+  • forecasting_demandpattern_product_id_b45e60d8
+
+📋 Tabla: forecasting_demandpatternanalysis
+  • forecasting_demandpatternanalysis_product_id_e74fe277
+
+📋 Tabla: forecasting_financialforecastmodel
+  • forecasting_financialforecastmodel_company_id_e5acd991
+  • forecasting_financialforecastmodel_base_model_id_7bc6d18b
+
+📋 Tabla: forecasting_financialriskassessment
+  • forecasting_financialriskassessment_company_id_78aa3509
+
+📋 Tabla: forecasting_financialscenario
+  • forecasting_financialscenario_company_id_51adbde7
+
+📋 Tabla: forecasting_financialtrendanalysis
+  • forecasting_financialtrendanalysis_company_id_ccbcbbc8
+
+📋 Tabla: forecasting_forecastmodel
+  • forecasting_forecastmodel_company_id_name_version_a80ed14a_uniq
+  • forecasting_forecastmodel_company_id_5a740f76
+  • forecasting_forecastmodel_created_by_id_41ed777f
+  • forecasting_forecastmodel_parent_model_id_d8fcbded
+
+📋 Tabla: forecasting_forecastmodel_categories
+  • forecasting_forecastmodel_categories_forecastmodel_id_category_id_b30846fd_uniq
+  • forecasting_forecastmodel_categories_forecastmodel_id_54d9b941
+  • forecasting_forecastmodel_categories_category_id_0df18fae
+
+📋 Tabla: forecasting_forecastmodel_products
+  • forecasting_forecastmodel_products_forecastmodel_id_product_id_a6c41c26_uniq
+  • forecasting_forecastmodel_products_forecastmodel_id_b11de1e6
+  • forecasting_forecastmodel_products_product_id_9ac57a1b
+
+📋 Tabla: forecasting_hybridmlaiprediction
+  • forecasting_hybridmlaiprediction_ai_insight_id_59725087
+  • forecasting_hybridmlaiprediction_company_id_a0b7e0f8
+  • forecasting_hybridmlaiprediction_created_by_id_5917fb30
+  • forecasting_hybridmlaiprediction_ml_model_id_9a4e572d
+  • forecasting_company_3cb2f5_idx
+  • forecasting_hybrid__d05d2b_idx
+  • forecasting_created_2e2091_idx
+
+📋 Tabla: forecasting_inventoryoptimizationmodel
+  • forecasting_inventoryoptimizationmodel_company_id_b767bc76
+
+📋 Tabla: forecasting_inventoryturnoveranalysis
+  • forecasting_inventoryturnoveranalysis_product_id_0eda9676
+
+📋 Tabla: forecasting_loyaltyprogrammodel
+  • forecasting_loyaltyprogrammodel_customer_id_7b657065
+
+📋 Tabla: forecasting_marketbasketanalysis
+  • forecasting_marketbasketanalysis_product_a_id_product_b_id_analysis_start_date_bf7e98bf_uniq
+  • forecasting_marketbasketanalysis_company_id_dfeee682
+  • forecasting_marketbasketanalysis_product_a_id_913718b2
+  • forecasting_marketbasketanalysis_product_b_id_70a9de69
+
+📋 Tabla: forecasting_mldatasetversion
+  • forecasting_company_d82f73_idx
+  • forecasting_data_st_fb9b59_idx
+  • forecasting_mldatasetversion_name_version_company_id_e6f283bc_uniq
+  • forecasting_mldatasetversion_company_id_a46f1641
+
+📋 Tabla: forecasting_mldatasetversion_source_datasets
+  • forecasting_mldatasetversion_source_datasets_from_mldatasetversion_id_to_mldatasetversion_id_8e013ac6_uniq
+  • forecasting_mldatasetversion_source_datasets_from_mldatasetversion_id_b55ae2de
+  • forecasting_mldatasetversion_source_datasets_to_mldatasetversion_id_713eedf0
+
+📋 Tabla: forecasting_mlexperiment
+  • forecasting_company_e53abb_idx
+  • forecasting_base_mo_dc7bef_idx
+  • forecasting_status_3264e7_idx
+  • forecasting_mlexperiment_base_model_id_fa23dacc
+  • forecasting_mlexperiment_company_id_71636748
+  • forecasting_mlexperiment_created_by_id_dd50cc97
+
+📋 Tabla: forecasting_mlmetric
+  • forecasting_model_v_ff15fc_idx
+  • forecasting_metric__a42cea_idx
+  • forecasting_model_v_ab5168_idx
+  • forecasting_mlmetric_model_version_id_a85e0c7d
+  • idx_ml_metrics_type_date
+
+📋 Tabla: forecasting_mlmodelregistry
+  • forecasting_governa_eaa49c_idx
+  • forecasting_deploye_cc035a_idx
+  • forecasting_perform_ad6dd4_idx
+  • forecasting_mlmodelregistry_reviewer_id_fb0a963f
+
+📋 Tabla: forecasting_mlmodelversion
+  • forecasting_forecas_e99411_idx
+  • forecasting_is_acti_39e0fa_idx
+  • forecasting_created_2ab2f9_idx
+  • forecasting_mlmodelversion_forecast_model_id_version_c5a68725_uniq
+  • forecasting_mlmodelversion_approved_by_id_e03b1ff4
+  • forecasting_mlmodelversion_created_by_id_705b9819
+  • forecasting_mlmodelversion_forecast_model_id_ba7ac559
+  • forecasting_mlmodelversion_parent_version_id_1b5d06b2
+  • idx_ml_model_version_active
+
+📋 Tabla: forecasting_modeltrainingjob
+  • forecasting_modeltrainingjob_created_by_id_b68ff704
+  • forecasting_modeltrainingjob_model_id_ca3faf17
+
+📋 Tabla: forecasting_nextpurchaseprediction
+  • forecasting_nextpurchaseprediction_customer_id_f37b5f1f
+
+📋 Tabla: forecasting_nextpurchaseprediction_recommended_products
+  • forecasting_nextpurchaseprediction_recommended_products_nextpurchaseprediction_id_product_id_0c527dc8_uniq
+  • forecasting_nextpurchaseprediction_recommended_products_nextpurchaseprediction_id_02850ffa
+  • forecasting_nextpurchaseprediction_recommended_products_product_id_ffbbe1f3
+
+📋 Tabla: forecasting_optimalstocklevel
+  • forecasting_optimalstocklevel_product_id_location_id_f842f0ab_uniq
+  • forecasting_optimalstocklevel_location_id_4e6632c4
+
+📋 Tabla: forecasting_priceoptimization
+  • forecasting_priceoptimization_product_id_79a4e494
+
+📋 Tabla: forecasting_procurementoptimization
+  • forecasting_procurementoptimization_product_id_c9bcbd40
+  • forecasting_procurementoptimization_supplier_id_48f32d94
+
+📋 Tabla: forecasting_productrecommendation
+  • forecasting_productrecommendation_customer_id_product_id_recommendation_type_7feddf0d_uniq
+  • forecasting_productrecommendation_customer_id_4aa9ff23
+  • forecasting_productrecommendation_next_purchase_id_87ee6856
+  • forecasting_productrecommendation_product_id_442cd17b
+
+📋 Tabla: forecasting_profitabilityanalysis
+  • forecasting_profitabilityanalysis_product_id_211e0e76
+
+📋 Tabla: forecasting_profitmarginanalysis
+  • forecasting_profitmarginanalysis_product_id_54052e28
+
+📋 Tabla: forecasting_reorderrecommendation
+  • forecasting_reorderrecommendation_approved_by_id_8baf34d0
+  • forecasting_reorderrecommendation_forecast_model_id_faa89a56
+  • forecasting_reorderrecommendation_location_id_cf433f01
+  • forecasting_reorderrecommendation_product_id_e898b2cd
+  • forecasting_product_480358_idx
+  • forecasting_recomme_054395_idx
+
+📋 Tabla: forecasting_revenuebreakdown
+  • forecasting_revenuebreakdown_product_id_a8df8d79
+
+📋 Tabla: forecasting_revenueforecasting
+  • forecasting_revenueforecasting_company_id_forecast_date_forecast_type_8d97790e_uniq
+  • forecasting_revenueforecasting_company_id_7c36c03b
+
+📋 Tabla: forecasting_revenueprediction
+  • forecasting_revenueprediction_model_id_prediction_date_089db750_uniq
+  • forecasting_revenueprediction_model_id_66228840
+
+📋 Tabla: forecasting_seasonalityanalysis
+  • forecasting_seasonalityanalysis_product_id_375b85a2
+
+📋 Tabla: forecasting_seasonalitypattern
+  • forecasting_seasonalitypattern_product_id_pattern_type_830fd400_uniq
+  • forecasting_seasonalitypattern_company_id_55756b58
+  • forecasting_seasonalitypattern_product_id_f04cc3ee
+
+📋 Tabla: forecasting_seasonalpattern
+  • forecasting_seasonalpattern_product_id_6c548693
+
+📋 Tabla: forecasting_stocklevelrecommendation
+  • forecasting_stocklevelrecommendation_model_id_46c5ae46
+  • forecasting_stocklevelrecommendation_product_id_396f5401
+
+📋 Tabla: forecasting_stockoutprediction
+  • forecasting_stockoutprediction_product_id_prediction_date_05f9fb78_uniq
+  • forecasting_stockoutprediction_product_id_e7bc0e95
+
+📋 Tabla: forecasting_supplierperformancemodel
+  • forecasting_supplierperformancemodel_supplier_id_6d31e23e
+
+📋 Tabla: forecasting_supplierriskanalysis
+  • forecasting_supplierriskanalysis_supplier_id_c7a69e57
+
+📋 Tabla: forecasting_trendingproductprediction
+  • forecasting_trendingproductprediction_product_id_prediction_date_b0bc57ca_uniq
+  • forecasting_trendingproductprediction_product_id_d384f0ee
+
+📋 Tabla: intelligence_briefing
+  • intelligence_briefing_company_id_af850538
+  • intelligence_briefing_generated_by_id_efbccb5c
+  • intelligenc_company_1f9bbb_idx
+  • intelligenc_generat_bf8f76_idx
+
+📋 Tabla: intelligence_insight
+  • intelligence_insight_company_id_fa61c267
+  • intelligence_insight_resolved_by_id_7ab9cb13
+  • intelligenc_company_58c2e6_idx
+  • intelligenc_priorit_26750a_idx
+  • intelligenc_created_344c3a_idx
+
+📋 Tabla: intelligence_metric
+  • intelligence_metric_company_id_93d9fad4
+  • intelligenc_company_ada3db_idx
+  • intelligenc_calcula_0b4fc3_idx
+
+📋 Tabla: inventory_alert
+  • inventory_alert_product_id_7ccb62bd
+
+📋 Tabla: inventory_emailcampaign
+  • inventory_e_company_b3da08_idx
+  • inventory_e_created_dc2412_idx
+  • inventory_emailcampaign_company_id_99e728c7
+  • inventory_emailcampaign_created_by_id_6a5e62d6
+
+📋 Tabla: inventory_emailclick
+  • inventory_e_tracked_4d2e8b_idx
+  • inventory_e_url_3741a6_idx
+  • inventory_emailclick_tracked_email_id_1468c008
+
+📋 Tabla: inventory_emailinsight
+  • inventory_e_company_bb03fd_idx
+  • inventory_e_priorit_ff2cf9_idx
+  • inventory_emailinsight_company_id_7fbe497a
+
+📋 Tabla: inventory_emailinsight_related_patterns
+  • inventory_emailinsight_related_patterns_emailinsight_id_emailpattern_id_072b970c_uniq
+  • inventory_emailinsight_related_patterns_emailinsight_id_79d27c49
+  • inventory_emailinsight_related_patterns_emailpattern_id_089f34a3
+
+📋 Tabla: inventory_emailpattern
+  • inventory_e_company_5c52fd_idx
+  • inventory_e_confide_42af13_idx
+  • inventory_emailpattern_company_id_653bed4c
+
+📋 Tabla: inventory_gmailwebhooklog
+  • inventory_g_company_b68939_idx
+  • inventory_g_process_9f54ea_idx
+  • inventory_gmailwebhooklog_company_id_8175a5c3
+
+📋 Tabla: inventory_inventoryhistory
+  • inventory_inventoryhistory_product_id_50460a8b
+  • inventory_inventoryhistory_user_id_8a6cad2e
+
+📋 Tabla: inventory_inventoryitem
+  • inventory_inventoryitem_product_id_location_id_batch_number_03fddc04_uniq
+  • inventory_inventoryitem_location_id_0437778f
+  • inventory_inventoryitem_product_id_78574124
+
+📋 Tabla: inventory_lead
+  • inventory_lead_assigned_to_id_de8ec261
+
+📋 Tabla: inventory_lead_interested_products
+  • inventory_lead_interested_products_lead_id_product_id_1332a033_uniq
+  • inventory_lead_interested_products_lead_id_14a36678
+  • inventory_lead_interested_products_product_id_eb60b229
+
+📋 Tabla: inventory_product
+  • inventory_product_category_id_c907876e
+  • inventory_product_supplier_id_0824ffff
+  • inventory_product_company_id_2757a1fd
+
+📋 Tabla: inventory_purchaseorder
+  • inventory_p_company_624b69_idx
+  • inventory_p_product_ca8f0f_idx
+  • inventory_p_supplie_80088d_idx
+  • inventory_p_created_36002a_idx
+  • inventory_purchaseorder_alert_id_8f344cc6
+  • inventory_purchaseorder_company_id_528acd8b
+  • inventory_purchaseorder_created_by_id_c2f7af15
+  • inventory_purchaseorder_product_id_469cacb5
+  • inventory_purchaseorder_supplier_id_c6bc28e9
+
+📋 Tabla: inventory_purchaseorderemaillog
+  • inventory_purchaseorderemaillog_purchase_order_id_de2cafd2
+
+📋 Tabla: inventory_purchaseordertracking
+  • inventory_purchaseordertracking_created_by_id_8a1e6043
+  • inventory_purchaseordertracking_purchase_order_id_7bb1efbf
+
+📋 Tabla: inventory_sale
+  • inventory_sale_product_id_a46ec16b
+
+📋 Tabla: inventory_trackedemail
+  • inventory_t_trackin_94a7f6_idx
+  • inventory_t_company_af5ca7_idx
+  • inventory_t_recipie_363fb9_idx
+  • inventory_t_sent_at_3fda01_idx
+  • inventory_trackedemail_campaign_id_b17b6d91
+  • inventory_trackedemail_company_id_a6520343
+
+📋 Tabla: inventory_transaction
+  • inventory_transaction_created_by_id_3dcc1771
+  • inventory_transaction_location_id_9376d3d9
+  • inventory_transaction_product_id_6425d45e
+
+📋 Tabla: reports_kpidefinition
+  • reports_kpidefinition_company_id_78e75d14
+  • reports_kpidefinition_created_by_id_b8edecf9
+  • reports_kpidefinition_company_id_code_d4e9027c_uniq
+
+📋 Tabla: reports_kpivalue
+  • reports_kpi_kpi_def_0b5c0c_idx
+  • reports_kpivalue_kpi_definition_id_period_start_period_end_113fe11e_uniq
+  • reports_kpivalue_kpi_definition_id_b46ba52e
+
+📋 Tabla: reports_report
+  • reports_report_requested_by_id_0c7d4253
+  • reports_report_template_id_4c15c500
+  • reports_rep_templat_1bd53d_idx
+  • reports_rep_request_0cedb3_idx
+
+📋 Tabla: reports_reportdistribution
+  • reports_reportdistribution_report_id_cff5bd9e
+
+📋 Tabla: reports_reportschedule
+  • reports_reportschedule_created_by_id_7146245b
+  • reports_reportschedule_template_id_019f8858
+
+📋 Tabla: reports_reporttemplate
+  • reports_reporttemplate_company_id_name_548750a1_uniq
+  • reports_reporttemplate_company_id_36e8b015
+  • reports_reporttemplate_created_by_id_d379b15b
+
+📋 Tabla: reports_reporttemplate_recipients
+  • reports_reporttemplate_recipients_reporttemplate_id_user_id_40ebda8a_uniq
+  • reports_reporttemplate_recipients_reporttemplate_id_32c56aaa
+  • reports_reporttemplate_recipients_user_id_42d5c56a
+
+============================================================
+📊 TAMAÑO DE LA BASE DE DATOS
+============================================================
+📁 Archivo de BD: db.sqlite3
+💾 Tamaño: 4.90 MB (5,140,480 bytes)
+📊 Tamaño promedio por registro: 8524.8 bytes
+
+============================================================
+📊 VERIFICACIÓN DE INTEGRIDAD
+============================================================
+✅ No se encontraron problemas de integridad
+
+🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉
+✅ ANÁLISIS DE BD COMPLETADO
+🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉
+
+📄 Reporte guardado en: database_analysis_report_20250719_154548.txt

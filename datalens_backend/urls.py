@@ -58,6 +58,15 @@ urlpatterns = [
     path('api/data-import/', include('data_import.urls')),
     path('api/intelligence/', include('intelligence.urls')),
     
+    # ✅ NUEVO: WhatsApp API
+    path('api/whatsapp/', include('inventory.urls.whatsapp_urls')),
+    
+    # ✅ NUEVO: Configuración de empresa - ahora incluida en auth URLs
+    # path('api/company/', include('authentication.urls.company')),
+    
+    # Dashboard API - Ruta directa para frontend
+    path('api/dashboard/stats/', dashboard_stats, name='dashboard_stats'),
+    
     # Dashboard API
     path('api/dashboard/stats/', dashboard_stats, name='dashboard_stats'),
 ]

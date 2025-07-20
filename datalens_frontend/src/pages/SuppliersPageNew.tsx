@@ -32,7 +32,8 @@ import {
   TrendingUp,
   Package,
   DollarSign,
-  AlertTriangle
+  AlertTriangle,
+  MessageCircle
 } from '../components/ui/icons';
 import { inventoryService } from '../services/api';
 
@@ -48,6 +49,11 @@ interface Supplier {
   tax_id: string;
   payment_terms: string;
   is_active: boolean;
+  whatsapp_number?: string;
+  whatsapp_enabled?: boolean;
+  prefers_whatsapp?: boolean;
+  minimum_order_quantity?: number;
+  delivery_days?: number;
   created_at: string;
 }
 
@@ -175,7 +181,14 @@ const SuppliersPage: React.FC = () => {
         country: '',
         tax_id: '',
         payment_terms: '',
-        is_active: true
+        is_active: true,
+        // ✅ NUEVO: Campos WhatsApp con valores por defecto
+        whatsapp_number: '',
+        whatsapp_enabled: false,
+        prefers_whatsapp: false,
+        // ✅ NUEVO: Configuraciones de orden (sin valores por defecto)
+        minimum_order_quantity: undefined,
+        delivery_days: undefined
       },
       isDialogOpen: true
     }));
@@ -447,6 +460,100 @@ const SuppliersPage: React.FC = () => {
                 placeholder="Dirección completa"
               />
             </div>
+            
+            {/* ✅ NUEVO: Sección WhatsApp */}
+            <div className="col-span-2">
+              <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-green-600" />
+                Configuración WhatsApp
+              </h3>
+              <div className="grid grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium">Número WhatsApp</label>
+                  <Input
+                    value={state.formData.whatsapp_number || ''}
+                    onChange={(e) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, whatsapp_number: e.target.value }
+                    }))}
+                    placeholder="+51999999999"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Formato: +51999999999</p>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="whatsapp_enabled"
+                      checked={state.formData.whatsapp_enabled || false}
+                      onChange={(e) => setState(prev => ({ 
+                        ...prev, 
+                        formData: { ...prev.formData, whatsapp_enabled: e.target.checked }
+                      }))}
+                    />
+                    <label htmlFor="whatsapp_enabled" className="text-sm font-medium">
+                      WhatsApp habilitado
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="prefers_whatsapp"
+                      checked={state.formData.prefers_whatsapp || false}
+                      onChange={(e) => setState(prev => ({ 
+                        ...prev, 
+                        formData: { ...prev.formData, prefers_whatsapp: e.target.checked }
+                      }))}
+                    />
+                    <label htmlFor="prefers_whatsapp" className="text-sm font-medium">
+                      Prefiere WhatsApp
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Si está habilitado, las órdenes se enviarán por WhatsApp preferentemente
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* ✅ NUEVO: Configuraciones de Orden */}
+            <div className="col-span-2">
+              <h3 className="text-lg font-medium mb-3 flex items-center gap-2">
+                <Package className="h-5 w-5 text-blue-600" />
+                Configuraciones de Orden
+              </h3>
+              <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium">Cantidad Mínima de Orden</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={state.formData.minimum_order_quantity || ''}
+                    onChange={(e) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, minimum_order_quantity: e.target.value ? parseInt(e.target.value) : undefined }
+                    }))}
+                    placeholder="Ej: 5, 10, 100..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Cantidad mínima que acepta el proveedor</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Días de Entrega</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={state.formData.delivery_days || ''}
+                    onChange={(e) => setState(prev => ({ 
+                      ...prev, 
+                      formData: { ...prev.formData, delivery_days: e.target.value ? parseInt(e.target.value) : undefined }
+                    }))}
+                    placeholder="Ej: 1-2 días local, 15-30 días importación..."
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Tiempo estimado de entrega desde la orden</p>
+                </div>
+              </div>
+            </div>
+            
             <div>
               <label className="text-sm font-medium">Ciudad</label>
               <Input

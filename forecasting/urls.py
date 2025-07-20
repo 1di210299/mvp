@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     # Forecasting principal
     ForecastModelViewSet, DemandForecastViewSet, ReorderRecommendationViewSet,
-    PredictDemandView, TrainModelView, ModelComparisonView,
+    PredictDemandView, TrainModelView, ModelComparisonView, ModelPerformanceView,
     ForecastChartView, ProductForecastSummaryView,
     
     # Financial views
@@ -77,6 +77,7 @@ urlpatterns = [
     path('predict/', PredictDemandView.as_view(), name='predict_demand'),
     path('train-model/', TrainModelView.as_view(), name='train_model'),
     path('models/comparison/', ModelComparisonView.as_view(), name='model_comparison'),
+    path('model-performance/', ModelPerformanceView.as_view(), name='model_performance'),
     
     # Gráficos y reportes
     path('charts/', ForecastChartView.as_view(), name='forecast-chart'),

@@ -26,6 +26,9 @@ import CustomersPage from './pages/CustomersPage';
 import LeadsPage from './pages/LeadsPage';
 import OpportunitiesPage from './pages/OpportunitiesPage';
 
+// Import WhatsApp Configuration page
+import WhatsAppSettingsPage from './pages/WhatsAppSettingsPage';
+
 // Componente interno que usa el contexto de autenticación
 const AppContent: React.FC = () => {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -176,6 +179,16 @@ const AppContent: React.FC = () => {
                 </main>
               </>
             } />
+            
+            {/* WhatsApp Configuration Route */}
+            <Route path="/app/whatsapp" element={
+              <>
+                <Navbar user={user} onLogout={logout} />
+                <main className="app-main">
+                  <WhatsAppSettingsPage />
+                </main>
+              </>
+            } />
           </>
         ) : (
           <>
@@ -195,6 +208,7 @@ const AppContent: React.FC = () => {
             <Route path="/customers" element={<Navigate to="/marketing" replace />} />
             <Route path="/leads" element={<Navigate to="/marketing" replace />} />
             <Route path="/opportunities" element={<Navigate to="/marketing" replace />} />
+            <Route path="/whatsapp" element={<Navigate to="/marketing" replace />} />
           </>
         )}
       </Routes>

@@ -16,6 +16,9 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
     can_be_sent = serializers.BooleanField(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     
+    # ✅ NUEVO: Campos WhatsApp
+    sent_method_display = serializers.CharField(source='get_sent_method_display', read_only=True)
+    
     class Meta:
         model = PurchaseOrder
         fields = [
@@ -24,6 +27,11 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
             'quantity', 'unit_price', 'total_amount',
             'status', 'status_display', 'priority', 'priority_display',
             'supplier_email', 'supplier_phone',
+            
+            # ✅ NUEVO: Campos WhatsApp
+            'supplier_whatsapp', 'whatsapp_sent', 'whatsapp_sent_at', 
+            'whatsapp_message_id', 'sent_method', 'sent_method_display',
+            
             'expected_delivery_date', 'actual_delivery_date',
             'email_sent', 'email_sent_at', 'email_sent_to',
             'email_subject', 'email_content', 'notes', 'supplier_response',
@@ -33,7 +41,8 @@ class PurchaseOrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'uuid', 'order_number', 'total_amount', 'email_sent',
-            'email_sent_at', 'created_at', 'updated_at'
+            'email_sent_at', 'whatsapp_sent', 'whatsapp_sent_at', 
+            'whatsapp_message_id', 'sent_method', 'created_at', 'updated_at'
         ]
     
     def validate_quantity(self, value):

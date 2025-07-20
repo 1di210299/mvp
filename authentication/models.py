@@ -12,6 +12,38 @@ class Company(models.Model):
     industry = models.CharField(max_length=100, blank=True, verbose_name="Industria")
     website = models.URLField(blank=True, verbose_name="Sitio web")
     
+    # ✅ NUEVO: Configuración WhatsApp simplificada
+    whatsapp_business_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="Número WhatsApp de Display",
+        help_text="Número que verán los clientes (puede ser virtual)"
+    )
+    whatsapp_enabled = models.BooleanField(
+        default=False,
+        verbose_name="WhatsApp habilitado"
+    )
+    whatsapp_plan = models.CharField(
+        max_length=20,
+        choices=[
+            ('basic', 'Básico - Número compartido'),
+            ('premium', 'Premium - Número dedicado'),
+            ('enterprise', 'Enterprise - API propia'),
+        ],
+        default='basic',
+        verbose_name="Plan WhatsApp"
+    )
+    
+    # Solo para clientes Enterprise que quieren su propia API
+    # (La mayoría usará el servicio compartido)
+    custom_whatsapp_config = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name="Configuración WhatsApp personalizada",
+        help_text="Solo para plan Enterprise"
+    )
+    
     # Configuración del sistema
     max_users = models.PositiveIntegerField(default=5, verbose_name="Máximo de usuarios")
     subscription_type = models.CharField(
@@ -37,6 +69,29 @@ class Company(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def get_whatsapp_display_info(self):
+        """Obtener información de WhatsApp para mostrar en mensajes"""
+        return {
+            'company_name': self.name,
+            'display_number': self.whatsapp_business_number or self.phone,
+            'contact_email': self.email,
+            'contact_phone': self.phone,
+            'is_whatsapp_enabled': self.whatsapp_enabled,
+            'plan': self.get_whatsapp_plan_display()
+        }
+    
+    def assign_whatsapp_number_if_needed(self):
+        """Asignar número de WhatsApp automáticamente si no tiene uno"""
+        if not self.whatsapp_business_number and self.whatsapp_enabled:
+            # Para plan básico, generar un número virtual o usar el teléfono
+            if self.whatsapp_plan == 'basic':
+                self.whatsapp_business_number = self.phone or f"+51999{self.id:06d}"
+            self.save()
+    
+    def can_send_whatsapp(self):
+        """Verificar si puede enviar mensajes de WhatsApp"""
+        return self.whatsapp_enabled and self.is_active
 
 
 class UserManager(BaseUserManager):

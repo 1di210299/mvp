@@ -1,12 +1,18 @@
 """
-URLs principales del módulo inventory - Punto de entrada
-Este archivo se carga automáticamente cuando Django hace include('inventory.urls')
+🔧 URLS PRINCIPALES DE INVENTORY - PUNTO DE ENTRADA ÚNICO
+Estructura organizada:
+- api_urls.py: Todos los ViewSets del router principal
+- dashboard_urls.py: APIs de dashboard
+- whatsapp_urls.py: Webhooks y APIs de WhatsApp
+- email_tracking_urls.py: APIs de tracking de emails
+- gmail_webhook_urls.py: Webhooks de Gmail
+- pdf_automation_urls.py: APIs de análisis de PDFs
 """
 
 from django.urls import path, include
-from .. import views
+from . import views
 
-print("🔥 INVENTORY URLs principales cargando desde __init__.py")
+print("� INVENTORY URLs principales cargando - Estructura organizada v1.0")
 
 urlpatterns = [
     # 🔧 RUTAS ESPECÍFICAS (antes del router para evitar conflictos)
@@ -22,7 +28,7 @@ urlpatterns = [
     path('stock-movements/', views.StockMovementsView.as_view(), name='stock-movements'),
     path('filter-options/', views.FilterOptionsView.as_view(), name='filter-options'),
     
-    # 📊 MÓDULOS ESPECIALIZADOS (organizados por funcionalidad)
+    # � MÓDULOS ESPECIALIZADOS (organizados por funcionalidad)
     path('dashboards/', include('inventory.urls.dashboard_urls')),
     path('whatsapp/', include('inventory.urls.whatsapp_urls')),
     path('email-tracking/', include('inventory.urls.email_tracking_urls')),
@@ -33,4 +39,4 @@ urlpatterns = [
     path('', include('inventory.urls.api_urls')),
 ]
 
-print("✅ INVENTORY URLs principales cargadas exitosamente desde __init__.py")
+print("✅ INVENTORY URLs principales cargadas exitosamente")

@@ -22,17 +22,108 @@ class Supplier(models.Model):
     contact_name = models.CharField(max_length=100, blank=True, verbose_name="Persona de contacto")
     email = models.EmailField(blank=True, verbose_name="Email")
     phone = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    
+    # ✅ NUEVO: Campos WhatsApp
+    whatsapp_number = models.CharField(
+        max_length=20, 
+        blank=True, 
+        verbose_name="Número WhatsApp",
+        help_text="Formato: +51999999999"
+    )
+    whatsapp_enabled = models.BooleanField(
+        default=False, 
+        verbose_name="WhatsApp habilitado"
+    )
+    prefers_whatsapp = models.BooleanField(
+        default=False, 
+        verbose_name="Prefiere WhatsApp",
+        help_text="Si está habilitado, se enviará por WhatsApp antes que por email"
+    )
+    
+    # Campos existentes
     address = models.TextField(blank=True, verbose_name="Dirección")
     city = models.CharField(max_length=100, blank=True, verbose_name="Ciudad")
     country = models.CharField(max_length=100, blank=True, default='Perú', verbose_name="País")
     tax_id = models.CharField(max_length=20, blank=True, verbose_name="RUC/Tax ID")
     payment_terms = models.CharField(max_length=100, blank=True, verbose_name="Términos de pago")
+    
+    # ✅ NUEVO: Configuraciones de orden (flexibles)
+    minimum_order_quantity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Cantidad mínima de orden",
+        help_text="Cantidad mínima que acepta el proveedor por orden"
+    )
+    delivery_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Días de entrega",
+        help_text="Tiempo estimado de entrega en días (varía según origen y producto)"
+    )
+    
     is_active = models.BooleanField(default=True, verbose_name="Activo")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
         return self.name
+    
+    def clean(self):
+        """Validación de campos"""
+        from django.core.exceptions import ValidationError
+        
+        # Normalizar número de WhatsApp
+        if self.whatsapp_number:
+            self.whatsapp_number = self.normalize_whatsapp_number(self.whatsapp_number)
+            if not self.whatsapp_number:
+                raise ValidationError({
+                    'whatsapp_number': 'Formato de número WhatsApp inválido. Use formato: +51999999999'
+                })
+    
+    @staticmethod
+    def normalize_whatsapp_number(phone):
+        """Normaliza un número de WhatsApp"""
+        if not phone:
+            return None
+        
+        import re
+        # Limpiar el número
+        phone = re.sub(r'[^\d+]', '', phone)
+        
+        # Si no empieza con +, agregar código de país
+        if not phone.startswith('+'):
+            if phone.startswith('9'):  # Número peruano típico
+                phone = '+51' + phone
+            else:
+                phone = '+51' + phone
+        
+        # Validar longitud
+        if len(phone) >= 12:  # +51 + 9 dígitos mínimo
+            return phone
+        
+        return None
+    
+    @property
+    def preferred_contact_method(self):
+        """Obtiene el método de contacto preferido"""
+        if self.whatsapp_enabled and self.prefers_whatsapp and self.whatsapp_number:
+            return 'whatsapp'
+        elif self.email:
+            return 'email'
+        elif self.phone:
+            return 'phone'
+        return None
+    
+    def get_contact_info(self):
+        """Obtiene información de contacto completa"""
+        return {
+            'email': self.email,
+            'phone': self.phone,
+            'whatsapp_number': self.whatsapp_number,
+            'whatsapp_enabled': self.whatsapp_enabled,
+            'prefers_whatsapp': self.prefers_whatsapp,
+            'preferred_method': self.preferred_contact_method
+        }
     
     class Meta:
         verbose_name = "Proveedor"
@@ -413,6 +504,42 @@ class PurchaseOrder(models.Model):
         blank=True,
         null=True,
         verbose_name="Teléfono del Proveedor"
+    )
+    
+    # ✅ NUEVO: Campos WhatsApp
+    supplier_whatsapp = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        verbose_name="WhatsApp del Proveedor"
+    )
+    whatsapp_sent = models.BooleanField(
+        default=False,
+        verbose_name="WhatsApp Enviado"
+    )
+    whatsapp_sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Fecha de Envío de WhatsApp"
+    )
+    whatsapp_message_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name="ID del Mensaje WhatsApp"
+    )
+    
+    # Información del método de envío
+    sent_method = models.CharField(
+        max_length=20,
+        choices=[
+            ('email', 'Email'),
+            ('whatsapp', 'WhatsApp'),
+            ('both', 'Ambos'),
+        ],
+        blank=True,
+        null=True,
+        verbose_name="Método de Envío"
     )
     
     # Fechas importantes

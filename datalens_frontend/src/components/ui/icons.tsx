@@ -1182,3 +1182,19 @@ export const Building2: React.FC<IconProps> = ({ className = '', size = 20, colo
     <path d="M10 18h4" />
   </svg>
 );
+
+export const MessageCircle: React.FC<IconProps> = ({ className = '', size = 20, color }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color || 'var(--icon-stroke, #10b981)'}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={`icon-svg message-circle-icon ${className}`}
+  >
+    <path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z" />
+  </svg>
+);

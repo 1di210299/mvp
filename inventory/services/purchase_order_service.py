@@ -1,6 +1,7 @@
 """
 Servicio mejorado para detección de stock bajo y generación automática de órdenes de compra
 INTEGRADO CON EmailTrackingService para seguimiento completo de emails
+INTEGRADO CON WhatsAppService para envío por WhatsApp
 """
 import logging
 from django.utils import timezone
@@ -16,12 +17,27 @@ from authentication.models import Company
 
 logger = logging.getLogger(__name__)
 
+from alerts.models import Alert, AlertRule
+from inventory.models import Product, PurchaseOrder, PurchaseOrderEmailLog
+from authentication.models import Company
+
+logger = logging.getLogger(__name__)
+
 
 class PurchaseOrderService:
     """Servicio para generar órdenes de compra automáticas basadas en alertas de stock"""
     
     def __init__(self):
         self.email_service = EmailService()
+        
+        # ✅ NUEVO: Integrar WhatsAppService
+        try:
+            from inventory.services.whatsapp_service import WhatsAppService
+            self.whatsapp_service = WhatsAppService()
+        except ImportError as e:
+            logger.warning(f"WhatsAppService no disponible: {e}")
+            self.whatsapp_service = None
+        
         # ✅ NUEVO: Importar EmailTrackingService localmente para evitar importaciones circulares
         try:
             from inventory.services.email_tracking_service import EmailTrackingService
@@ -80,11 +96,11 @@ class PurchaseOrderService:
                     if purchase_order:
                         results['orders_generated'] += 1
                         
-                        # Enviar email automáticamente si está configurado
-                        if self._should_send_email_automatically(purchase_order):
-                            email_sent = self._send_purchase_order_email(purchase_order)
-                            if email_sent:
-                                results['emails_sent'] += 1
+                        # ✅ NUEVO: Enviar por email/WhatsApp usando método unificado
+                        if self._should_send_automatically(purchase_order):
+                            notification_sent = self._send_purchase_order_notification(purchase_order)
+                            if notification_sent:
+                                results['emails_sent'] += 1  # Contador genérico para notificaciones
                         
                         logger.info(f"Orden generada: {purchase_order.order_number} para {product.name}")
                 
@@ -176,6 +192,16 @@ class PurchaseOrderService:
             # Determinar precio unitario
             unit_price = product.cost_price or product.price or Decimal('0.00')
             
+            # Obtener información del proveedor
+            supplier_email = None
+            supplier_phone = None
+            supplier_whatsapp = None
+            
+            if product.supplier:
+                supplier_email = product.supplier.email
+                supplier_phone = product.supplier.phone
+                supplier_whatsapp = product.supplier.whatsapp_number
+            
             # Crear la orden
             purchase_order = PurchaseOrder.objects.create(
                 company=product.company,
@@ -183,7 +209,9 @@ class PurchaseOrderService:
                 supplier=product.supplier,
                 quantity=quantity,
                 unit_price=unit_price,
-                supplier_email=getattr(product.supplier, 'email', None) if product.supplier else None,
+                supplier_email=supplier_email,
+                supplier_phone=supplier_phone,
+                supplier_whatsapp=supplier_whatsapp,  # ✅ NUEVO: Campo WhatsApp
                 priority=self._determine_priority(product),
                 expected_delivery_date=self._calculate_expected_delivery_date(product),
                 ai_generated=True,
@@ -264,7 +292,129 @@ class PurchaseOrderService:
         
         return True
     
-    def _send_purchase_order_email(self, purchase_order):
+    def _should_send_whatsapp_automatically(self, purchase_order):
+        """Determinar si se debe enviar WhatsApp automáticamente"""
+        # Verificar configuración global
+        if not getattr(settings, 'AUTO_SEND_PURCHASE_ORDERS', True):
+            return False
+        
+        # Verificar que WhatsApp esté habilitado en configuración
+        whatsapp_config = getattr(settings, 'NOTIFICATION_SETTINGS', {})
+        if not whatsapp_config.get('whatsapp_enabled', False):
+            return False
+        
+        # Verificar que tenga número WhatsApp del proveedor
+        if not purchase_order.supplier_whatsapp:
+            return False
+        
+        # Verificar que no se haya enviado ya
+        if purchase_order.whatsapp_sent:
+            return False
+        
+        # Si el proveedor prefiere WhatsApp, enviar por WhatsApp
+        if (purchase_order.supplier and 
+            purchase_order.supplier.whatsapp_enabled and 
+            purchase_order.supplier.prefers_whatsapp):
+            return True
+        
+        # Si no hay email, usar WhatsApp como fallback
+        if not purchase_order.supplier_email:
+            return True
+        
+        return False
+    
+    def _get_preferred_communication_method(self, purchase_order):
+        """Obtener método de comunicación preferido para la orden"""
+        if not purchase_order.supplier:
+            # Sin proveedor, usar email por defecto
+            return 'email' if purchase_order.supplier_email else None
+        
+        # Usar método preferido del proveedor
+        preferred = purchase_order.supplier.preferred_contact_method
+        
+        # Validar que el método esté disponible
+        if preferred == 'whatsapp' and purchase_order.supplier_whatsapp:
+            return 'whatsapp'
+        elif preferred == 'email' and purchase_order.supplier_email:
+            return 'email'
+        
+        # Fallback: cualquier método disponible
+        if purchase_order.supplier_whatsapp:
+            return 'whatsapp'
+        elif purchase_order.supplier_email:
+            return 'email'
+        
+        return None
+    
+    def _should_send_automatically(self, purchase_order):
+        """Determinar si se debe enviar notificación automáticamente"""
+        return (self._should_send_email_automatically(purchase_order) or 
+                self._should_send_whatsapp_automatically(purchase_order))
+    
+    def _send_purchase_order_notification(self, purchase_order):
+        """
+        Enviar notificación de orden de compra usando el método preferido
+        ✅ NUEVO: Soporte para WhatsApp + Email
+        """
+        try:
+            preferred_method = self._get_preferred_communication_method(purchase_order)
+            
+            if not preferred_method:
+                logger.warning(f"No hay método de comunicación para orden {purchase_order.order_number}")
+                return False
+            
+            success_email = False
+            success_whatsapp = False
+            
+            # Determinar qué enviar basado en configuración del proveedor
+            send_email = self._should_send_email_automatically(purchase_order)
+            send_whatsapp = self._should_send_whatsapp_automatically(purchase_order)
+            
+            # Si el proveedor prefiere ambos métodos, enviar por ambos
+            if (purchase_order.supplier and 
+                purchase_order.supplier.whatsapp_enabled and 
+                purchase_order.supplier.email):
+                send_email = True
+                send_whatsapp = True
+            
+            # Enviar por email si corresponde
+            if send_email:
+                success_email = self._send_purchase_order_email(purchase_order)
+                if success_email:
+                    logger.info(f"📧✅ Email enviado: {purchase_order.order_number}")
+            
+            # Enviar por WhatsApp si corresponde
+            if send_whatsapp and self.whatsapp_service:
+                success_whatsapp = self._send_purchase_order_whatsapp(purchase_order)
+                if success_whatsapp:
+                    logger.info(f"📱✅ WhatsApp enviado: {purchase_order.order_number}")
+            
+            # Retornar éxito si al menos uno funcionó
+            return success_email or success_whatsapp
+            
+        except Exception as e:
+            logger.error(f"Error enviando notificación para orden {purchase_order.order_number}: {str(e)}")
+            return False
+    
+    def _send_purchase_order_whatsapp(self, purchase_order):
+        """Enviar orden de compra por WhatsApp"""
+        try:
+            if not self.whatsapp_service:
+                logger.warning("WhatsAppService no disponible")
+                return False
+            
+            result = self.whatsapp_service.send_purchase_order_message(purchase_order)
+            
+            if result['success']:
+                logger.info(f"📱✅ WhatsApp enviado exitosamente: {purchase_order.order_number}")
+                return True
+            else:
+                logger.error(f"📱❌ Error WhatsApp: {result.get('error')}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error enviando WhatsApp para orden {purchase_order.order_number}: {str(e)}")
+            return False
         """Enviar email de orden de compra CON TRACKING AUTOMÁTICO"""
         try:
             # Generar contenido del email con IA

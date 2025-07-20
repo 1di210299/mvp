@@ -8,7 +8,7 @@ from .base_views import ForecastPagination, get_user_company
 # Importar todas las vistas de forecasting principal
 from .forecast_views import (
     ForecastModelViewSet, DemandForecastViewSet, ReorderRecommendationViewSet,
-    PredictDemandView, TrainModelView, ModelComparisonView,
+    PredictDemandView, TrainModelView, ModelComparisonView, ModelPerformanceView,
     ForecastChartView, ProductForecastSummaryView
 )
 
@@ -50,6 +50,7 @@ __all__ = [
     'PredictDemandView',
     'TrainModelView',
     'ModelComparisonView',
+    'ModelPerformanceView',
     'ForecastChartView',
     'ProductForecastSummaryView',
     
