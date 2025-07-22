@@ -110,8 +110,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const data = await response.json();
       console.log('📥 Datos de respuesta:', data);
       
-      if (data.access && data.user) {
-        const accessToken = data.access;
+      if (data.tokens?.access && data.user) {
+        const accessToken = data.tokens.access;
         
         // Guardar tokens y usuario
         setToken(accessToken);
@@ -119,8 +119,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('access_token', accessToken);
         localStorage.setItem('user', JSON.stringify(data.user));
         
-        if (data.refresh) {
-          localStorage.setItem('refresh_token', data.refresh);
+        if (data.tokens.refresh) {
+          localStorage.setItem('refresh_token', data.tokens.refresh);
         }
         
         console.log('✅ Login exitoso:', data.user.email);

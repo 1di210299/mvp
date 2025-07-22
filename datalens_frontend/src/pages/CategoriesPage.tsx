@@ -139,60 +139,83 @@ const CategoriesPage: React.FC = () => {
     }
   };
 
-  // 🎯 NUEVA FUNCIÓN: Cargar analytics estratégicos
+  // 🎯 NUEVA FUNCIÓN: Cargar analytics estratégicos REAL del backend
   const fetchCategoryAnalytics = async () => {
     try {
       setState(prev => ({ ...prev, analyticsLoading: true, analyticsError: null }));
       
-      console.log('🎯 Cargando analytics estratégicos de categorías...');
+      console.log('🎯 Cargando analytics estratégicos REALES desde el backend...');
       
-      // Usar el servicio API existente en lugar de fetch directo
+      // CONECTAR AL ENDPOINT REAL DEL BACKEND
       const analyticsData = await inventoryService.getCategoryAnalytics();
-      console.log('✅ Analytics estratégicos cargados:', analyticsData);
+      
+      console.log('✅ Analytics recibidos del backend:', analyticsData);
+      
+      // Mapear datos del backend a la estructura del frontend
+      const mappedAnalytics = {
+        strategic_metrics: analyticsData.strategic_metrics,
+        executive_summary: analyticsData.executive_summary,
+        quick_actions: analyticsData.quick_actions || []
+      };
+      
+      // Mapear categorías performance
+      const categoriesPerformance = analyticsData.categories.map((cat: any) => ({
+        category_id: cat.category_id,
+        category_name: cat.category_name,
+        sales_current_period: cat.sales_current_period,
+        sales_previous_period: cat.sales_previous_period,
+        sales_change_percentage: cat.sales_change_percentage,
+        avg_margin_percentage: cat.avg_margin_percentage,
+        products_count: cat.products_count,
+        products_with_alerts: cat.products_with_alerts,
+        critical_products: cat.critical_products,
+        trend: cat.trend,
+        trend_icon: cat.trend_icon,
+        operational_status: cat.operational_status,
+        status_color: cat.status_color
+      }));
       
       setState(prev => ({ 
         ...prev, 
-        analytics: analyticsData,
+        analytics: mappedAnalytics,
+        categoriesPerformance: categoriesPerformance,
         analyticsLoading: false,
-        // 🎯 EXTRAER DATOS DE PERFORMANCE DESDE ANALYTICS
-        categoriesPerformance: analyticsData.categories_performance || [],
         performanceLoading: false
       }));
+      
     } catch (err) {
       console.error('❌ Error cargando analytics de categorías:', err);
       setState(prev => ({ 
         ...prev, 
-        analyticsError: err instanceof Error ? err.message : 'Error al cargar analytics',
+        analyticsError: err instanceof Error ? err.message : 'Error al cargar analytics del backend',
         analyticsLoading: false,
-        // Fallback con datos por defecto
         analytics: {
           strategic_metrics: {
             top_sales_category: {
-              name: 'Cargando...',
-              change: '',
-              icon: '🏆'
+              name: 'Error de conexión',
+              change: '0.0% vs mes anterior',
+              icon: '❌'
             },
             most_alerts_category: {
-              name: 'Cargando...',
+              name: 'Sin conexión al backend',
               critical_count: 0,
               total_alerts: 0,
-              icon: '🚨'
+              icon: '⚠️'
             },
             average_margin: {
-              value: '0%',
-              description: 'general',
+              value: 'N/A',
+              description: 'No disponible',
               icon: '💰'
             },
             opportunity_category: {
-              name: 'Cargando...',
-              growth: '',
-              icon: '🚀'
+              name: 'Datos no disponibles',
+              growth: 'Conecta al backend',
+              icon: '�'
             }
           },
-          executive_summary: 'Error cargando análisis estratégico. Verifique la conexión.',
+          executive_summary: `❌ **Error de Conexión al Backend**\n\nNo se pudieron cargar los analytics desde el servidor.\nVerifica que Django esté corriendo en puerto 8080.`,
           quick_actions: []
         },
-        // 🎯 FALLBACK PARA PERFORMANCE DATA
         categoriesPerformance: [],
         performanceLoading: false
       }));

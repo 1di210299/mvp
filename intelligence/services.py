@@ -3,11 +3,24 @@ import json
 import logging
 import threading
 import time
+import sys
+import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from decimal import Decimal
+
+# Import requests and httpx with safety checks
+try:
+    import requests
+except ImportError:
+    requests = None
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 from django.conf import settings
-from django.db.models import Count, Sum, Avg, Q
+from django.db.models import Count, Sum, Avg, Q, Case, When, Value, F, Min, Max, DecimalField
 from django.utils import timezone
 from django.core.cache import cache
 
@@ -219,17 +232,15 @@ class IntelligenceService:
         print(f"🔍 DEBUG: Versión OpenAI: {openai.__version__}")
         
         # Verificar versión de requests (puede afectar)
-        try:
-            import requests
+        if requests:
             print(f"🔍 DEBUG: Versión requests: {requests.__version__}")
-        except ImportError:
+        else:
             print("⚠️ DEBUG: requests no disponible")
         
         # Verificar versión de httpx (usado por OpenAI)
-        try:
-            import httpx
+        if httpx:
             print(f"🔍 DEBUG: Versión httpx: {httpx.__version__}")
-        except ImportError:
+        else:
             print("⚠️ DEBUG: httpx no disponible")
     
     def _create_client_with_retries(self, api_key: str) -> bool:
@@ -304,13 +315,13 @@ class IntelligenceService:
         
         try:
             # Forzar limpieza de configuración de requests
-            import requests
-            
-            # Crear sesión limpia
-            session = requests.Session()
-            session.proxies.clear()
-            
-            print("🧹 DEBUG: Configuración de requests limpiada")
+            if requests:
+                # Crear sesión limpia
+                session = requests.Session()
+                session.proxies.clear()
+                print("🧹 DEBUG: Configuración de requests limpiada")
+            else:
+                print("⚠️ DEBUG: requests no disponible para limpiar")
             
         except Exception as e:
             print(f"⚠️ DEBUG: Error limpiando requests: {str(e)}")
@@ -1208,6 +1219,37 @@ IMPORTANTE: Responde SOLO el JSON, sin explicaciones adicionales."""
                     if key not in briefing_data:
                         raise ValueError(f"Respuesta de IA falta clave requerida: {key}")
                 
+                print("✅ DEBUG: Todas las claves requeridas presentes")
+                
+                # Log de estructura recibida para depuración
+                print(f"🔍 DEBUG: TopPriorities recibidas: {len(briefing_data.get('topPriorities', []))}")
+                print(f"🔍 DEBUG: Opportunities recibidas: {len(briefing_data.get('opportunities', []))}")
+                print(f"🔍 DEBUG: Recommendations recibidas: {len(briefing_data.get('recommendations', []))}")
+                
+                # Verificar estructura de cada insight antes de procesar
+                for section_name in ['topPriorities', 'opportunities', 'recommendations']:
+                    section_data = briefing_data.get(section_name, [])
+                    for i, item in enumerate(section_data):
+                        if not isinstance(item, dict):
+                            print(f"⚠️  DEBUG: Item {i} en {section_name} no es diccionario: {type(item)}")
+                            continue
+                        
+                        # Verificar campos requeridos
+                        required_fields = ['title', 'message', 'priority', 'actions']
+                        for field in required_fields:
+                            if field not in item:
+                                print(f"⚠️  DEBUG: Campo '{field}' faltante en {section_name}[{i}], agregando valor por defecto")
+                                if field == 'title':
+                                    item['title'] = f"Insight {i+1}"
+                                elif field == 'message':
+                                    item['message'] = "Información no disponible"
+                                elif field == 'priority':
+                                    item['priority'] = 'medium'
+                                elif field == 'actions':
+                                    item['actions'] = []
+                        
+                        print(f"✅ DEBUG: {section_name}[{i}] validado: '{item.get('title', 'Sin título')}'")
+                
                 return briefing_data
                 
             except json.JSONDecodeError as e:
@@ -1242,7 +1284,7 @@ ESTADÍSTICAS ACTUALES:
 • Productos con stock bajo: {context['stats']['low_stock_count']}
 
 ALERTAS ACTIVAS ({len(context['alerts'])}):
-{chr(10).join([f"• {alert['title']}: {alert['message']} ({alert['severity']})" for alert in context['alerts'][:5]]) if context['alerts'] else '• Sin alertas activas'}
+{chr(10).join([f"• {alert['message']} ({alert['severity']})" for alert in context['alerts'][:5]]) if context['alerts'] else '• Sin alertas activas'}
 
 PRONÓSTICOS IA ({len(context['forecasts'])}):
 {chr(10).join([f"• {forecast['product_name']}: {forecast['predicted_demand']:.1f} unidades (confianza: {forecast['confidence_level']:.0f}%)" for forecast in context['forecasts'][:5]]) if context['forecasts'] else '• Sin pronósticos disponibles'}
@@ -1293,7 +1335,30 @@ Genera el briefing en JSON válido siguiendo la estructura exacta especificada."
         if not isinstance(briefing_data['contextualMetrics'], dict):
             raise ValueError("'contextualMetrics' debe ser diccionario")
         
-        print("✅ DEBUG: Estructura del briefing validada")
+        # Validar estructura de insights en cada lista
+        for list_name in ['topPriorities', 'opportunities', 'recommendations']:
+            insights_list = briefing_data[list_name]
+            for i, insight in enumerate(insights_list):
+                if not isinstance(insight, dict):
+                    raise ValueError(f"Item {i} en {list_name} debe ser diccionario")
+                
+                # Validar campos requeridos en cada insight
+                required_insight_keys = ['title', 'message', 'priority', 'actions']
+                for required_key in required_insight_keys:
+                    if required_key not in insight:
+                        # Si falta el campo, agregarlo con valor por defecto
+                        if required_key == 'title':
+                            insight['title'] = f"Insight {i+1}"
+                        elif required_key == 'message':
+                            insight['message'] = "Mensaje no disponible"
+                        elif required_key == 'priority':
+                            insight['priority'] = 'medium'
+                        elif required_key == 'actions':
+                            insight['actions'] = []
+                        
+                        print(f"⚠️  DEBUG: Agregado campo faltante '{required_key}' en {list_name}[{i}]")
+        
+        print("✅ DEBUG: Estructura del briefing validada y corregida")
     
     def _save_briefing_to_db(self, briefing_data: Dict, context: Dict, company: Company, user: User) -> IntelligenceBriefing:
         """Guardar briefing en base de datos"""

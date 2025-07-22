@@ -12,7 +12,7 @@ import {
   ApiResponse 
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:8080/api';  // FIX: Corregido al puerto 8000 donde está corriendo Django
+const API_BASE_URL = 'http://localhost:8080/api';  // Puerto 8080 para Django
 
 // **NUEVO: Función para crear headers optimizados**
 const createOptimizedHeaders = (includeAuth: boolean = true): Record<string, string> => {
@@ -866,7 +866,10 @@ export const inventoryService = {
   // Dashboard de inventario
   getInventoryDashboard: async (params?: any): Promise<any> => {
     try {
+      console.log('🔄 Enviando filtros al backend:', params);
+      // CORREGIDO: Usar el endpoint que soporta filtros
       const response = await api.get('/inventory/dashboard-fixed/', { params });
+      console.log('📊 Dashboard data recibida:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error fetching inventory dashboard:', error);

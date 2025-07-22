@@ -4,9 +4,54 @@
 .inventory-page {
   min-height: 100vh;
   background-color: #f9fafb;
-  padding: var(--spacing-lg);
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: 4px; /* Padding súper mínimo */
+  max-width: 100vw; /* Usar 100% del ancho de la ventana */
+  margin: 0;
+  width: 100%;
+}
+
+/* Asegurar que los dropdowns se muestren correctamente */
+.inventory-page .relative {
+  position: relative;
+  z-index: 1;
+}
+
+/* Estilos para select nativos */
+.inventory-page select {
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inventory-page select:focus {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.inventory-page select:hover {
+  transform: translateY(-1px);
+}
+
+/* Estilos para las opciones en modo oscuro */
+.dark .inventory-page select option {
+  background-color: #374151 !important;
+  color: #f9fafb !important;
+  padding: 8px;
+}
+
+.dark .inventory-page select option:hover {
+  background-color: #4b5563 !important;
+}
+
+/* Mejorar la apariencia en modo claro también */
+.inventory-page select option {
+  background-color: #ffffff;
+  color: #374151;
+  padding: 8px;
+}
+
+.inventory-page select option:hover {
+  background-color: #f3f4f6;
 }
 
 /* Custom animations */
@@ -451,14 +496,14 @@ html {
 /* Grid layout improvements */
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Mejor balance de tamaño */
+  gap: 1.25rem; /* Mejor separación entre tarjetas */
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Stats con buen tamaño */
+  gap: 1.25rem;
 }
 
 /* Enhanced card layouts */

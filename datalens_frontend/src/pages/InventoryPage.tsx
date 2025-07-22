@@ -194,6 +194,9 @@ const InventoryPage: React.FC = () => {
   const getCategories = () => {
     const categoryNames = products.map(p => p.category_name).filter(Boolean) as string[];
     const categories = Array.from(new Set(categoryNames));
+    console.log('Total productos:', products.length); // Debug
+    console.log('Productos con categorías:', categoryNames.length); // Debug
+    console.log('Categorías disponibles:', categories); // Debug
     return categories;
   };
 
@@ -203,11 +206,15 @@ const InventoryPage: React.FC = () => {
     const matchesCategory = filterCategory === 'all' || product.category_name === filterCategory;
     const stockStatus = getStockStatus(product);
     const matchesStatus = filterStatus === 'all' || stockStatus.status === filterStatus;
-    
+
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
+  // Debug: mostrar información de filtrado
+  useEffect(() => {
+    console.log('Filtros actuales:', { searchTerm, filterCategory, filterStatus, sortBy });
+    console.log('Productos filtrados:', filteredProducts.length, 'de', products.length);
+  }, [searchTerm, filterCategory, filterStatus, sortBy, filteredProducts.length, products.length]);  const sortedProducts = [...filteredProducts].sort((a, b) => {
     let aValue, bValue;
     
     switch (sortBy) {
@@ -273,10 +280,10 @@ const InventoryPage: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <div className={`inventory-page min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
       <div className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'} shadow-sm border-b`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-2 sm:px-4 lg:px-6">
           <div className="flex items-center justify-between h-16">
             <div>
               <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} flex items-center gap-3`}>
@@ -456,7 +463,7 @@ const InventoryPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-3 sm:px-5 lg:px-7 py-5">
         {/* Error Alert */}
         {error && (
           <Alert variant="destructive" className="mb-6">
@@ -466,7 +473,7 @@ const InventoryPage: React.FC = () => {
         )}
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
           <Card className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -540,42 +547,90 @@ const InventoryPage: React.FC = () => {
               </div>
 
               {/* Filters */}
-              <div className="flex gap-4">
-                <Select value={filterCategory} onValueChange={setFilterCategory}>
-                  <SelectTrigger className={`w-48 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}>
-                    <SelectValue placeholder="Filtrar por categoría" />
-                  </SelectTrigger>
-                  <SelectContent className={isDarkMode ? 'bg-gray-700 border-gray-600' : ''}>
-                    <SelectItem value="all" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Todas las categorías</SelectItem>
+              <div className="flex gap-4 relative">
+                <div className="relative">
+                  <select 
+                    value={filterCategory} 
+                    onChange={(e) => {
+                      console.log('Cambiando categoría a:', e.target.value);
+                      setFilterCategory(e.target.value);
+                    }}
+                    className={`w-48 h-12 px-4 py-3 rounded-xl border-2 text-sm font-medium appearance-none cursor-pointer transition-all duration-200 ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white hover:border-indigo-400 focus:border-indigo-400 focus:ring-indigo-500/20' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 focus:border-indigo-400 focus:ring-indigo-100'
+                    } focus:outline-none focus:ring-4`}
+                    style={{
+                      backgroundImage: isDarkMode 
+                        ? `url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%23d1d5db' d='m2 0-2 2h4zm0 5 2-2h-4z'/></svg>")` 
+                        : `url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%23666' d='m2 0-2 2h4zm0 5 2-2h-4z'/></svg>")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px'
+                    }}
+                  >
+                    <option value="all">Todas las categorías</option>
                     {getCategories().map(category => (
-                      <SelectItem key={category} value={category} className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>{category}</SelectItem>
+                      <option key={category} value={category}>{category}</option>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </select>
+                </div>
 
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className={`w-40 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}>
-                    <SelectValue placeholder="Estado" />
-                  </SelectTrigger>
-                  <SelectContent className={isDarkMode ? 'bg-gray-700 border-gray-600' : ''}>
-                    <SelectItem value="all" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Todos</SelectItem>
-                    <SelectItem value="normal" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Normal</SelectItem>
-                    <SelectItem value="low-stock" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Stock Bajo</SelectItem>
-                    <SelectItem value="out-of-stock" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Sin Stock</SelectItem>
-                    <SelectItem value="high-stock" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Stock Alto</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <select 
+                    value={filterStatus} 
+                    onChange={(e) => {
+                      console.log('Cambiando estado a:', e.target.value);
+                      setFilterStatus(e.target.value);
+                    }}
+                    className={`w-40 h-12 px-4 py-3 rounded-xl border-2 text-sm font-medium appearance-none cursor-pointer transition-all duration-200 ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white hover:border-indigo-400 focus:border-indigo-400 focus:ring-indigo-500/20' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 focus:border-indigo-400 focus:ring-indigo-100'
+                    } focus:outline-none focus:ring-4`}
+                    style={{
+                      backgroundImage: isDarkMode 
+                        ? `url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%23d1d5db' d='m2 0-2 2h4zm0 5 2-2h-4z'/></svg>")` 
+                        : `url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%23666' d='m2 0-2 2h4zm0 5 2-2h-4z'/></svg>")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px'
+                    }}
+                  >
+                    <option value="all">Todos</option>
+                    <option value="normal">Normal</option>
+                    <option value="low-stock">Stock Bajo</option>
+                    <option value="out-of-stock">Sin Stock</option>
+                    <option value="high-stock">Stock Alto</option>
+                  </select>
+                </div>
 
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className={`w-40 ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''}`}>
-                    <SelectValue placeholder="Ordenar por" />
-                  </SelectTrigger>
-                  <SelectContent className={isDarkMode ? 'bg-gray-700 border-gray-600' : ''}>
-                    <SelectItem value="name" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Nombre</SelectItem>
-                    <SelectItem value="stock" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Stock</SelectItem>
-                    <SelectItem value="value" className={isDarkMode ? 'text-white hover:bg-gray-600' : ''}>Valor</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <select 
+                    value={sortBy} 
+                    onChange={(e) => {
+                      console.log('Cambiando orden a:', e.target.value);
+                      setSortBy(e.target.value);
+                    }}
+                    className={`w-40 h-12 px-4 py-3 rounded-xl border-2 text-sm font-medium appearance-none cursor-pointer transition-all duration-200 ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border-gray-600 text-white hover:border-indigo-400 focus:border-indigo-400 focus:ring-indigo-500/20' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:border-indigo-300 focus:border-indigo-400 focus:ring-indigo-100'
+                    } focus:outline-none focus:ring-4`}
+                    style={{
+                      backgroundImage: isDarkMode 
+                        ? `url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%23d1d5db' d='m2 0-2 2h4zm0 5 2-2h-4z'/></svg>")` 
+                        : `url("data:image/svg+xml;charset=US-ASCII,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'><path fill='%23666' d='m2 0-2 2h4zm0 5 2-2h-4z'/></svg>")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px'
+                    }}
+                  >
+                    <option value="name">Nombre</option>
+                    <option value="stock">Stock</option>
+                    <option value="value">Valor</option>
+                  </select>
+                </div>
 
                 <Button
                   variant="outline"
@@ -610,7 +665,7 @@ const InventoryPage: React.FC = () => {
 
         {/* Products Display */}
         {viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
             {sortedProducts.map(product => {
               const stockStatus = getStockStatus(product);
               const currentStock = product.current_stock || 0;

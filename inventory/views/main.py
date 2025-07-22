@@ -45,10 +45,17 @@ class CategoryViewSet(viewsets.ModelViewSet):
         Convierte datos administrativos en inteligencia de negocio
         """
         try:
-            # Obtener filtros temporales del request
-            start_date = request.query_params.get('start_date')
-            end_date = request.query_params.get('end_date')
-            compare_period = request.query_params.get('compare_period', 'previous_month')
+            # Obtener filtros temporales del request (compatible con DRF y WSGIRequest)
+            if hasattr(request, 'query_params'):
+                # DRF Request
+                start_date = request.query_params.get('start_date')
+                end_date = request.query_params.get('end_date')
+                compare_period = request.query_params.get('compare_period', 'previous_month')
+            else:
+                # WSGIRequest (para testing)
+                start_date = request.GET.get('start_date')
+                end_date = request.GET.get('end_date')
+                compare_period = request.GET.get('compare_period', 'previous_month')
             
             print(f"🎯 CategoryAnalytics: Iniciando análisis estratégico de categorías...")
             
@@ -80,6 +87,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
             response_data = {
                 'strategic_metrics': strategic_insights['strategic_metrics'],
                 'categories_performance': categories_data,
+                'categories': categories_data,  # ALIAS para compatibilidad con frontend
                 'period_info': {
                     'current_period': {
                         'start': start_date_obj.isoformat(),
@@ -93,7 +101,10 @@ class CategoryViewSet(viewsets.ModelViewSet):
                     }
                 },
                 'executive_summary': strategic_insights['executive_summary'],
-                'quick_actions': strategic_insights['quick_actions']
+                'quick_actions': strategic_insights['quick_actions'],
+                'general_analytics': {  # ALIAS para compatibilidad con frontend
+                    'avg_margin_percentage': strategic_insights['strategic_metrics'].get('average_margin', {}).get('numeric_value', 0)
+                }
             }
             
             print(f"✅ CategoryAnalytics: Análisis completado para {len(categories_data)} categorías")
@@ -120,7 +131,40 @@ class CategoryViewSet(viewsets.ModelViewSet):
             products = category.products.filter(is_active=True)
             products_count = products.count()
             
+            # Incluir todas las categorías, incluso sin productos
             if products_count == 0:
+                # Categoría sin productos - valores en 0
+                category_data = {
+                    'category_id': category.id,
+                    'category_name': category.name,
+                    'description': category.description,
+                    
+                    # Métricas financieras en 0
+                    'sales_current_period': 0.0,
+                    'sales_previous_period': 0.0,
+                    'sales_change_percentage': 0.0,
+                    'avg_margin_percentage': 0.0,
+                    
+                    # Métricas operacionales en 0
+                    'products_count': 0,
+                    'products_with_alerts': 0,
+                    'critical_products': 0,
+                    'total_inventory_value': 0.0,
+                    
+                    # Indicadores visuales
+                    'trend': 'stable',
+                    'trend_icon': '➡️',
+                    'operational_status': 'good',
+                    'status_color': 'gray',
+                    
+                    # Datos para gráficos
+                    'chart_data': {
+                        'sales_trend': [0.0, 0.0],
+                        'margin_vs_average': 0.0
+                    }
+                }
+                
+                categories_data.append(category_data)
                 continue
                 
             # MÉTRICAS FINANCIERAS - Reutilizar patrón de DashboardView
@@ -169,17 +213,17 @@ class CategoryViewSet(viewsets.ModelViewSet):
             else:
                 sales_change = 100 if current_value > 0 else 0
             
-            # MARGEN PROMEDIO - Nueva métrica estratégica
-            avg_margin = products.aggregate(
-                avg_margin=Avg(
-                    Case(
-                        When(sale_price__gt=0,
-                             then=((F('sale_price') - F('cost_price')) / F('sale_price')) * 100),
-                        default=Value(0),
-                        output_field=DecimalField(max_digits=5, decimal_places=2)
-                    )
-                )
-            )['avg_margin'] or 0
+            # MARGEN PROMEDIO - Cálculo manual más confiable
+            total_margin = 0
+            valid_products_for_margin = 0
+            
+            for product in products:
+                if product.sale_price and product.cost_price and product.sale_price > 0:
+                    margin = ((product.sale_price - product.cost_price) / product.sale_price) * 100
+                    total_margin += margin
+                    valid_products_for_margin += 1
+            
+            avg_margin = (total_margin / valid_products_for_margin) if valid_products_for_margin > 0 else 0
             
             # ALERTAS POR CATEGORÍA - Reutilizar patrón existente
             products_with_alerts = 0
@@ -227,8 +271,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
                 status_color = 'green'
             
             category_data = {
-                'id': category.id,
-                'name': category.name,
+                'category_id': category.id,
+                'category_name': category.name,  # Usar category_name para consistencia
                 'description': category.description,
                 
                 # Métricas financieras
@@ -290,28 +334,39 @@ class CategoryViewSet(viewsets.ModelViewSet):
             key=lambda x: x['sales_change_percentage'] if x['sales_change_percentage'] > 0 else -100
         )
         
-        # Margen promedio general
-        avg_margin_general = sum(cat['avg_margin_percentage'] for cat in categories_data) / len(categories_data)
+        # Margen promedio general (calculado correctamente con todos los productos)
+        all_products = Product.objects.filter(is_active=True)
+        total_margin = 0
+        valid_products = 0
+        
+        for product in all_products:
+            if product.sale_price and product.cost_price and product.sale_price > 0:
+                margin = ((product.sale_price - product.cost_price) / product.sale_price) * 100
+                total_margin += margin
+                valid_products += 1
+        
+        avg_margin_general = (total_margin / valid_products) if valid_products > 0 else 0
         
         strategic_metrics = {
             'top_sales_category': {
-                'name': top_category['name'],
+                'name': top_category['category_name'],
                 'change': f"+{top_category['sales_change_percentage']:.1f}% vs mes anterior" if top_category['sales_change_percentage'] > 0 else f"{top_category['sales_change_percentage']:.1f}% vs mes anterior",
                 'icon': '🏆'
             },
             'most_alerts_category': {
-                'name': problem_category['name'],
+                'name': problem_category['category_name'],
                 'critical_count': problem_category['critical_products'],
                 'total_alerts': problem_category['products_with_alerts'],
                 'icon': '🚨'
             },
             'average_margin': {
                 'value': f"{avg_margin_general:.1f}%",
+                'numeric_value': round(avg_margin_general, 1),  # Para compatibilidad con frontend
                 'description': 'general',
                 'icon': '💰'
             },
             'opportunity_category': {
-                'name': opportunity_category['name'],
+                'name': opportunity_category['category_name'],
                 'growth': f"+{opportunity_category['sales_change_percentage']:.1f}%" if opportunity_category['sales_change_percentage'] > 0 else "demanda estable",
                 'icon': '🚀'
             }
@@ -321,11 +376,11 @@ class CategoryViewSet(viewsets.ModelViewSet):
         executive_summary = f"""
         📊 **Análisis Estratégico de Categorías:**
         
-        🏆 **Mejor performance:** {top_category['name']} lidera con {top_category['sales_change_percentage']:+.1f}%
+        🏆 **Mejor performance:** {top_category['category_name']} lidera con {top_category['sales_change_percentage']:+.1f}%
         
-        🚨 **Requiere atención:** {problem_category['name']} tiene {problem_category['critical_products']} productos críticos
+        🚨 **Requiere atención:** {problem_category['category_name']} tiene {problem_category['critical_products']} productos críticos
         
-        🚀 **Oportunidad detectada:** {opportunity_category['name']} {f"creciendo +{opportunity_category['sales_change_percentage']:.1f}%" if opportunity_category['sales_change_percentage'] > 0 else "lista para impulso"}
+        🚀 **Oportunidad detectada:** {opportunity_category['category_name']} {f"creciendo +{opportunity_category['sales_change_percentage']:.1f}%" if opportunity_category['sales_change_percentage'] > 0 else "lista para impulso"}
         
         💰 **Margen promedio:** {avg_margin_general:.1f}% general
         """.strip()
@@ -333,23 +388,23 @@ class CategoryViewSet(viewsets.ModelViewSet):
         # Quick actions accionables
         quick_actions = [
             {
-                'category_id': top_category['id'],
+                'category_id': top_category['category_id'],
                 'action': 'analyze_trends',
-                'title': f'Analizar {top_category["name"]}',
+                'title': f'Analizar {top_category["category_name"]}',
                 'description': 'Ver detalles del top performer',
                 'priority': 'medium'
             },
             {
-                'category_id': problem_category['id'],
+                'category_id': problem_category['category_id'],
                 'action': 'review_critical',
-                'title': f'Revisar {problem_category["name"]}',
+                'title': f'Revisar {problem_category["category_name"]}',
                 'description': f'{problem_category["critical_products"]} productos necesitan atención',
                 'priority': 'high'
             },
             {
-                'category_id': opportunity_category['id'],
+                'category_id': opportunity_category['category_id'],
                 'action': 'expand_inventory',
-                'title': f'Ampliar {opportunity_category["name"]}',
+                'title': f'Ampliar {opportunity_category["category_name"]}',
                 'description': 'Aprovechar tendencia de crecimiento',
                 'priority': 'medium'
             }
@@ -1497,14 +1552,23 @@ class InventoryDashboardView(APIView):
             
             # Aplicar filtro de almacén (a través de InventoryItem)
             if warehouse_filter and warehouse_filter != 'all':
-                # Obtener el nombre del almacén a partir del ID
+                # CORREGIDO: El warehouse_filter es el índice en la lista de almacenes únicos
                 try:
-                    location = Location.objects.get(id=warehouse_filter)
-                    warehouse_name = location.warehouse
-                    products_queryset = products_queryset.filter(inventory_items__location__warehouse=warehouse_name)
-                    print(f"🔍 Aplicando filtro de almacén: {warehouse_name} (ID: {warehouse_filter})")
-                except Location.DoesNotExist:
-                    print(f"❌ Almacén con ID {warehouse_filter} no encontrado")
+                    # Obtener lista de almacenes únicos igual que en FilterOptionsView
+                    unique_warehouses = list(Location.objects.filter(
+                        is_active=True
+                    ).values_list('warehouse', flat=True).distinct())
+                    
+                    # Convertir el índice a nombre de almacén
+                    warehouse_index = int(warehouse_filter) - 1  # Convertir de 1-based a 0-based
+                    if 0 <= warehouse_index < len(unique_warehouses):
+                        warehouse_name = unique_warehouses[warehouse_index]
+                        products_queryset = products_queryset.filter(inventory_items__location__warehouse=warehouse_name)
+                        print(f"🔍 Aplicando filtro de almacén: {warehouse_name} (índice: {warehouse_filter})")
+                    else:
+                        print(f"❌ Índice de almacén fuera de rango: {warehouse_filter}")
+                except (ValueError, IndexError) as e:
+                    print(f"❌ Error procesando filtro de almacén {warehouse_filter}: {e}")
                     pass
             
             # Aplicar filtro de búsqueda
@@ -1539,11 +1603,21 @@ class InventoryDashboardView(APIView):
             # Aplicar filtro de almacén a inventory items
             if warehouse_filter and warehouse_filter != 'all':
                 try:
-                    location = Location.objects.get(id=warehouse_filter)
-                    warehouse_name = location.warehouse
-                    inventory_items_queryset = inventory_items_queryset.filter(location__warehouse=warehouse_name)
-                    print(f"🔍 Aplicando filtro de almacén a inventory items: {warehouse_name}")
-                except Location.DoesNotExist:
+                    # CORREGIDO: Usar la misma lógica de índice que arriba
+                    unique_warehouses = list(Location.objects.filter(
+                        is_active=True
+                    ).values_list('warehouse', flat=True).distinct())
+                    
+                    warehouse_index = int(warehouse_filter) - 1
+                    if 0 <= warehouse_index < len(unique_warehouses):
+                        warehouse_name = unique_warehouses[warehouse_index]
+                        inventory_items_queryset = inventory_items_queryset.filter(location__warehouse=warehouse_name)
+                        print(f"🔍 Aplicando filtro de almacén a inventory items: {warehouse_name}")
+                    else:
+                        print(f"❌ Índice de almacén fuera de rango para inventory items: {warehouse_filter}")
+                except (ValueError, IndexError) as e:
+                    print(f"❌ Error procesando filtro de almacén para inventory items {warehouse_filter}: {e}")
+                    pass
                     print(f"❌ Almacén con ID {warehouse_filter} no encontrado para inventory items")
                     pass
             
@@ -1598,14 +1672,21 @@ class InventoryDashboardView(APIView):
             if category_filter and category_filter != 'all':
                 transactions_queryset = transactions_queryset.filter(product__category_id=category_filter)
             if warehouse_filter and warehouse_filter != 'all':
-                # Filtrar transacciones por almacén usando el nombre del almacén
+                # CORREGIDO: Filtrar transacciones usando índice de almacén
                 try:
-                    location = Location.objects.get(id=warehouse_filter)
-                    warehouse_name = location.warehouse
-                    transactions_queryset = transactions_queryset.filter(product__inventory_items__location__warehouse=warehouse_name)
-                    print(f"🔍 Aplicando filtro de almacén a transacciones: {warehouse_name} (ID: {warehouse_filter})")
-                except Location.DoesNotExist:
-                    print(f"❌ Almacén con ID {warehouse_filter} no encontrado para transacciones")
+                    unique_warehouses = list(Location.objects.filter(
+                        is_active=True
+                    ).values_list('warehouse', flat=True).distinct())
+                    
+                    warehouse_index = int(warehouse_filter) - 1
+                    if 0 <= warehouse_index < len(unique_warehouses):
+                        warehouse_name = unique_warehouses[warehouse_index]
+                        transactions_queryset = transactions_queryset.filter(product__inventory_items__location__warehouse=warehouse_name)
+                        print(f"🔍 Aplicando filtro de almacén a transacciones: {warehouse_name} (índice: {warehouse_filter})")
+                    else:
+                        print(f"❌ Índice de almacén fuera de rango para transacciones: {warehouse_filter}")
+                except (ValueError, IndexError) as e:
+                    print(f"❌ Error procesando filtro de almacén para transacciones {warehouse_filter}: {e}")
                     pass
             if search_filter:
                 transactions_queryset = transactions_queryset.filter(
@@ -1738,10 +1819,19 @@ class InventoryDashboardView(APIView):
                 warehouses_queryset = Location.objects.filter(is_active=True)
                 if warehouse_filter and warehouse_filter != 'all':
                     try:
-                        location = Location.objects.get(id=warehouse_filter)
-                        warehouse_name = location.warehouse
-                        warehouses_queryset = warehouses_queryset.filter(warehouse=warehouse_name)
-                    except Location.DoesNotExist:
+                        # CORREGIDO: Usar índice de almacén
+                        unique_warehouses = list(Location.objects.filter(
+                            is_active=True
+                        ).values_list('warehouse', flat=True).distinct())
+                        
+                        warehouse_index = int(warehouse_filter) - 1
+                        if 0 <= warehouse_index < len(unique_warehouses):
+                            warehouse_name = unique_warehouses[warehouse_index]
+                            warehouses_queryset = warehouses_queryset.filter(warehouse=warehouse_name)
+                        else:
+                            print(f"❌ Índice de almacén fuera de rango para stock por almacén: {warehouse_filter}")
+                    except (ValueError, IndexError) as e:
+                        print(f"❌ Error procesando filtro de almacén para stock por almacén {warehouse_filter}: {e}")
                         pass
                 
                 stock_by_warehouse = []
@@ -2179,16 +2269,33 @@ class FilterOptionsView(APIView):
             # Obtener la empresa del usuario
             company = get_company_for_user(request.user)
             
+            # Obtener almacenes únicos desde las ubicaciones
+            unique_warehouses = Location.objects.filter(
+                is_active=True
+            ).values_list('warehouse', flat=True).distinct()
+            
+            warehouses_list = []
+            for i, warehouse in enumerate(unique_warehouses):
+                if warehouse:  # Solo incluir almacenes que no estén vacíos
+                    warehouses_list.append({
+                        'id': str(i + 1),  # ID numérico para el frontend
+                        'name': warehouse
+                    })
+            
             # Construir las opciones de filtros
             options = {
                 'categories': list(Category.objects.filter(is_active=True).values('id', 'name')),
                 'suppliers': list(Supplier.objects.filter(is_active=True).values('id', 'name')),
-                'locations': list(Location.objects.filter(is_active=True).values('id', 'name')),
-                'stock_statuses': [
+                'locations': list(Location.objects.filter(is_active=True).values('id', 'name', 'warehouse')),
+                'warehouses': warehouses_list,  # NUEVO: Lista de almacenes únicos
+                'statuses': [  # CORREGIDO: Cambiar de stock_statuses a statuses
                     {'id': 'critical', 'name': 'Stock Crítico'},
                     {'id': 'low', 'name': 'Stock Bajo'},
                     {'id': 'normal', 'name': 'Stock Normal'},
                     {'id': 'high', 'name': 'Stock Alto'},
+                    {'id': 'low_stock', 'name': 'Stock Bajo'},  # Alias para compatibilidad
+                    {'id': 'out_of_stock', 'name': 'Sin Stock'},
+                    {'id': 'in_stock', 'name': 'En Stock'},
                 ],
                 'transaction_types': [
                     {'id': 'sale', 'name': 'Venta'},
@@ -2198,6 +2305,7 @@ class FilterOptionsView(APIView):
                 ],
             }
             
+            print(f"📋 FilterOptions: Devolviendo {len(options['categories'])} categorías, {len(options['warehouses'])} almacenes")
             return Response(options)
             
         except Exception as e:

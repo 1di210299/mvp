@@ -179,9 +179,11 @@ code {
 .app-main {
   background: transparent;
   min-height: calc(100vh - 70px);
-  padding: var(--spacing-lg);
+  padding: 8px; /* Padding mínimo */
   position: relative;
   transition: all 0.3s ease;
+  width: 100%; /* Usar todo el ancho disponible */
+  max-width: none; /* Eliminar cualquier restricción de ancho máximo */
 }
 
 /* Animaciones globales mejoradas */

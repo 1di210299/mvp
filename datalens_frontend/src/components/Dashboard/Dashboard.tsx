@@ -311,21 +311,29 @@ const Dashboard: React.FC = () => {
       }
 
       console.log('📊 Dashboard Principal: Stats data:', statsData);
-      console.log('🚨 Dashboard Principal: Alerts dashboard data:', alertsDashboard);
+      console.log('� Dashboard Principal: Datos para gráficos recibidos:', {
+        stock_by_warehouse: statsData?.stock_by_warehouse?.length || 0,
+        sales_trend_data: statsData?.sales_trend_data?.length || 0,
+        products_by_category: statsData?.products_by_category?.length || 0,
+        stock_by_category: statsData?.stock_by_category?.length || 0
+      });
+      console.log('�🚨 Dashboard Principal: Alerts dashboard data:', alertsDashboard);
       console.log('📋 Dashboard Principal: Alerts list data:', alertsList);
 
       const finalStats = {
         total_products: statsData?.total_products || 0,
-        total_value: statsData?.total_value || 0,
-        low_stock_alerts: statsData?.critical_stock_count || 0,
-        total_transactions_today: statsData?.transactions_today || 0,
+        total_value: statsData?.total_stock_value || 0,
+        low_stock_alerts: statsData?.low_stock_alerts || 0,
+        total_transactions_today: statsData?.recent_transactions || 0,
         active_customers: statsData?.active_customers || 0,
         pipeline_value: statsData?.pipeline_value || 0,
-        sales_value: statsData?.sales_value || 0,
+        // Usar campos genéricos primero, luego específicos como fallback
+        sales_value: statsData?.sales_value || statsData?.sales_last_7_days || 0,
         sales_count: statsData?.sales_count || 0,
-        purchases_value: statsData?.purchases_value || 0,
+        purchases_value: statsData?.purchases_value || statsData?.purchases_last_7_days || 0,
         purchases_count: statsData?.purchases_count || 0,
-        net_profit: statsData?.net_profit || 0,
+        net_profit: (statsData?.sales_value || statsData?.sales_last_7_days || 0) - 
+                   (statsData?.purchases_value || statsData?.purchases_last_7_days || 0),
       };
       
       console.log('✅ Dashboard: Stats finales con ventas/compras:', {
@@ -339,6 +347,9 @@ const Dashboard: React.FC = () => {
 
       const processedAlerts = Array.isArray(alertsList?.results) ? alertsList.results : [];
       console.log('🔔 Dashboard Principal: Alertas procesadas:', processedAlerts.length, 'alertas');
+
+      // Actualizar finalStats con el número correcto de alertas
+      const alertsCount = alertsDashboard?.active_alerts || processedAlerts.length || 0;
 
       // **CORREGIDO: Mapear datos de forecasts al formato correcto**
       const processedForecasts: DashboardForecast[] = Array.isArray(forecasts) 
@@ -362,6 +373,13 @@ const Dashboard: React.FC = () => {
           alertTrends: generateAlertTrendsChart(processedAlerts)
         }
       };
+
+      console.log('📊 Dashboard: Datos de gráficos generados:', {
+        stockLevels: dashboardData.chartData.stockLevels?.length || 0,
+        salesTrend: dashboardData.chartData.salesTrend?.length || 0,
+        categoryDistribution: dashboardData.chartData.categoryDistribution?.length || 0,
+        alertTrends: dashboardData.chartData.alertTrends?.length || 0
+      });
 
       // **NUEVO: Guardar en cache**
       const newCache = new Map(dataCache);
@@ -1055,7 +1073,10 @@ const Dashboard: React.FC = () => {
           <>
             {/* Intelligence Briefing - Conversación Matutina */}
             <div className="mb-8">
-              <IntelligentBriefing />
+              <IntelligentBriefing 
+                dashboardData={data} 
+                filters={filters}
+              />
             </div>
 
             {/* Métricas Principales con diseño mejorado */}
@@ -1147,7 +1168,7 @@ const Dashboard: React.FC = () => {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <p className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">{data.stats.low_stock_alerts}</p>
+                        <p className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">{data.alerts.length}</p>
                         <p className="text-base text-slate-600 dark:text-slate-400">requieren atención</p>
                       </div>
                     </div>
@@ -1156,11 +1177,11 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-500 dark:text-slate-400">Stock bajo</span>
                       <span className={`font-medium px-3 py-2 rounded-full ${
-                        data.stats.low_stock_alerts > 0 
+                        data.alerts.length > 0 
                           ? 'text-orange-700 bg-orange-50' 
                           : 'text-emerald-700 bg-emerald-50'
                       }`}>
-                        {data.stats.low_stock_alerts > 0 ? 'Crítico' : 'Normal'}
+                        {data.alerts.length > 0 ? 'Crítico' : 'Normal'}
                       </span>
                     </div>
                   </div>
