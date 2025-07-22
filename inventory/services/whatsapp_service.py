@@ -116,107 +116,32 @@ _Mensaje automático - Sistema DataLens_"""
         return message
     
     def send_webhook_response(self, phone_number, message_text):
-        """Enviar respuesta automática via webhook"""
+        """SIMPLIFICADO: Webhook response ahora manejado por n8n"""
         try:
-            # Procesar mensaje recibido
-            response = self._process_incoming_message(message_text)
+            logger.info(f"📱 Mensaje WhatsApp recibido: {phone_number} - Procesamiento movido a n8n")
             
-            if response:
-                # Enviar respuesta
-                if self._is_meta_configured():
-                    return self.meta_service.send_message(phone_number, response)
-                elif self._is_twilio_configured():
-                    return self.twilio_service.send_message(phone_number, response)
+            # Respuesta básica para mantener compatibilidad
+            basic_response = """📱 *Mensaje recibido*
+
+Tu mensaje ha sido registrado. Nuestro sistema automatizado procesará tu respuesta.
+
+_Sistema DataLens - Procesamiento automático_"""
             
-            return {'success': False, 'error': 'No hay respuesta para este mensaje'}
+            # Enviar respuesta básica
+            if self._is_meta_configured():
+                return self.meta_service.send_message(phone_number, basic_response)
+            elif self._is_twilio_configured():
+                return self.twilio_service.send_message(phone_number, basic_response)
+            
+            return {'success': False, 'error': 'No hay servicios WhatsApp configurados'}
             
         except Exception as e:
             logger.error(f"Error procesando webhook WhatsApp: {str(e)}")
             return {'success': False, 'error': str(e)}
     
-    def _process_incoming_message(self, message_text):
-        """Procesar mensaje entrante y generar respuesta automática"""
-        try:
-            from .whatsapp_templates import WhatsAppTemplates, WhatsAppMessageProcessor
-            
-            # Procesar mensaje con IA
-            processed = WhatsAppMessageProcessor.process_message(message_text)
-            
-            # Generar respuesta basada en el tipo detectado
-            response_type = processed['type']
-            return WhatsAppTemplates.auto_response_template(response_type)
-            
-        except ImportError:
-            # Fallback al método anterior
-            return self._process_basic_message(message_text)
-    
-    def _process_basic_message(self, message_text):
-        """Procesar mensaje básico (fallback)"""
-        message_lower = message_text.lower().strip()
-        
-        # Respuestas automáticas básicas
-        if any(word in message_lower for word in ['hola', 'hi', 'hello', 'buenas']):
-            return """¡Hola! 👋
-
-Soy el asistente automático de DataLens. 
-
-📋 Puedes responder a las órdenes de compra con:
-• *Confirmado* - Para confirmar disponibilidad
-• *Precio* - Para consultar precios
-• *Tiempo* - Para tiempo de entrega
-• *Contacto* - Para hablar con una persona
-
-¿En qué puedo ayudarte?"""
-        
-        elif any(word in message_lower for word in ['confirmado', 'confirmo', 'disponible', 'ok']):
-            return """✅ *Confirmación recibida*
-
-Gracias por confirmar la disponibilidad. 
-
-Por favor proporciona:
-• ⏰ Tiempo de entrega estimado
-• 💰 Condiciones de pago
-• 🚚 Detalles de envío
-
-Un miembro de nuestro equipo se contactará contigo pronto."""
-        
-        elif any(word in message_lower for word in ['precio', 'costo', 'cotiza']):
-            return """💰 *Consulta de precios*
-
-Para una cotización precisa, un miembro de nuestro equipo se contactará contigo.
-
-📞 También puedes llamarnos directamente para consultas urgentes.
-
-Gracias por tu interés."""
-        
-        elif any(word in message_lower for word in ['tiempo', 'entrega', 'cuándo']):
-            return """⏰ *Consulta de tiempo de entrega*
-
-Por favor indica el tiempo estimado de entrega para esta orden.
-
-Nuestro equipo tomará nota y actualizará el sistema.
-
-Gracias por tu respuesta."""
-        
-        elif any(word in message_lower for word in ['contacto', 'humano', 'persona']):
-            return """👥 *Contacto humano*
-
-Te conectaremos con una persona de nuestro equipo de compras.
-
-Esperarás una llamada o mensaje directo en los próximos minutos.
-
-Gracias por tu paciencia."""
-        
-        # Mensaje por defecto
-        return """📱 *Mensaje recibido*
-
-Hemos registrado tu mensaje. Un miembro de nuestro equipo se contactará contigo pronto.
-
-Para respuestas rápidas, usa:
-• *Confirmado* - Confirmar orden
-• *Contacto* - Hablar con una persona
-
-Gracias."""
+    # ===========================================
+    # MÉTODOS SIMPLIFICADOS (lógica compleja movida a n8n)
+    # ===========================================
     
     def _is_twilio_configured(self):
         """Verificar si Twilio está configurado para esta empresa"""

@@ -29,6 +29,18 @@ urlpatterns = [
     path('gmail-oauth/', include('inventory.urls.gmail_webhook_urls')),
     path('pdf-analysis/', include('inventory.urls.pdf_automation_urls')),
     
+    # 🤖 N8N INTEGRATION APIs
+    path('api/', include('inventory.urls.n8n_api_urls')),
+    
+    # 🔗 INTEGRACIÓN N8N (APIs simplificadas)
+    path('api/', include('inventory.urls.n8n_urls')),
+    
+    # 🧪 OAUTH2 TESTING
+    path('oauth-test/', include('inventory.urls.oauth2_test_urls')),
+    
+    # 🎯 ONBOARDING DE TENANTS
+    path('tenant/', include('inventory.urls.tenant_onboarding_urls')),
+    
     # 🚀 API PRINCIPAL (ViewSets del router) - AL FINAL
     path('', include('inventory.urls.api_urls')),
 ]

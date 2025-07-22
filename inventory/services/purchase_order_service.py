@@ -38,10 +38,11 @@ class PurchaseOrderService:
             logger.warning(f"WhatsAppService no disponible: {e}")
             self.whatsapp_service = None
         
-        # ✅ NUEVO: Importar EmailTrackingService localmente para evitar importaciones circulares
+        # ✅ NUEVO: EmailTrackingService ahora es stub (funcionalidad en n8n)
         try:
             from inventory.services.email_tracking_service import EmailTrackingService
-            self.email_tracking_service = EmailTrackingService(company_id=None)  # Se configurará dinámicamente
+            self.email_tracking_service = EmailTrackingService(company_id=None)  # Stub service
+            logger.info("EmailTrackingService: Usando stub - funcionalidad movida a n8n")
         except ImportError as e:
             logger.warning(f"EmailTrackingService no disponible: {e}")
             self.email_tracking_service = None

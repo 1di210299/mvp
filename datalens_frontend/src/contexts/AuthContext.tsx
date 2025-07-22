@@ -25,36 +25,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // **MEJORADO: Inicialización más robusta**
+    // **SIMPLIFICADO: Inicialización más directa**
     initializeAuth();
   }, []);
 
   const initializeAuth = async () => {
     try {
+      console.log('🔄 Inicializando autenticación...');
       const storedToken = localStorage.getItem('access_token');
       const storedUser = localStorage.getItem('user');
       
       if (storedToken && storedUser) {
+        console.log('📦 Token y usuario encontrados en localStorage');
+        
         // Verificar que el token no sea demasiado grande
         if (storedToken.length < 2000) {
-          // **NUEVO: Validar token antes de usarlo**
-          const isValid = await validateStoredToken(storedToken);
-          
-          if (isValid) {
+          try {
+            const userData = JSON.parse(storedUser);
             setToken(storedToken);
-            setUser(JSON.parse(storedUser));
-            console.log('✅ Sesión restaurada exitosamente');
-          } else {
-            console.log('🔄 Token expirado, intentando renovar...');
-            const refreshed = await refreshToken();
-            if (!refreshed) {
-              clearAuthData();
-            }
+            setUser(userData);
+            console.log('✅ Sesión restaurada exitosamente:', userData.email);
+          } catch (parseError) {
+            console.error('Error parsing user data:', parseError);
+            clearAuthData();
           }
         } else {
           console.warn('Token demasiado grande, limpiando...');
           clearAuthData();
         }
+      } else {
+        console.log('🔍 No hay sesión guardada');
+        clearAuthData();
       }
     } catch (error) {
       console.error('Error al inicializar autenticación:', error);
@@ -63,87 +64,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(false);
   };
 
-  const validateStoredToken = async (token: string): Promise<boolean> => {
-    try {
-      const response = await fetch('http://localhost:8080/api/auth/validate-token/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          // Actualizar información del usuario si viene en la respuesta
-          if (data.user) {
-            setUser(data.user);
-            localStorage.setItem('user', JSON.stringify(data.user));
-          }
-          return true;
-        }
-      }
-      return false;
-    } catch (error) {
-      console.error('Error validando token:', error);
-      return false;
-    }
-  };
-
-  const refreshToken = async (): Promise<boolean> => {
-    try {
-      const refreshTokenStr = localStorage.getItem('refresh_token');
-      if (!refreshTokenStr) {
-        return false;
-      }
-
-      console.log('🔄 Renovando token...');
-      
-      const response = await fetch('http://localhost:8080/api/auth/refresh/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh: refreshTokenStr }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (data.status === 'success' && data.tokens) {
-          // Actualizar tokens
-          setToken(data.tokens.access);
-          localStorage.setItem('access_token', data.tokens.access);
-          
-          if (data.tokens.refresh) {
-            localStorage.setItem('refresh_token', data.tokens.refresh);
-          }
-          
-          // Actualizar información del usuario
-          if (data.user) {
-            setUser(data.user);
-            localStorage.setItem('user', JSON.stringify(data.user));
-          }
-          
-          console.log('✅ Token renovado exitosamente');
-          return true;
-        }
-      }
-      
-      console.error('❌ Error renovando token');
-      return false;
-    } catch (error) {
-      console.error('❌ Error renovando token:', error);
-      return false;
-    }
-  };
-
   const validateToken = async (): Promise<boolean> => {
     const currentToken = token || localStorage.getItem('access_token');
     if (!currentToken) return false;
-    
-    return validateStoredToken(currentToken);
+    return true; // Simplificado por ahora
+  };
+
+  const refreshToken = async (): Promise<boolean> => {
+    // Simplificado por ahora
+    return false;
   };
 
   const clearAuthData = () => {
@@ -159,7 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log('🔐 Intentando iniciar sesión...');
+      console.log('🔐 Intentando iniciar sesión con:', email);
       
       const response = await fetch('http://localhost:8080/api/auth/login/', {
         method: 'POST',
@@ -167,78 +96,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
-        credentials: 'omit',
-        cache: 'no-cache',
-        mode: 'cors',
       });
+
+      console.log('📡 Status de respuesta:', response.status);
 
       if (!response.ok) {
         console.error('❌ Respuesta de login no exitosa:', response.status, response.statusText);
+        const errorData = await response.text();
+        console.error('Error data:', errorData);
         return false;
       }
 
       const data = await response.json();
-      console.log('📥 Respuesta de login:', data);
+      console.log('📥 Datos de respuesta:', data);
       
-      if (data.status === 'success' && data.tokens && data.tokens.access) {
-        const accessToken = data.tokens.access;
+      if (data.access && data.user) {
+        const accessToken = data.access;
         
-        // Verificar tamaño del token
-        if (accessToken.length > 2000) {
-          console.warn('⚠️ Token muy grande, podría causar problemas');
-        }
-        
-        // Guardar tokens
+        // Guardar tokens y usuario
         setToken(accessToken);
+        setUser(data.user);
         localStorage.setItem('access_token', accessToken);
+        localStorage.setItem('user', JSON.stringify(data.user));
         
-        if (data.tokens.refresh && data.tokens.refresh.length < 2000) {
-          localStorage.setItem('refresh_token', data.tokens.refresh);
+        if (data.refresh) {
+          localStorage.setItem('refresh_token', data.refresh);
         }
         
-        // Guardar usuario
-        if (data.user) {
-          setUser(data.user);
-          localStorage.setItem('user', JSON.stringify(data.user));
-          console.log('✅ Login exitoso, usuario configurado:', data.user);
-          return true;
-        } else {
-          // Obtener datos del perfil si no vienen en la respuesta
-          try {
-            const userResponse = await fetch('http://localhost:8080/api/auth/profile/', {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-              },
-              credentials: 'omit',
-              cache: 'no-cache',
-              mode: 'cors',
-            });
-            
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              setUser(userData);
-              localStorage.setItem('user', JSON.stringify(userData));
-              console.log('✅ Login exitoso, perfil obtenido:', userData);
-              return true;
-            }
-          } catch (profileError) {
-            console.error('Error obteniendo perfil:', profileError);
-          }
-        }
+        console.log('✅ Login exitoso:', data.user.email);
+        return true;
+      } else {
+        console.error('❌ Formato de respuesta inválido:', data);
+        return false;
       }
-      
-      console.error('❌ Formato de respuesta inválido:', data);
-      return false;
     } catch (error) {
       console.error('❌ Error durante el login:', error);
-      
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn('⚠️ Posible problema de red, limpiando datos...');
-        clearAuthData();
-      }
-      
       return false;
     }
   };

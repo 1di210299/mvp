@@ -1,11 +1,13 @@
 """
-Vistas relacionadas con configuraciones del sistema y usuario
+Vistas relacionadas con configuraciones del usuario y sistema
 """
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from drf_spectacular.utils import extend_schema
+
+from ..serializers import ProfileSerializer, ChangePasswordSerializer
 
 
 class UserSettingsView(APIView):

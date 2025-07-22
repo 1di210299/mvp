@@ -1,0 +1,14 @@
+### 🔧 CREAR CONFIGURACIONES PRIMERO
+POST https://c6dd629ae13d.ngrok-free.app/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/default-setup/
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+{
+    "default_channel": "both_whatsapp_primary",
+    "default_priority": "normal",
+    "use_ai": true
+}
+
+### 🧪 LUEGO CONSULTAR LAS CONFIGURACIONES
+GET https://c6dd629ae13d.ngrok-free.app/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/communication-configs/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M

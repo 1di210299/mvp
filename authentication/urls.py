@@ -1,17 +1,21 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-# Importar desde el package viewsets organizado
-from .viewsets import (
+
+# Importar desde el package views reorganizado
+from .views import (
     # Authentication
-    CustomTokenObtainPairView, RegisterView, CustomTokenRefreshView, TokenValidationView,
-    # Model ViewSets
-    CompanyViewSet, UserViewSet,
-    # Profile
-    ProfileView, ChangePasswordView,
+    RegisterView, LoginView, ProfileView, ChangePasswordView, 
+    TokenRefreshView, LogoutView,
+    # Company Management
+    CompanyViewSet, UserViewSet, CompanyWhatsAppConfigView, WhatsAppTestView,
     # Settings
     UserSettingsView, SystemInfoView,
-    # Company Settings
-    CompanyWhatsAppConfigView, WhatsAppTestView
+)
+from .views.tenant_auth import TenantAuthView, TenantConfigView
+from .views.communication_config import (
+    tenant_communication_configs, tenant_communication_config_detail,
+    tenant_bulk_config_setup, tenant_ai_config, tenant_config_summary,
+    tenant_default_setup
 )
 
 router = DefaultRouter()
@@ -19,13 +23,26 @@ router.register(r'companies', CompanyViewSet)
 router.register(r'users', UserViewSet)
 
 urlpatterns = [
-    # JWT Authentication - using custom login view
-    path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),  # Cambiado a vista personalizada
-    path('validate-token/', TokenValidationView.as_view(), name='token_validate'),  # NUEVO
+    # JWT Authentication - using reorganized views
+    path('login/', LoginView.as_view(), name='token_obtain_pair'),
+    path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('logout/', LogoutView.as_view(), name='logout'),
     path('register/', RegisterView.as_view(), name='register'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('change-password/', ChangePasswordView.as_view(), name='change_password'),
+    
+    # Tenant Authentication for N8N
+    # Tenant authentication
+    path('tenant-auth/', TenantAuthView.as_view(), name='tenant_auth'),
+    path('tenant-config/', TenantConfigView.as_view(), name='tenant_config'),
+    
+    # Tenant Communication Configuration
+    path('tenants/<uuid:tenant_id>/communication-configs/', tenant_communication_configs, name='tenant_communication_configs'),
+    path('tenants/<uuid:tenant_id>/communication-configs/<str:event_type>/', tenant_communication_config_detail, name='tenant_communication_config_detail'),
+    path('tenants/<uuid:tenant_id>/communication-configs/bulk-setup/', tenant_bulk_config_setup, name='tenant_bulk_config_setup'),
+    path('tenants/<uuid:tenant_id>/ai-config/', tenant_ai_config, name='tenant_ai_config'),
+    path('tenants/<uuid:tenant_id>/config-summary/', tenant_config_summary, name='tenant_config_summary'),
+    path('tenants/<uuid:tenant_id>/default-setup/', tenant_default_setup, name='tenant_default_setup'),
     
     # Settings endpoints
     path('settings/', UserSettingsView.as_view(), name='user_settings'),
@@ -34,6 +51,9 @@ urlpatterns = [
     # Company WhatsApp configuration endpoints
     path('company/whatsapp/config/', CompanyWhatsAppConfigView.as_view(), name='company-whatsapp-config'),
     path('company/whatsapp/test/', WhatsAppTestView.as_view(), name='company-whatsapp-test'),
+    
+    # N8N Integration endpoints
+    path('n8n/', include('authentication.urls_n8n', namespace='n8n')),
     
     # ViewSets
     path('', include(router.urls)),

@@ -27,6 +27,9 @@ import {
   MessageCircle  // Agregamos el icono para WhatsApp
 } from '../ui/icons';
 import { ThemeToggle } from '../theme/ThemeToggle';
+import { useNotifications } from '../../hooks/useNotifications';
+import { NotificationDropdown } from '../notifications/NotificationDropdown';
+import '../notifications/NotificationDropdown.css';
 import './Navbar.css';
 
 interface NavbarProps {
@@ -40,11 +43,22 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
   const [showInventoryDropdown, setShowInventoryDropdown] = useState(false);
   const [showCRMDropdown, setShowCRMDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   
   const inventoryRef = useRef<HTMLDivElement>(null);
   const crmRef = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+
+  // Hook de notificaciones
+  const {
+    notifications,
+    unreadCount,
+    loading: notificationsLoading,
+    markAsRead,
+    markAllAsRead
+  } = useNotifications();
 
   // Handle scroll effect
   useEffect(() => {
@@ -66,6 +80,9 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
       }
       if (userRef.current && !userRef.current.contains(event.target as Node)) {
         setShowUserDropdown(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setShowNotificationsDropdown(false);
       }
     };
 
@@ -251,10 +268,29 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
           </button>
 
           {/* Notifications */}
-          <button className="action-button notification-button">
-            <Bell size={18} />
-            <span className="notification-badge">3</span>
-          </button>
+          <div className="relative" ref={notificationsRef}>
+            <button 
+              className="action-button notification-button"
+              onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="notification-badge">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotificationsDropdown && (
+              <NotificationDropdown
+                notifications={notifications}
+                unreadCount={unreadCount}
+                onMarkAsRead={markAsRead}
+                onMarkAllAsRead={markAllAsRead}
+                onClose={() => setShowNotificationsDropdown(false)}
+              />
+            )}
+          </div>
 
           {/* User Menu */}
           {user && (

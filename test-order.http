@@ -1,0 +1,82 @@
+### 🔑 PASO 1: Obtener JWT válido
+POST https://c6dd629ae13d.ngrok-free.app/api/auth/tenant-auth/
+Content-Type: application/json
+
+{
+  "client_id": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "client_secret": "tenant_AEu5ejyAT9LkNJrgw3VJkbog1jeSAYYd8AMv7eSP4uU"
+}
+
+### 🧪 PASO 1.5: Probar endpoint de configuraciones (CORRECTO para N8N)
+GET https://c6dd629ae13d.ngrok-free.app/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/communication-configs/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+### 🧪 PASO 1.6: Probar configuración específica (para event_type específico)
+GET https://c6dd629ae13d.ngrok-free.app/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/communication-configs/order_confirmed/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+### 🚀 PASO 2: Usar JWT FRESCO en webhook N8N 
+POST https://juandi210299.app.n8n.cloud/webhook-test/webhook/tenants
+Content-Type: application/json
+
+{
+  "orderId": "TEST-123",
+  "tenantId": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "tenantJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTQwNDg4LCJpYXQiOjE3NTMxMzMyODgsImp0aSI6Ijc1MGM0ODk3NDM0MzRkOTk5YzQyZDQyZGYzODVkOGQyIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.ylBGRBqZXYyCqAMaHBYdtmZU4ioBG-QHjX3kzmC3xaI",
+  "customerPhone": "+51987654321",
+  "messageBody": "Hola! Esto es una prueba simple"
+}
+
+### 🎉 PASO 3: PRUEBA FINAL - Flujo completo N8N (DEBERÍA FUNCIONAR)
+POST https://juandi210299.app.n8n.cloud/webhook-test/webhook/tenants
+Content-Type: application/json
+
+{
+  "orderId": "TEST-FINAL-123",
+  "tenantId": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "tenantJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTQwNDg4LCJpYXQiOjE3NTMxMzMyODgsImp0aSI6Ijc1MGM0ODk3NDM0MzRkOTk5YzQyZDQyZGYzODVkOGQyIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.ylBGRBqZXYyCqAMaHBYdtmZU4ioBG-QHjX3kzmC3xaI",
+  "customerPhone": "+51987654321",
+  "customerEmail": "cliente@ejemplo.com",
+  "messageBody": "🎉 ¡FLUJO COMPLETO FUNCIONANDO! Tu sistema de automatización multi-canal está activo."
+}
+
+### 🔄 PASO 4: PRUEBA MULTI-CANAL - WhatsApp + Email
+POST https://juandi210299.app.n8n.cloud/webhook-test/webhook/tenants
+Content-Type: application/json
+
+{
+  "orderId": "ORDER-DUAL-456",
+  "tenantId": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "tenantJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTQwNDg4LCJpYXQiOjE3NTMxMzMyODgsImp0aSI6Ijc1MGM0ODk3NDM0MzRkOTk5YzQyZDQyZGYzODVkOGQyIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.ylBGRBqZXYyCqAMaHBYdtmZU4ioBG-QHjX3kzmC3xaI",
+  "customerPhone": "+51987654321",
+  "customerEmail": "test@miempresa.com",
+  "messageBody": "📦 Su pedido ORDER-DUAL-456 ha sido confirmado. ¡Gracias por su compra!",
+  "eventType": "order_confirmed",
+  "channelPreference": "both"
+}
+
+### 📱 PASO 5: PRUEBA SOLO WhatsApp
+POST https://juandi210299.app.n8n.cloud/webhook-test/webhook/tenants
+Content-Type: application/json
+
+{
+  "orderId": "ORDER-WSP-789",
+  "tenantId": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "tenantJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTQwNDg4LCJpYXQiOjE3NTMxMzMyODgsImp0aSI6Ijc1MGM0ODk3NDM0MzRkOTk5YzQyZDQyZGYzODVkOGQyIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.ylBGRBqZXYyCqAMaHBYdtmZU4ioBG-QHjX3kzmC3xaI",
+  "customerPhone": "+51987654321",
+  "messageBody": "📱 Solo WhatsApp - Mensaje rápido",
+  "channelPreference": "whatsapp"
+}
+
+### 📧 PASO 6: PRUEBA SOLO Email
+POST https://juandi210299.app.n8n.cloud/webhook-test/webhook/tenants
+Content-Type: application/json
+
+{
+  "orderId": "ORDER-EMAIL-101",
+  "tenantId": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "tenantJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTQwNDg4LCJpYXQiOjE3NTMxMzMyODgsImp0aSI6Ijc1MGM0ODk3NDM0MzRkOTk5YzQyZDQyZGYzODVkOGQyIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.ylBGRBqZXYyCqAMaHBYdtmZU4ioBG-QHjX3kzmC3xaI",
+  "customerEmail": "cliente@formal.com",
+  "messageBody": "📧 Solo Email - Confirmación oficial",
+  "channelPreference": "email"
+}

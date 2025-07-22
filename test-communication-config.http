@@ -1,0 +1,168 @@
+### 🔑 PASO 1: Obtener JWT válido
+POST https://c6dd629ae13d.ngrok-free.app/api/auth/tenant-auth/
+Content-Type: application/json
+
+{
+  "client_id": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "client_secret": "tenant_AEu5ejyAT9LkNJrgw3VJkbog1jeSAYYd8AMv7eSP4uU"
+}
+
+### 🧪 PASO 1.5: Probar nuevo endpoint de config (para N8N)
+GET https://c6dd629ae13d.ngrok-free.app/api/auth/tenant-config/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+### 🚀 PASO 2: Usar JWT en webhook N8N (copia el access_token del paso 1)
+POST https://juandi210299.app.n8n.cloud/webhook-test/webhook/tenants
+Content-Type: application/json
+
+{
+  "orderId": "TEST-123",
+  "tenantId": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "tenantJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M",
+  "customerPhone": "+51987654321",
+  "messageBody": "Hola! Esto es una prueba simple"
+}
+
+### ⚙️ NUEVO: Configurar tenant con valores por defecto
+POST http://localhost:8080/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/default-setup/
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+{
+    "default_channel": "both_whatsapp_primary",
+    "default_priority": "normal",
+    "use_ai": true
+}
+
+### 📋 NUEVO: Ver configuraciones de comunicación del tenant
+GET http://localhost:8080/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/communication-configs/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+### 🎯 NUEVO: Configurar evento específico - Solo WhatsApp para pedidos confirmados
+PUT http://localhost:8080/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/communication-configs/order_confirmed/
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+{
+    "channel_preference": "whatsapp_only",
+    "priority": "high",
+    "use_ai_personalization": true,
+    "custom_message_template": "¡Hola! Tu pedido #{order_id} ha sido confirmado. Total: ${total}. ¡Gracias por confiar en nosotros!",
+    "send_immediately": true,
+    "respect_business_hours": false,
+    "max_retries": 3,
+    "fallback_channel": "email_only"
+}
+
+### 🤖 NUEVO: Configurar IA del tenant
+PUT http://localhost:8080/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/ai-config/
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+{
+    "ai_provider": "openai",
+    "default_tone": "friendly",
+    "brand_voice_description": "Empresa familiar peruana, cercana y confiable. Siempre profesional pero con calidez humana.",
+    "custom_instructions": "Siempre mencionar que somos una empresa 100% peruana. Usar expresiones locales cuando sea apropiado. Ser muy específico con horarios y detalles de entrega.",
+    "max_tokens": 200,
+    "temperature": 0.8,
+    "include_customer_history": true,
+    "include_product_info": true,
+    "daily_ai_limit": 500,
+    "require_human_approval": false
+}
+
+### 📊 NUEVO: Ver resumen completo de configuración del tenant
+GET http://localhost:8080/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/config-summary/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+### 🚀 NUEVO: Configuración masiva - Personalizar varios eventos
+POST http://localhost:8080/api/auth/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/communication-configs/bulk-setup/
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M
+
+{
+    "configurations": [
+        {
+            "event_type": "payment_failed",
+            "channel_preference": "both_email_primary",
+            "priority": "urgent",
+            "use_ai_personalization": true,
+            "custom_message_template": "❌ Problema con tu pago. Por favor contactanos al +51999123456",
+            "send_immediately": true,
+            "max_retries": 5,
+            "fallback_channel": "whatsapp_only"
+        },
+        {
+            "event_type": "promotional",
+            "channel_preference": "email_only",
+            "priority": "low",
+            "use_ai_personalization": true,
+            "send_immediately": false,
+            "delay_minutes": 60,
+            "respect_business_hours": true,
+            "max_retries": 1
+        },
+        {
+            "event_type": "inventory_low",
+            "channel_preference": "email_only",
+            "priority": "normal",
+            "use_ai_personalization": false,
+            "custom_message_template": "⚠️ Stock bajo: {product_name}. Quedan {quantity} unidades.",
+            "send_immediately": true
+        }
+    ]
+}
+
+### 🧪 NUEVO: Test webhook con configuración personalizada
+POST https://juandi210299.app.n8n.cloud/webhook-test/webhook/tenants
+Content-Type: application/json
+
+{
+  "orderId": "ORD-2024-001",
+  "tenantId": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "tenantJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M",
+  "event_type": "payment_failed",
+  "customer_email": "maria.garcia@email.com",
+  "customer_phone": "+51987654321",
+  "customer_name": "María García",
+  "order_details": {
+    "total": 285.50,
+    "items": [
+      {"name": "Smartphone Samsung", "price": 250.00, "quantity": 1},
+      {"name": "Funda protectora", "price": 35.50, "quantity": 1}
+    ],
+    "payment_method": "tarjeta_credito",
+    "error_code": "insufficient_funds"
+  },
+  "customer_data": {
+    "previous_orders": 3,
+    "loyalty_level": "silver",
+    "preferred_contact": "whatsapp"
+  }
+}
+
+### 📱 NUEVO: Test para evento promocional con configuración especial
+POST https://juandi210299.app.n8n.cloud/webhook-test/webhook/tenants
+Content-Type: application/json
+
+{
+  "tenantId": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "tenantJwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzUzMTMwOTI1LCJpYXQiOjE3NTMxMjM3MjUsImp0aSI6IjRkYzQ2MDRjZTJlYjQ5ZjliZjlhZTJmNTNmOTU3MDVmIiwidGVuYW50X2lkIjoiZjBiMmNlZmQtMTgxNC00ZDAwLTkwYzQtMGU0MGNkMjgzZGUxIiwidGVuYW50X25hbWUiOiJFbXByZXNhIE44TiBQcm9kIFRlc3QiLCJzY29wZSI6Im44bjphY2Nlc3MifQ.B6EIUlcGXoh3XYFsUxu2q_VDoSdImmsQdXbTgowQt9M",
+  "event_type": "promotional",
+  "customer_email": "carlos.lopez@email.com",
+  "customer_name": "Carlos López",
+  "promotion_data": {
+    "campaign_name": "Cyber Monday 2024",
+    "discount_percentage": 25,
+    "valid_until": "2024-12-01",
+    "products_included": ["Smartphones", "Laptops", "Accesorios"],
+    "min_purchase": 200.00
+  },
+  "customer_data": {
+    "previous_orders": 8,
+    "loyalty_level": "gold",
+    "avg_order_value": 320.50,
+    "last_purchase": "2024-11-15"
+  }
+}

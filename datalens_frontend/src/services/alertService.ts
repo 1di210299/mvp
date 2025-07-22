@@ -256,5 +256,5 @@ class AlertService {
   }
 }
 
-export const alertService = new AlertService({ baseUrl: 'http://localhost:8080/api/alerts', timeout: 10000 });
+export const alertService = new AlertService({ baseUrl: 'http://localhost:8000/api/alerts', timeout: 10000 });
 export type { AlertData, DashboardData, AlertRule, NotificationLog };

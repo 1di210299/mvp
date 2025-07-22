@@ -15,7 +15,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(
     DEBUG=(bool, True),  # Development default
     SECRET_KEY=(str, 'django-insecure-change-in-production'),
-    ALLOWED_HOSTS=(list, ['localhost', '127.0.0.1', '0.0.0.0', '*.up.railway.app', 'web-production-79abe.up.railway.app']),
+    ALLOWED_HOSTS=(list, [
+        'localhost', 
+        '127.0.0.1', 
+        '0.0.0.0', 
+        '192.168.1.100', 
+        'testserver', 
+        '*.ngrok-free.app',
+        '016e520d8ade.ngrok-free.app',  # Específico ngrok host
+        '.ngrok-free.app',  # Alternative wildcard pattern
+    ]),
     DATABASE_URL=(str, f'sqlite:///{BASE_DIR}/db.sqlite3'),
     PORT=(int, 8080),
     HOST=(str, '0.0.0.0'),
@@ -36,6 +45,17 @@ ALLOWED_HOSTS = env('ALLOWED_HOSTS')
 # Add testserver for Django test client
 if DEBUG:
     ALLOWED_HOSTS.extend(['testserver'])
+    
+    # Add ngrok support dinamically
+    import re
+    ngrok_pattern = re.compile(r'^[a-z0-9]+\.ngrok-free\.app$')
+    
+    # Add common ngrok patterns
+    ALLOWED_HOSTS.extend([
+        '.ngrok-free.app',
+        '*.ngrok-free.app', 
+        '016e520d8ade.ngrok-free.app',  # Current ngrok
+    ])
 
 # Production settings
 if not DEBUG:
@@ -47,6 +67,10 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+else:
+    # Para desarrollo, permitir todos los hosts ngrok dinámicamente
+    ALLOWED_HOSTS.extend(['*'])  # Temporal para testing
+    print(f"🔧 DEBUG MODE: ALLOWED_HOSTS = {ALLOWED_HOSTS}")
 
 # Application definition
 DJANGO_APPS = [
@@ -64,6 +88,7 @@ THIRD_PARTY_APPS = [
     'corsheaders',
     'drf_spectacular',
     'django_extensions',
+    'oauth2_provider',  # Django OAuth Toolkit
 ]
 
 LOCAL_APPS = [
@@ -82,6 +107,12 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 MIDDLEWARE = [
     # NUEVO: Middleware para detectar headers grandes (solo en DEBUG)
     'datalens_backend.middleware.HeaderSizeDebugMiddleware' if DEBUG else None,
+    # NUEVO: Middleware para manejar hosts ngrok dinámicamente
+    'datalens_backend.ngrok_middleware.NgrokHostMiddleware' if DEBUG else None,
+    # N8N Middlewares para seguridad y validación de tenants
+    'authentication.middleware.RequestLoggingMiddleware',
+    'authentication.middleware.SecurityMiddleware',
+    'authentication.middleware.TenantValidationMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'datalens_backend.middleware.DevelopmentOptimizationMiddleware',  # Middleware personalizado para timeouts
     'django.middleware.security.SecurityMiddleware',
@@ -641,4 +672,84 @@ if DEBUG:
     SHOW_HEADER_SIZE_INFO = True  # Mostrar info de tamaño en logs
 
 # Crear directorio de logs si no existe
+import os
+log_dir = os.path.join(BASE_DIR, 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
+# =============================
+# OAUTH2 PROVIDER CONFIGURATION
+# =============================
+
+OAUTH2_PROVIDER = {
+    'SCOPES': {
+        'read': 'Read scope',
+        'write': 'Write scope',
+        'introspection': 'Introspect token scope',
+    },
+    'ACCESS_TOKEN_EXPIRE_SECONDS': 3600,
+    'REFRESH_TOKEN_EXPIRE_SECONDS': 3600 * 24 * 7,  # 7 days
+    'AUTHORIZATION_CODE_EXPIRE_SECONDS': 600,
+    'ROTATE_REFRESH_TOKEN': True,
+}
+
+# REST Framework OAuth2 integration
+REST_FRAMEWORK['DEFAULT_AUTHENTICATION_CLASSES'].append('oauth2_provider.contrib.rest_framework.OAuth2Authentication')
+
+
+# Email configuration for development
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@datalens.com'
+EMAIL_HOST = 'localhost'
+EMAIL_PORT = 1025
+EMAIL_USE_TLS = False
+EMAIL_HOST_USER = ''
+EMAIL_HOST_PASSWORD = ''
+
+# N8N INTEGRATION CONFIGURATION
+# ==============================
+
+# Encryption key for sensitive tenant data
+ENCRYPTION_KEY = env('ENCRYPTION_KEY', default=None)
+if not ENCRYPTION_KEY:
+    import os
+    from cryptography.fernet import Fernet
+    ENCRYPTION_KEY = os.environ.setdefault('ENCRYPTION_KEY', Fernet.generate_key().decode())
+
+# WhatsApp Business Cloud API
+WHATSAPP_VERIFY_TOKEN = env('WHATSAPP_VERIFY_TOKEN', default='mi_webhook_token_secreto')
+WHATSAPP_GRAPH_API_VERSION = env('WHATSAPP_GRAPH_API_VERSION', default='v18.0')
+
+# Google Workspace / Gmail API
+GOOGLE_WORKSPACE_DOMAIN = env('GOOGLE_WORKSPACE_DOMAIN', default='')
+GOOGLE_WORKSPACE_ADMIN_EMAIL = env('GOOGLE_WORKSPACE_ADMIN_EMAIL', default='')
+
+# DNS Provider (para configuración automática de registros)
+DNS_PROVIDER = env('DNS_PROVIDER', default='cloudflare')  # cloudflare, route53, etc.
+DNS_API_TOKEN = env('DNS_API_TOKEN', default='')
+
+# Limits para APIs
+N8N_API_RATE_LIMIT = env('N8N_API_RATE_LIMIT', default='100/hour', cast=str)
+MAX_WHATSAPP_MESSAGE_LENGTH = env('MAX_WHATSAPP_MESSAGE_LENGTH', default=4096, cast=int)
+MAX_EMAIL_ATTACHMENTS = env('MAX_EMAIL_ATTACHMENTS', default=10, cast=int)
+MAX_ATTACHMENT_SIZE_MB = env('MAX_ATTACHMENT_SIZE_MB', default=25, cast=int)
+
+# Retry configuration
+MAX_RETRY_ATTEMPTS = env('MAX_RETRY_ATTEMPTS', default=3, cast=int)
+RETRY_DELAY_SECONDS = env('RETRY_DELAY_SECONDS', default=60, cast=int)
+
+# Logging específico para N8N
+LOGGING['loggers']['authentication.services'] = {
+    'handlers': ['file', 'console'],
+    'level': 'INFO',
+    'propagate': False,
+}
+
+LOGGING['loggers']['authentication.middleware'] = {
+    'handlers': ['file', 'console'],
+    'level': 'INFO',
+    'propagate': False,
+}
+
+# OAuth2 URLs configuration
+OAUTH2_PROVIDER_APPLICATION_MODEL = 'oauth2_provider.Application'
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)

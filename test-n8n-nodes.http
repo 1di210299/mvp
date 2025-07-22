@@ -1,0 +1,41 @@
+### 🧪 TEST WHATSAPP SERVICE
+POST https://c6dd629ae13d.ngrok-free.app/api/auth/n8n/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/whatsapp/send/
+Content-Type: application/json
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiJmMGIyY2VmZC0xODE0LTRkMDAtOTBjNC0wZTQwY2QyODNkZTEiLCJleHAiOjE3MzMzMzMxOTksImlhdCI6MTczMjcyODM5OSwidXNlcl9pZCI6MX0.TYZOjF2kEG7I3Pl_sPJlmCnrfkGhKRTHFH7ooJgwvXI
+
+{
+  "to": "5214159999999",
+  "body": "¡Hola! Tu pedido #12345 ha sido confirmado y está siendo preparado. ¡Gracias por tu preferencia! 🍕"
+}
+
+### 🧪 TEST EMAIL SERVICE  
+POST https://c6dd629ae13d.ngrok-free.app/api/auth/n8n/tenants/f0b2cefd-1814-4d00-90c4-0e40cd283de1/email/send/
+Content-Type: application/json
+Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiJmMGIyY2VmZC0xODE0LTRkMDAtOTBjNC0wZTQwY2QyODNkZTEiLCJleHAiOjE3MzMzMzMxOTksImlhdCI6MTczMjcyODM5OSwidXNlcl9pZCI6MX0.TYZOjF2kEG7I3Pl_sPJlmCnrfkGhKRTHFH7ooJgwvXI
+
+{
+  "to": "test@empresa.com",
+  "subject": "Pedido Confirmado - Empresa NN Prod Test",
+  "body": "Estimado cliente,\n\nTu pedido #12345 ha sido confirmado exitosamente.\n\nDetalles:\n- Pizza Margherita x1\n- Total: $150.00\n\n¡Gracias por tu preferencia!"
+}
+
+### 🧪 TEST FLUJO COMPLETO N8N
+POST https://your-n8n-webhook-url
+Content-Type: application/json
+
+{
+  "tenantJwt": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiJmMGIyY2VmZC0xODE0LTRkMDAtOTBjNC0wZTQwY2QyODNkZTEiLCJleHAiOjE3MzMzMzMxOTksImlhdCI6MTczMjcyODM5OSwidXNlcl9pZCI6MX0.TYZOjF2kEG7I3Pl_sPJlmCnrfkGhKRTHFH7ooJgwvXI",
+  "tenant_id": "f0b2cefd-1814-4d00-90c4-0e40cd283de1",
+  "event_type": "order_confirmed",
+  "event_id": "order_12345",
+  "customer_data": {
+    "name": "Juan Pérez",
+    "phone": "5214159999999",
+    "email": "test@empresa.com"
+  },
+  "order_data": {
+    "order_id": "12345",
+    "total": "$150.00",
+    "items": ["Pizza Margherita"]
+  }
+}

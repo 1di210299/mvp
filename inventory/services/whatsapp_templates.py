@@ -261,71 +261,9 @@ Para consultas, contáctenos directamente."""
         return "Estado actualizado en el sistema."
 
 
-class WhatsAppMessageProcessor:
-    """Procesador inteligente de mensajes WhatsApp"""
-    
-    @staticmethod
-    def process_message(message_text, supplier=None):
-        """Procesar mensaje y determinar tipo de respuesta"""
-        message_lower = message_text.lower().strip()
-        
-        # Detectar números de orden
-        import re
-        order_pattern = r'#?PO-\d{4}-\d{2}-\d{2}-\d{4}'
-        order_match = re.search(order_pattern, message_text, re.IGNORECASE)
-        
-        # Mapeo de palabras clave a tipos de respuesta
-        keyword_map = {
-            'confirmado': 'confirmed',
-            'confirmo': 'confirmed', 
-            'disponible': 'confirmed',
-            'ok': 'confirmed',
-            'sí': 'confirmed',
-            'si': 'confirmed',
-            
-            'no disponible': 'not_available',
-            'agotado': 'not_available',
-            'sin stock': 'not_available',
-            'no tengo': 'not_available',
-            
-            'precio': 'price_inquiry',
-            'costo': 'price_inquiry',
-            'cotización': 'price_inquiry',
-            'cotizar': 'price_inquiry',
-            
-            'tiempo': 'delivery_inquiry',
-            'entrega': 'delivery_inquiry',
-            'cuándo': 'delivery_inquiry',
-            'cuando': 'delivery_inquiry',
-            
-            'contacto': 'human_contact',
-            'persona': 'human_contact',
-            'humano': 'human_contact',
-            
-            'ayuda': 'help',
-            'comandos': 'help',
-            'help': 'help',
-            
-            'hola': 'welcome',
-            'hi': 'welcome',
-            'hello': 'welcome',
-            'buenas': 'welcome',
-        }
-        
-        # Buscar coincidencias
-        for keyword, response_type in keyword_map.items():
-            if keyword in message_lower:
-                return {
-                    'type': response_type,
-                    'order_number': order_match.group(0) if order_match else None,
-                    'original_message': message_text,
-                    'confidence': 0.9 if len(keyword) > 3 else 0.7
-                }
-        
-        # Si no hay coincidencias, respuesta por defecto
-        return {
-            'type': 'default',
-            'order_number': order_match.group(0) if order_match else None,
-            'original_message': message_text,
-            'confidence': 0.3
-        }
+# ===========================================
+# PROCESSING MOVIDO A N8N WORKFLOWS
+# ===========================================
+
+# La funcionalidad de WhatsAppMessageProcessor se movió a n8n workflows
+# Para processing inteligente de mensajes WhatsApp, configurar en n8n

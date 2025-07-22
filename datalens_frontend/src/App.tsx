@@ -33,6 +33,14 @@ import WhatsAppSettingsPage from './pages/WhatsAppSettingsPage';
 const AppContent: React.FC = () => {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
+  // Debug logging
+  console.log('🔍 App State:', { 
+    isAuthenticated, 
+    isLoading, 
+    user: user?.email || 'null',
+    token: localStorage.getItem('access_token') ? 'exists' : 'none'
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">

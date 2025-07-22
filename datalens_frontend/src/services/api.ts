@@ -12,7 +12,7 @@ import {
   ApiResponse 
 } from '../types';
 
-const API_BASE_URL = 'http://localhost:8080/api';  // FIX: Cambiado a 8080 donde está corriendo Django
+const API_BASE_URL = 'http://localhost:8080/api';  // FIX: Corregido al puerto 8000 donde está corriendo Django
 
 // **NUEVO: Función para crear headers optimizados**
 const createOptimizedHeaders = (includeAuth: boolean = true): Record<string, string> => {
