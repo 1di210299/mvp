@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Backend Connection</title>
+</head>
+<body>
+    <h1>Test Backend Connection</h1>
+    <button onclick="testConnection()">Test Connection</button>
+    <div id="results"></div>
+
+    <script>
+        async function testConnection() {
+            const results = document.getElementById('results');
+            results.innerHTML = 'Testing...';
+
+            try {
+                // Test 1: Basic backend health
+                console.log('🔍 Testing backend health...');
+                const healthResponse = await fetch('http://localhost:8080/api/auth/profile/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Health response status:', healthResponse.status);
+                console.log('Health response headers:', Object.fromEntries(healthResponse.headers.entries()));
+
+                // Test 2: Test data-import endpoint
+                console.log('🔍 Testing data-import endpoint...');
+                const importResponse = await fetch('http://localhost:8080/api/data-import/sessions/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Import response status:', importResponse.status);
+                console.log('Import response headers:', Object.fromEntries(importResponse.headers.entries()));
+
+                results.innerHTML = `
+                    <h3>Results:</h3>
+                    <p>Auth endpoint: ${healthResponse.status} ${healthResponse.statusText}</p>
+                    <p>Data-import endpoint: ${importResponse.status} ${importResponse.statusText}</p>
+                    <p>Check browser console for detailed logs</p>
+                `;
+
+            } catch (error) {
+                console.error('Connection error:', error);
+                results.innerHTML = `<p style="color: red;">Connection failed: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

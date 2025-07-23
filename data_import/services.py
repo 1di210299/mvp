@@ -8,6 +8,9 @@ import difflib
 from decimal import Decimal
 from datetime import datetime, date
 import re
+import openai
+from django.conf import settings
+import json
 from .models import DataImportSession, ColumnMapping, FieldDefinition, FIELD_DEFINITIONS
 
 
@@ -175,45 +178,125 @@ class FileAnalysisService:
 
 
 class ColumnMappingService:
-    """Servicio para sugerir mapeos de columnas"""
+    """Servicio para sugerir mapeos de columnas con IA"""
     
     @staticmethod
-    def suggest_mappings(detected_columns: List[str], import_type: str) -> Dict[str, str]:
-        """Sugiere mapeos automáticos basados en similitud de nombres"""
-        # Obtener campos disponibles para el tipo de importación
+    def suggest_mappings(detected_columns: List[str], import_type: str) -> Dict[str, Dict]:
+        """Sugiere mapeos automáticos basados en similitud de nombres y análisis IA"""
         if import_type not in FIELD_DEFINITIONS:
             return {}
         
         available_fields = FIELD_DEFINITIONS[import_type]
         suggestions = {}
         
+        # Intentar mapeo inteligente con IA primero
+        ai_suggestions = ColumnMappingService._ai_mapping_suggestions(detected_columns, import_type, available_fields)
+        
         for col in detected_columns:
-            best_match = ColumnMappingService._find_best_match(col, available_fields)
-            if best_match:
+            # Si hay sugerencia IA, usarla
+            if col in ai_suggestions and ai_suggestions[col]:
+                suggestions[col] = ai_suggestions[col]
+            else:
+                # Fallback: mapeo por patrones
+                best_match = ColumnMappingService._find_best_match(col, available_fields)
                 suggestions[col] = best_match
         
         return suggestions
     
     @staticmethod
-    def _find_best_match(column_name: str, available_fields: List[Dict]) -> str:
-        """Encuentra el mejor match para una columna"""
+    def _ai_mapping_suggestions(detected_columns: List[str], import_type: str, available_fields: List[Dict]) -> Dict[str, str]:
+        """Usar IA para sugerir mapeos más precisos"""
+        print(f"🧠 BACKEND: Generando mapeos con IA para {len(detected_columns)} columnas")
+        
+        try:
+            api_key = getattr(settings, 'OPENAI_API_KEY', None)
+            if not api_key:
+                print(f"⚠️ BACKEND: No hay API key para mapeo IA")
+                return {}
+            
+            client = openai.OpenAI(api_key=api_key)
+            
+            # Preparar información para el prompt
+            field_names = [field['field_name'] for field in available_fields]
+            field_info = {field['field_name']: field.get('display_name', field['field_name']) for field in available_fields}
+            
+            prompt = f"""Eres un experto en mapeo de datos para empresas peruanas.
+
+Necesitas mapear estas columnas detectadas en el archivo a los campos del sistema:
+
+COLUMNAS DEL ARCHIVO:
+{detected_columns}
+
+CAMPOS DISPONIBLES EN EL SISTEMA (tipo: {import_type}):
+{json.dumps(field_info, indent=2, ensure_ascii=False)}
+
+REGLAS:
+1. Solo mapea si hay una relación lógica clara
+2. Considera terminología peruana común
+3. Si no hay match claro, no mapees (devuelve null)
+4. Prioriza campos más importantes
+
+Responde SOLO con un JSON válido:
+{{
+    "columna_archivo": "campo_sistema" o null,
+    "otra_columna": "otro_campo" o null
+}}
+
+Ejemplo: si ves "Precio de Venta" debe ir a "sale_price", "RUC Proveedor" a "supplier_tax_id", etc."""
+
+            print(f"🧠 BACKEND: Enviando mapeo a OpenAI...")
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Eres un especialista en datos empresariales peruanos y mapeo de información."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=800
+            )
+            
+            content = response.choices[0].message.content.strip()
+            print(f"🧠 BACKEND: Respuesta mapeo IA recibida")
+            
+            # Parsear JSON
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                mappings = json.loads(json_match.group())
+                print(f"✅ BACKEND: {len([k for k, v in mappings.items() if v])} mapeos IA generados")
+                return mappings
+            else:
+                print(f"⚠️ BACKEND: No se pudo parsear mapeo JSON")
+                return {}
+                
+        except Exception as e:
+            print(f"❌ BACKEND: Error en mapeo IA: {str(e)}")
+            return {}
+    
+    @staticmethod
+    def _find_best_match(column_name: str, available_fields: List[Dict]) -> Dict:
+        """Encuentra el mejor match para una columna (método fallback)"""
         column_name_clean = column_name.lower().strip()
         
-        # Mapeos exactos
+        # Mapeos exactos mejorados para nuestro archivo
         exact_mappings = {
             'sku': 'sku',
             'codigo': 'sku',
             'código': 'sku',
             'producto': 'name',
             'nombre': 'name',
+            'etiquetas de fila': 'name',  # Para nuestro archivo específico
             'descripcion': 'description',
             'descripción': 'description',
             'categoria': 'category',
             'categoría': 'category',
             'proveedor': 'supplier',
             'precio': 'sale_price',
+            'precio de venta': 'sale_price',  # Para nuestro archivo específico
             'costo': 'cost_price',
-            'stock': 'min_stock',
+            'precio de compra': 'cost_price',  # Para nuestro archivo específico
+            'stock': 'stock',
+            'cantidades vendidas': 'stock',  # Para nuestro archivo específico
             'email': 'email',
             'correo': 'email',
             'telefono': 'phone',
@@ -237,7 +320,12 @@ class ColumnMappingService:
             # Verificar que el campo existe en los campos disponibles
             for field in available_fields:
                 if field['field_name'] == field_name:
-                    return field_name
+                    return {
+                        'target_field': field_name,
+                        'display_name': field['display_name'],
+                        'field_type': field['field_type'],
+                        'confidence': 1.0
+                    }
         
         # Buscar por similitud
         best_similarity = 0
@@ -257,9 +345,17 @@ class ColumnMappingService:
             # Si la similitud es mayor al umbral y mejor que la anterior
             if max_similarity > 0.6 and max_similarity > best_similarity:
                 best_similarity = max_similarity
-                best_field = field['field_name']
+                best_field = field
         
-        return best_field
+        if best_field:
+            return {
+                'target_field': best_field['field_name'],
+                'display_name': best_field['display_name'],
+                'field_type': best_field['field_type'],
+                'confidence': best_similarity
+            }
+        
+        return None
 
 
 class DataImportService:

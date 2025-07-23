@@ -8,5 +8,5 @@ router.register(r'field-definitions', FieldDefinitionViewSet, basename='fielddef
 router.register(r'templates', ImportTemplateViewSet, basename='importtemplate')
 
 urlpatterns = [
-    path('api/', include(router.urls)),
+    path('', include(router.urls)),
 ]

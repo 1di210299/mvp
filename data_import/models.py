@@ -26,7 +26,40 @@ class DataImportSession(models.Model):
         ('leads', 'Leads'),
         ('inventory', 'Inventario'),
         ('transactions', 'Transacciones'),
+        # Tipos mezclados (comunes en PYMEs peruanas)
+        ('mixed_products_inventory', '🔀 Productos + Inventario'),
+        ('mixed_sales_products', '🔀 Ventas + Productos'),
+        ('mixed_suppliers_products', '🔀 Proveedores + Productos'),
     ]
+    
+    @classmethod
+    def get_valid_import_types(cls):
+        """Obtener tipos válidos incluyendo tipos dinámicos detectados por IA"""
+        # Tipos base del modelo
+        base_types = [choice[0] for choice in cls.IMPORT_TYPES]
+        
+        # Tipos dinámicos existentes en FieldDefinition
+        from data_import.models import FieldDefinition
+        dynamic_types = FieldDefinition.objects.values_list('import_type', flat=True).distinct()
+        
+        # Combinar y eliminar duplicados
+        all_types = list(set(base_types + list(dynamic_types)))
+        
+        return all_types
+    
+    @classmethod
+    def is_valid_import_type(cls, import_type):
+        """Validar si un tipo de importación es válido (base o dinámico)"""
+        return import_type in cls.get_valid_import_types()
+    
+    def clean(self):
+        """Validación personalizada del modelo"""
+        super().clean()
+        if self.import_type and not self.is_valid_import_type(self.import_type):
+            # Si no es válido pero empieza con 'mixed_', permitirlo (será creado por IA)
+            if not self.import_type.startswith('mixed_'):
+                from django.core.exceptions import ValidationError
+                raise ValidationError(f'Tipo de importación no válido: {self.import_type}')
     
     company = models.ForeignKey(
         'authentication.Company',
@@ -40,7 +73,7 @@ class DataImportSession(models.Model):
     )
     
     # Información básica
-    import_type = models.CharField(max_length=20, choices=IMPORT_TYPES)
+    import_type = models.CharField(max_length=100)  # Sin choices para permitir tipos dinámicos
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     original_filename = models.CharField(max_length=255)
     file_path = models.CharField(max_length=500)
@@ -126,7 +159,7 @@ class ImportTemplate(models.Model):
     
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    import_type = models.CharField(max_length=20, choices=DataImportSession.IMPORT_TYPES)
+    import_type = models.CharField(max_length=50, choices=DataImportSession.IMPORT_TYPES)  # Aumentado para tipos mezclados
     
     # Configuración guardada
     column_mappings = models.JSONField(default=dict)
@@ -162,7 +195,7 @@ class FieldDefinition(models.Model):
         ('foreign_key', 'Relación'),
     ]
     
-    import_type = models.CharField(max_length=20, choices=DataImportSession.IMPORT_TYPES)
+    import_type = models.CharField(max_length=50, choices=DataImportSession.IMPORT_TYPES)  # Aumentado para tipos mezclados
     field_name = models.CharField(max_length=100)  # Nombre del campo en el modelo
     display_name = models.CharField(max_length=200)  # Nombre mostrado al usuario
     field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
@@ -327,5 +360,47 @@ FIELD_DEFINITIONS = {
         {'field_name': 'reference_number', 'display_name': 'Número de Referencia', 'field_type': 'text', 'max_length': 100, 'description': 'Número de referencia de la transacción'},
         {'field_name': 'notes', 'display_name': 'Notas', 'field_type': 'text', 'description': 'Notas de la transacción'},
         {'field_name': 'transaction_date', 'display_name': 'Fecha de Transacción', 'field_type': 'datetime', 'description': 'Fecha y hora de la transacción'},
+    ],
+    'sales': [
+        {'field_name': 'customer', 'display_name': 'Cliente', 'field_type': 'foreign_key', 'related_model': 'Customer', 'lookup_field': 'name', 'is_required': True, 'description': 'Cliente de la venta'},
+        {'field_name': 'product', 'display_name': 'Producto', 'field_type': 'foreign_key', 'related_model': 'Product', 'lookup_field': 'sku', 'is_required': True, 'description': 'Producto vendido'},
+        {'field_name': 'quantity', 'display_name': 'Cantidad', 'field_type': 'decimal', 'is_required': True, 'min_value': 0, 'description': 'Cantidad vendida'},
+        {'field_name': 'unit_price', 'display_name': 'Precio Unitario', 'field_type': 'decimal', 'is_required': True, 'min_value': 0, 'description': 'Precio unitario de venta'},
+        {'field_name': 'discount', 'display_name': 'Descuento', 'field_type': 'decimal', 'min_value': 0, 'default_value': '0', 'description': 'Descuento aplicado'},
+        {'field_name': 'tax_rate', 'display_name': 'Tasa de Impuesto (%)', 'field_type': 'decimal', 'min_value': 0, 'default_value': '18', 'description': 'Porcentaje de impuesto'},
+        {'field_name': 'sale_date', 'display_name': 'Fecha de Venta', 'field_type': 'date', 'is_required': True, 'description': 'Fecha de la venta'},
+        {'field_name': 'invoice_number', 'display_name': 'Número de Factura', 'field_type': 'text', 'max_length': 50, 'description': 'Número de factura o boleta'},
+        {'field_name': 'payment_method', 'display_name': 'Método de Pago', 'field_type': 'choice', 'choices': [
+            {'value': 'cash', 'label': 'Efectivo'},
+            {'value': 'card', 'label': 'Tarjeta'},
+            {'value': 'transfer', 'label': 'Transferencia'},
+            {'value': 'check', 'label': 'Cheque'},
+            {'value': 'credit', 'label': 'Crédito'},
+        ], 'default_value': 'cash', 'description': 'Método de pago utilizado'},
+        {'field_name': 'notes', 'display_name': 'Notas', 'field_type': 'text', 'description': 'Observaciones de la venta'},
+    ],
+    'purchases': [
+        {'field_name': 'supplier', 'display_name': 'Proveedor', 'field_type': 'foreign_key', 'related_model': 'Supplier', 'lookup_field': 'name', 'is_required': True, 'description': 'Proveedor de la compra'},
+        {'field_name': 'product', 'display_name': 'Producto', 'field_type': 'foreign_key', 'related_model': 'Product', 'lookup_field': 'sku', 'is_required': True, 'description': 'Producto comprado'},
+        {'field_name': 'quantity', 'display_name': 'Cantidad', 'field_type': 'decimal', 'is_required': True, 'min_value': 0, 'description': 'Cantidad comprada'},
+        {'field_name': 'unit_cost', 'display_name': 'Costo Unitario', 'field_type': 'decimal', 'is_required': True, 'min_value': 0, 'description': 'Costo unitario de compra'},
+        {'field_name': 'tax_rate', 'display_name': 'Tasa de Impuesto (%)', 'field_type': 'decimal', 'min_value': 0, 'default_value': '18', 'description': 'Porcentaje de impuesto'},
+        {'field_name': 'purchase_date', 'display_name': 'Fecha de Compra', 'field_type': 'date', 'is_required': True, 'description': 'Fecha de la compra'},
+        {'field_name': 'invoice_number', 'display_name': 'Número de Factura', 'field_type': 'text', 'max_length': 50, 'description': 'Número de factura del proveedor'},
+        {'field_name': 'due_date', 'display_name': 'Fecha de Vencimiento', 'field_type': 'date', 'description': 'Fecha de vencimiento del pago'},
+        {'field_name': 'payment_status', 'display_name': 'Estado de Pago', 'field_type': 'choice', 'choices': [
+            {'value': 'pending', 'label': 'Pendiente'},
+            {'value': 'partial', 'label': 'Parcial'},
+            {'value': 'paid', 'label': 'Pagado'},
+            {'value': 'overdue', 'label': 'Vencido'},
+        ], 'default_value': 'pending', 'description': 'Estado del pago'},
+        {'field_name': 'notes', 'display_name': 'Notas', 'field_type': 'text', 'description': 'Observaciones de la compra'},
+    ],
+    'inventory': [
+        {'field_name': 'product', 'display_name': 'Producto', 'field_type': 'foreign_key', 'related_model': 'Product', 'lookup_field': 'sku', 'is_required': True, 'description': 'Producto del inventario'},
+        {'field_name': 'location', 'display_name': 'Ubicación', 'field_type': 'foreign_key', 'related_model': 'Location', 'lookup_field': 'code', 'description': 'Ubicación del inventario'},
+        {'field_name': 'current_stock', 'display_name': 'Stock Actual', 'field_type': 'decimal', 'is_required': True, 'min_value': 0, 'description': 'Stock actual del producto'},
+        {'field_name': 'unit_cost', 'display_name': 'Costo Unitario', 'field_type': 'decimal', 'min_value': 0, 'description': 'Costo promedio del inventario'},
+        {'field_name': 'last_updated', 'display_name': 'Última Actualización', 'field_type': 'datetime', 'description': 'Fecha de última actualización'},
     ],
 }
